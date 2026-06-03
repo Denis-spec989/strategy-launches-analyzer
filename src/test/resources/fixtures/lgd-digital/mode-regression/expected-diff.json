@@ -1,0 +1,7 @@
+[
+  {
+    "path": "strategyResponse.calculationInfo.mode",
+    "type": "STRING_VALUE_CHANGED",
+    "category": "CONTRACT_TECHNICAL"
+  }
+]

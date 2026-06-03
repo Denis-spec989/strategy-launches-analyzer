@@ -1,0 +1,8 @@
+{
+  "overallSeverity": "CRITICAL",
+  "mustMention": [
+    "mode changed",
+    "constant or mapping regression",
+    "blocking contract issue before promotion"
+  ]
+}

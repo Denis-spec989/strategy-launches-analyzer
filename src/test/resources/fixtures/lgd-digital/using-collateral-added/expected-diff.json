@@ -1,0 +1,7 @@
+[
+  {
+    "path": "strategyResponse.calculationInfo.usingCollateral",
+    "type": "FIELD_ADDED_IN_SHADOW",
+    "category": "CONTRACT_TECHNICAL"
+  }
+]

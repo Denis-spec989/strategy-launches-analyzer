@@ -1,0 +1,17 @@
+[
+  {
+    "path": "strategyResponse.lgdData.lgd",
+    "type": "NUMERIC_VALUE_CHANGED",
+    "category": "METRIC"
+  },
+  {
+    "path": "strategyResponse.lgdData.lgdModel",
+    "type": "STRING_VALUE_CHANGED",
+    "category": "MODEL"
+  },
+  {
+    "path": "strategyResponse.lgdData.lgdDt",
+    "type": "NUMERIC_VALUE_CHANGED",
+    "category": "METRIC"
+  }
+]

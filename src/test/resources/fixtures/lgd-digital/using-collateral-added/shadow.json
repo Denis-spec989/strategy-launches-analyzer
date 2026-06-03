@@ -1,0 +1,17 @@
+{
+  "strategyResponse": {
+    "lgdData": {
+      "lgd": 18.1,
+      "lgdModel": "Корпоративные клиенты 2022",
+      "lgdDt": 18.1
+    },
+    "calculationInfo": {
+      "usingCollateral": "4",
+      "mode": "DEAL",
+      "type": "ONLINE",
+      "scenario": "LGD_CALCULATION_FOR_FZHN",
+      "usedDefaultValue": true,
+      "defaultValueReason": "LGD_CALCULATION_FOR_FZHN"
+    }
+  }
+}

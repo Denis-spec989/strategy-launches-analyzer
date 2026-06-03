@@ -1,0 +1,8 @@
+{
+  "overallSeverity": "WARNING",
+  "mustMention": [
+    "usingCollateral appeared only in shadow",
+    "expected number but got string",
+    "shape or serialization change"
+  ]
+}
