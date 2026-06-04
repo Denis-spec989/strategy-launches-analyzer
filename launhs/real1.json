@@ -1,0 +1,89 @@
+{
+  "strategyName": "LGD_DIGITAL",
+  "summary": {
+    "strategyName": "LGD_DIGITAL",
+    "totalDiffs": 3,
+    "metricDiffs": 2,
+    "modelDiffs": 1,
+    "contractTechnicalDiffs": 0,
+    "contractValidationIssues": 0,
+    "hasCriticalIssues": false,
+    "highestSeverity": "WARNING"
+  },
+  "diffs": [
+    {
+      "id": "D001",
+      "path": "strategyResponse.lgdData.lgd",
+      "type": "NUMERIC_VALUE_CHANGED",
+      "category": "METRIC",
+      "mainValue": 18.1,
+      "shadowValue": 20.4,
+      "absoluteDelta": 2.3,
+      "relativeDeltaPercent": 12.7072,
+      "description": "Numeric value changed in shadow launch."
+    },
+    {
+      "id": "D002",
+      "path": "strategyResponse.lgdData.lgdModel",
+      "type": "STRING_VALUE_CHANGED",
+      "category": "MODEL",
+      "mainValue": "Corporate clients 2022",
+      "shadowValue": "Corporate clients 2023",
+      "description": "String value changed in shadow launch."
+    },
+    {
+      "id": "D003",
+      "path": "strategyResponse.lgdData.lgdDt",
+      "type": "NUMERIC_VALUE_CHANGED",
+      "category": "METRIC",
+      "mainValue": 18.1,
+      "shadowValue": 20.4,
+      "absoluteDelta": 2.3,
+      "relativeDeltaPercent": 12.7072,
+      "description": "Numeric value changed in shadow launch."
+    }
+  ],
+  "contractValidation": [],
+  "agentAnalysis": {
+    "status": "COMPLETED",
+    "overallSeverity": "WARNING",
+    "summary": "LGD_DIGITAL shows 3 deterministic diffs: 2 metric changes and 1 model change, with highest severity WARNING and no reported contract validation issues. The shadow launch uses model \"Corporate clients 2023\" instead of \"Corporate clients 2022\" and produces higher LGD-related values (18.1 to 20.4, +12.7072%) for both lgd and lgdDt. There is no evidence in this payload of shape, schema, type, or nullability issues, but those compatibility dimensions should continue to be monitored.",
+    "businessImpact": "The shadow launch indicates a higher LGD outcome than main for both strategyResponse.lgdData.lgd and strategyResponse.lgdData.lgdDt, increasing from 18.1 to 20.4 (+2.3, +12.7072%). This can materially change downstream loss estimates, pricing, provisioning, limit setting, or approval-related decisions that consume LGD_DIGITAL outputs. The model label also changes from \"Corporate clients 2022\" to \"Corporate clients 2023\", which signals that business results are being produced under a different model/version context and may affect comparability, governance, and rollout readiness. No contract validation issues were reported, so there is no evidence here of shape, schema, type, or nullability breakage; however, these dimensions should still be monitored during rollout because consumer compatibility depends on them remaining stable.",
+    "technicalRisks": "The primary technical risk is behavioral drift: a model/version change is accompanied by materially different LGD outputs, which may alter downstream system behavior and create inconsistencies if consumers assume continuity with the prior version. Because both lgd and lgdDt changed by the same amount, there is also a risk of undocumented coupling or duplicated business meaning that should be clarified to avoid misinterpretation by consuming services. Although contractTechnicalDiffs and contractValidationIssues are both zero, shape, schema, type, and nullability remain important rollout risks and should be continuously validated because even absent issues in this payload, any future incompatibility could break integrations or analytics.",
+    "recommendations": [
+      "Validate with model owners whether the move from \"Corporate clients 2022\" to \"Corporate clients 2023\" is the intended shadow configuration for this test.",
+      "Quantify downstream business impact of the +2.3 LGD increase on key use cases such as expected loss, pricing, provisioning, and decision thresholds before any promotion.",
+      "Confirm whether strategyResponse.lgdData.lgd and strategyResponse.lgdData.lgdDt are expected to move together and document the semantic relationship between these fields.",
+      "Run targeted regression checks on a broader sample to determine whether the observed LGD uplift is systematic or limited to specific segments.",
+      "Maintain contract monitoring even though no contract validation issues were detected here; explicitly continue checking shape, schema, type, and nullability stability during rollout.",
+      "If promotion is considered, require sign-off from model governance and downstream consumers acknowledging the metric changes and model-version change."
+    ],
+    "diffExplanations": [
+      {
+        "diffId": "D001",
+        "path": "strategyResponse.lgdData.lgd",
+        "severity": "WARNING",
+        "explanation": "The numeric value at strategyResponse.lgdData.lgd changed from 18.1 in main to 20.4 in shadow, an absolute increase of 2.3 and a relative increase of 12.7072%. This is a metric-level warning because it changes the core LGD output consumed by downstream processes. The payload does not provide evidence of a defect or root cause, only that the deterministic output differs. No shape, schema, type, or nullability issue is reported for this field."
+      },
+      {
+        "diffId": "D002",
+        "path": "strategyResponse.lgdData.lgdModel",
+        "severity": "WARNING",
+        "explanation": "The model identifier at strategyResponse.lgdData.lgdModel changed from \"Corporate clients 2022\" to \"Corporate clients 2023\". This is a model-level warning because it confirms the shadow launch is using a different model/version designation, which can legitimately drive output changes and requires governance validation before promotion. No shape, schema, type, or nullability issue is reported for this field."
+      },
+      {
+        "diffId": "D003",
+        "path": "strategyResponse.lgdData.lgdDt",
+        "severity": "WARNING",
+        "explanation": "The numeric value at strategyResponse.lgdData.lgdDt changed from 18.1 in main to 20.4 in shadow, an absolute increase of 2.3 and a relative increase of 12.7072%. This is a metric-level warning because it indicates a second LGD-related output changed in line with the primary LGD metric. The payload supports the presence of the value change but does not establish why it occurred. No shape, schema, type, or nullability issue is reported for this field."
+      }
+    ],
+    "tokenUsage": {
+      "inputTokens": 1054,
+      "outputTokens": 976,
+      "totalTokens": 2030,
+      "cacheReadInputTokens": 0,
+      "model": "gpt-5.4-2026-03-05"
+    }
+  }
+}

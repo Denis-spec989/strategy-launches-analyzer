@@ -1,7 +1,8 @@
 package com.github.denisspec989.strategy_launches_analyzer.agent;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
 import org.springframework.ai.chat.client.ChatClient;
-import org.springframework.boot.autoconfigure.condition.ConditionalOnBean;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.context.annotation.Bean;
@@ -11,12 +12,21 @@ import org.springframework.context.annotation.Configuration;
 public class AgentConfiguration {
     @Bean
     @ConditionalOnProperty(name = "strategy-launches-analyzer.agent.provider", havingValue = "openai")
-    @ConditionalOnBean(ChatClient.Builder.class)
-    public AgentAnalyzer springAiAgentAnalyzer(ChatClient.Builder chatClientBuilder, AgentPromptBuilder promptBuilder) {
-        return new SpringAiAgentAnalyzer(chatClientBuilder, promptBuilder);
+    public AgentAnalyzer springAiAgentAnalyzer(
+            ChatClient.Builder chatClientBuilder,
+            AgentPromptBuilder promptBuilder,
+            ObjectMapper objectMapper,
+            @Value("${spring.ai.openai.chat.model:not-configured}") String configuredModel
+    ) {
+        return new SpringAiAgentAnalyzer(chatClientBuilder, promptBuilder, objectMapper, configuredModel);
     }
 
     @Bean
+    @ConditionalOnProperty(
+            name = "strategy-launches-analyzer.agent.provider",
+            havingValue = "fallback",
+            matchIfMissing = true
+    )
     @ConditionalOnMissingBean(AgentAnalyzer.class)
     public AgentAnalyzer fallbackAgentAnalyzer() {
         return new FallbackAgentAnalyzer();

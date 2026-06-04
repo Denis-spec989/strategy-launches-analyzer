@@ -1,0 +1,170 @@
+@baseUrl = http://localhost:8080
+
+### LGD_DIGITAL compare: model and metric changes
+POST  http://localhost:8080/api/v1/strategies/lgd-digital/compare
+Content-Type: application/json
+
+{
+  "mainLaunch": {
+    "strategyResponse": {
+      "lgdData": {
+        "lgd": 18.1,
+        "lgdModel": "Corporate clients 2022",
+        "lgdDt": 18.1
+      },
+      "calculationInfo": {
+        "mode": "DEAL",
+        "type": "ONLINE",
+        "scenario": "LGD_CALCULATION_FOR_FZHN",
+        "usedDefaultValue": true,
+        "defaultValueReason": "LGD_CALCULATION_FOR_FZHN"
+      }
+    }
+  },
+  "shadowLaunch": {
+    "strategyResponse": {
+      "lgdData": {
+        "lgd": 20.4,
+        "lgdModel": "Corporate clients 2023",
+        "lgdDt": 20.4
+      },
+      "calculationInfo": {
+        "mode": "DEAL",
+        "type": "ONLINE",
+        "scenario": "LGD_CALCULATION_FOR_FZHN",
+        "usedDefaultValue": true,
+        "defaultValueReason": "LGD_CALCULATION_FOR_FZHN"
+      }
+    }
+  },
+  "metadata": {
+    "requestId": "REQ-1",
+    "mainLaunchId": "MAIN-1",
+    "shadowLaunchId": "SHADOW-1",
+    "mainStrategyVersion": "2022",
+    "shadowStrategyVersion": "2023",
+    "launchTimestamp": "2026-06-04T11:00:00Z",
+    "attributes": {
+      "source": "manual-http-check"
+    }
+  }
+}
+
+### LGD_DIGITAL compare: optional field added in shadow
+POST {{baseUrl}}/api/v1/strategies/lgd-digital/compare
+Content-Type: application/json
+
+{
+  "mainLaunch": {
+    "strategyResponse": {
+      "lgdData": {
+        "lgd": 18.1,
+        "lgdModel": "Corporate clients 2022",
+        "lgdDt": 18.1
+      },
+      "calculationInfo": {
+        "mode": "DEAL",
+        "type": "ONLINE",
+        "scenario": "LGD_CALCULATION_FOR_FZHN",
+        "usedDefaultValue": true,
+        "defaultValueReason": "LGD_CALCULATION_FOR_FZHN"
+      }
+    }
+  },
+  "shadowLaunch": {
+    "strategyResponse": {
+      "lgdData": {
+        "lgd": 18.1,
+        "lgdModel": "Corporate clients 2022",
+        "lgdDt": 18.1
+      },
+      "calculationInfo": {
+        "mode": "DEAL",
+        "type": "ONLINE",
+        "scenario": "LGD_CALCULATION_FOR_FZHN",
+        "usedDefaultValue": true,
+        "defaultValueReason": "LGD_CALCULATION_FOR_FZHN",
+        "usingCollateral": 1
+      }
+    }
+  },
+  "metadata": {
+    "requestId": "REQ-2",
+    "mainLaunchId": "MAIN-2",
+    "shadowLaunchId": "SHADOW-2"
+  }
+}
+
+### LGD_DIGITAL compare: technical mode regression
+POST {{baseUrl}}/api/v1/strategies/lgd-digital/compare
+Content-Type: application/json
+
+{
+  "mainLaunch": {
+    "strategyResponse": {
+      "lgdData": {
+        "lgd": 18.1,
+        "lgdModel": "Corporate clients 2022",
+        "lgdDt": 18.1
+      },
+      "calculationInfo": {
+        "mode": "DEAL",
+        "type": "ONLINE",
+        "scenario": "LGD_CALCULATION_FOR_FZHN",
+        "usedDefaultValue": true,
+        "defaultValueReason": "LGD_CALCULATION_FOR_FZHN"
+      }
+    }
+  },
+  "shadowLaunch": {
+    "strategyResponse": {
+      "lgdData": {
+        "lgd": 18.1,
+        "lgdModel": "Corporate clients 2022",
+        "lgdDt": 18.1
+      },
+      "calculationInfo": {
+        "mode": "PORTFOLIO",
+        "type": "ONLINE",
+        "scenario": "LGD_CALCULATION_FOR_FZHN",
+        "usedDefaultValue": true,
+        "defaultValueReason": "LGD_CALCULATION_FOR_FZHN"
+      }
+    }
+  },
+  "metadata": {
+    "requestId": "REQ-3",
+    "mainLaunchId": "MAIN-3",
+    "shadowLaunchId": "SHADOW-3"
+  }
+}
+
+### Bad request: missing mainLaunch.strategyResponse
+POST {{baseUrl}}/api/v1/strategies/lgd-digital/compare
+Content-Type: application/json
+
+{
+  "mainLaunch": {},
+  "shadowLaunch": {
+    "strategyResponse": {
+      "lgdData": {
+        "lgd": 18.1,
+        "lgdModel": "Corporate clients 2022",
+        "lgdDt": 18.1
+      },
+      "calculationInfo": {
+        "mode": "DEAL",
+        "type": "ONLINE",
+        "scenario": "LGD_CALCULATION_FOR_FZHN",
+        "usedDefaultValue": true,
+        "defaultValueReason": "LGD_CALCULATION_FOR_FZHN"
+      }
+    }
+  }
+}
+
+### Bad request: invalid JSON
+POST {{baseUrl}}/api/v1/strategies/lgd-digital/compare
+Content-Type: application/json
+
+{

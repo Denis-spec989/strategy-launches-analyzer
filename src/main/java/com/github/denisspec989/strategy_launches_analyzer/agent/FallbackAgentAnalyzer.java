@@ -9,15 +9,24 @@ import com.github.denisspec989.strategy_launches_analyzer.domain.DiffExplanation
 import com.github.denisspec989.strategy_launches_analyzer.domain.DiffType;
 import com.github.denisspec989.strategy_launches_analyzer.domain.Severity;
 import com.github.denisspec989.strategy_launches_analyzer.domain.TokenUsage;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.util.ArrayList;
 import java.util.List;
 
 public class FallbackAgentAnalyzer implements AgentAnalyzer {
+    private static final Logger LOGGER = LoggerFactory.getLogger(FallbackAgentAnalyzer.class);
+
     @Override
     public AgentAnalysis analyze(AgentAnalysisInput input) {
+        LOGGER.info("Fallback agent analysis started: requestId={}, strategyName={}, diffCount={}, contractIssueCount={}. LLM request is not performed in fallback mode.",
+                requestId(input),
+                input.strategyName(),
+                input.diffs().size(),
+                input.contractValidation().size());
         Severity severity = overallSeverity(input);
-        return new AgentAnalysis(
+        AgentAnalysis analysis = new AgentAnalysis(
                 AgentAnalysisStatus.COMPLETED,
                 severity,
                 summary(input),
@@ -28,6 +37,11 @@ public class FallbackAgentAnalyzer implements AgentAnalyzer {
                 TokenUsage.zero(),
                 null
         );
+        LOGGER.info("Fallback agent analysis completed: requestId={}, status={}, severity={}",
+                requestId(input),
+                analysis.status(),
+                analysis.overallSeverity());
+        return analysis;
     }
 
     private static Severity overallSeverity(AgentAnalysisInput input) {
@@ -140,5 +154,12 @@ public class FallbackAgentAnalyzer implements AgentAnalyzer {
                 || diff.type() == DiffType.REQUIRED_FIELD_MISSING
                 || diff.path().endsWith(".mode")
                 || diff.path().endsWith(".type");
+    }
+
+    private static String requestId(AgentAnalysisInput input) {
+        if (input.metadata() == null || input.metadata().requestId() == null || input.metadata().requestId().isBlank()) {
+            return "not-provided";
+        }
+        return input.metadata().requestId();
     }
 }
