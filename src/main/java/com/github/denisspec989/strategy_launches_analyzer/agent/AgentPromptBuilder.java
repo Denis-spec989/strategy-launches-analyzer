@@ -12,6 +12,7 @@ public class AgentPromptBuilder {
             Do not compare raw strategy responses, do not invent missing diffs, and do not claim root cause unless it is explicitly supported.
             Explain business impact, technical risks, and recommended follow-up actions.
             Shape, schema, type, and nullability issues must always be mentioned.
+            Write all user-facing analysis fields in Russian.
             """;
 
     private final ObjectMapper objectMapper;
