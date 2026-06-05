@@ -47,12 +47,12 @@ class ContractValidationTest {
     }
 
     @Test
-    void allowsAbsentOptionalUsingCollateral() {
+    void validatesFixtureWithoutRemovedUsingCollateral() {
         assertThat(validator.validate(fixture(), LaunchSide.MAIN, new AtomicInteger(1))).isEmpty();
     }
 
     @Test
-    void reportsUsingCollateralStringAsTypeMismatch() {
+    void reportsUsingCollateralAsUnknownField() {
         JsonNode launch = TestFixtures.json(
                 objectMapper,
                 "fixtures/lgd-digital/using-collateral-added/shadow.json"
@@ -61,7 +61,7 @@ class ContractValidationTest {
         assertThat(validator.validate(launch, LaunchSide.SHADOW, new AtomicInteger(1)))
                 .singleElement()
                 .satisfies(issue -> {
-                    assertThat(issue.type()).isEqualTo(ContractIssueType.TYPE_MISMATCH);
+                    assertThat(issue.type()).isEqualTo(ContractIssueType.UNKNOWN_FIELD);
                     assertThat(issue.path()).isEqualTo("strategyResponse.calculationInfo.usingCollateral");
                     assertThat(issue.actual()).isEqualTo("string");
                 });

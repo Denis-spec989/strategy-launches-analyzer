@@ -5,6 +5,7 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.github.denisspec989.strategy_launches_analyzer.agent.AgentAnalysisInput;
 import com.github.denisspec989.strategy_launches_analyzer.agent.AgentAnalyzer;
+import com.github.denisspec989.strategy_launches_analyzer.agent.ContractFieldContext;
 import com.github.denisspec989.strategy_launches_analyzer.api.CompareStrategyRequest;
 import com.github.denisspec989.strategy_launches_analyzer.api.CompareStrategyResponse;
 import com.github.denisspec989.strategy_launches_analyzer.api.LaunchMetadata;
@@ -18,20 +19,25 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 
+import java.util.List;
+
 @Service
 public class CompareStrategyLaunchesUseCase {
     private static final Logger LOGGER = LoggerFactory.getLogger(CompareStrategyLaunchesUseCase.class);
 
     private final LgdDigitalDiffEngine diffEngine;
+    private final LgdDigitalContract contract;
     private final AgentAnalyzer agentAnalyzer;
     private final ObjectMapper objectMapper;
 
     public CompareStrategyLaunchesUseCase(
             LgdDigitalDiffEngine diffEngine,
+            LgdDigitalContract contract,
             AgentAnalyzer agentAnalyzer,
             ObjectMapper objectMapper
     ) {
         this.diffEngine = diffEngine;
+        this.contract = contract;
         this.agentAnalyzer = agentAnalyzer;
         this.objectMapper = objectMapper;
     }
@@ -93,6 +99,7 @@ public class CompareStrategyLaunchesUseCase {
                 summary,
                 diffResult.diffs(),
                 diffResult.contractValidation(),
+                contractContext(diffResult),
                 request.metadata()
         );
         LOGGER.info("LGD_DIGITAL agent analysis input: requestId={}, input={}", requestId, prettyJson(input));
@@ -109,6 +116,16 @@ public class CompareStrategyLaunchesUseCase {
                     ex.toString());
             return AgentAnalysis.failed(ex.getMessage());
         }
+    }
+
+    private List<ContractFieldContext> contractContext(DiffResult diffResult) {
+        java.util.Set<String> touchedPaths = new java.util.LinkedHashSet<>();
+        diffResult.diffs().forEach(diff -> touchedPaths.add(diff.path()));
+        diffResult.contractValidation().forEach(issue -> touchedPaths.add(issue.path()));
+        return contract.fields().stream()
+                .filter(field -> touchedPaths.contains(field.path()))
+                .map(ContractFieldContext::from)
+                .toList();
     }
 
     private static void validateRequest(CompareStrategyRequest request) {

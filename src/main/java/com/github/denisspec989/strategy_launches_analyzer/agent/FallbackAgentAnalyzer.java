@@ -30,10 +30,10 @@ public class FallbackAgentAnalyzer implements AgentAnalyzer {
                 AgentAnalysisStatus.COMPLETED,
                 severity,
                 summary(input),
-                businessImpact(input.diffs()),
+                businessImpact(input),
                 technicalRisks(input),
                 recommendations(input),
-                explanations(input.diffs()),
+                explanations(input),
                 TokenUsage.zero(),
                 null
         );
@@ -66,14 +66,18 @@ public class FallbackAgentAnalyzer implements AgentAnalyzer {
                 .formatted(input.diffs().size(), input.contractValidation().size());
     }
 
-    private static String businessImpact(List<DiffEntry> diffs) {
+    private static String businessImpact(AgentAnalysisInput input) {
+        List<DiffEntry> diffs = input.diffs();
         boolean hasMetricDiff = diffs.stream().anyMatch(diff -> diff.category() == DiffCategory.METRIC);
         boolean hasModelDiff = diffs.stream().anyMatch(diff -> diff.category() == DiffCategory.MODEL);
+        String metricDescriptions = descriptions(input, DiffCategory.METRIC);
         if (hasMetricDiff && hasModelDiff) {
-            return "Shadow launch changed LGD metrics and the selected LGD model. The model change may explain the metric delta, but it should be confirmed by strategy traces or business rules.";
+            return "Shadow launch changed LGD metrics%s and the selected LGD model. The model change may explain the metric delta, but it should be confirmed by strategy traces or business rules."
+                    .formatted(metricDescriptions.isBlank() ? "" : " (" + metricDescriptions + ")");
         }
         if (hasMetricDiff) {
-            return "Shadow launch changed LGD metrics. Review absolute and relative deltas before promoting the shadow logic.";
+            return "Shadow launch changed LGD metrics%s. Review absolute and relative deltas before promoting the shadow logic."
+                    .formatted(metricDescriptions.isBlank() ? "" : " (" + metricDescriptions + ")");
         }
         if (hasModelDiff) {
             return "Shadow launch selected a different LGD model while metrics may or may not have changed.";
@@ -118,34 +122,62 @@ public class FallbackAgentAnalyzer implements AgentAnalyzer {
         return List.copyOf(recommendations);
     }
 
-    private static List<DiffExplanation> explanations(List<DiffEntry> diffs) {
-        return diffs.stream()
+    private static List<DiffExplanation> explanations(AgentAnalysisInput input) {
+        return input.diffs().stream()
                 .map(diff -> new DiffExplanation(
                         diff.id(),
                         diff.path(),
                         isCriticalDiff(diff) ? Severity.CRITICAL : Severity.WARNING,
-                        explanation(diff)
+                        explanation(diff, description(input, diff.path()))
                 ))
                 .toList();
     }
 
-    private static String explanation(DiffEntry diff) {
+    private static String explanation(DiffEntry diff, String fieldDescription) {
+        String prefix = fieldDescription.isBlank() ? "" : "Field meaning: " + fieldDescription + ". ";
         if (diff.type() == DiffType.NUMERIC_VALUE_CHANGED) {
-            return "Numeric value changed in shadow launch. Absolute and relative deltas are calculated by the Java diff engine.";
+            return prefix + "Numeric value changed in shadow launch. Absolute and relative deltas are calculated by the Java diff engine.";
         }
         if (diff.category() == DiffCategory.MODEL) {
-            return "LGD model changed in shadow launch. Treat this as a possible explanation for metric changes, not as proven root cause.";
+            return prefix + "LGD model changed in shadow launch. Treat this as a possible explanation for metric changes, not as proven root cause.";
         }
         if (diff.path().endsWith(".mode") || diff.path().endsWith(".type")) {
-            return "Technical response field changed. This resembles a constant or mapping regression and should be checked.";
+            return prefix + "Technical response field changed. This resembles a constant or mapping regression and should be checked.";
         }
         if (diff.type() == DiffType.FIELD_ADDED_IN_SHADOW || diff.type() == DiffType.FIELD_ADDED_IN_MAIN) {
-            return "Response shape changed between main and shadow launches.";
+            return prefix + "Response shape changed between main and shadow launches.";
         }
         if (diff.type() == DiffType.TYPE_MISMATCH || diff.type() == DiffType.NULLABILITY_VIOLATION) {
-            return "Contract-level value problem detected.";
+            return prefix + "Contract-level value problem detected.";
         }
-        return "Deterministic value difference detected.";
+        return prefix + "Deterministic value difference detected.";
+    }
+
+    private static String descriptions(AgentAnalysisInput input, DiffCategory category) {
+        List<String> touchedPaths = input.diffs().stream()
+                .filter(diff -> diff.category() == category)
+                .map(DiffEntry::path)
+                .distinct()
+                .toList();
+        return context(input).stream()
+                .filter(context -> touchedPaths.contains(context.path()))
+                .map(ContractFieldContext::description)
+                .filter(description -> description != null && !description.isBlank())
+                .distinct()
+                .collect(java.util.stream.Collectors.joining(", "));
+    }
+
+    private static String description(AgentAnalysisInput input, String path) {
+        return context(input).stream()
+                .filter(context -> context.path().equals(path))
+                .map(ContractFieldContext::description)
+                .filter(description -> description != null && !description.isBlank())
+                .findFirst()
+                .orElse("");
+    }
+
+    private static List<ContractFieldContext> context(AgentAnalysisInput input) {
+        return input.contractContext() == null ? List.of() : input.contractContext();
     }
 
     private static boolean isCriticalDiff(DiffEntry diff) {

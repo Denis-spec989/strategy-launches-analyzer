@@ -1,6 +1,5 @@
 package com.github.denisspec989.strategy_launches_analyzer.contract;
 
-import com.github.denisspec989.strategy_launches_analyzer.domain.DiffCategory;
 import org.springframework.stereotype.Component;
 
 import java.util.Collection;
@@ -15,24 +14,34 @@ import java.util.stream.Collectors;
 public class LgdDigitalContract {
     public static final String STRATEGY_NAME = "LGD_DIGITAL";
     public static final String ROOT_PATH = "strategyResponse";
+    public static final String OPENAPI_RESOURCE = "openapi/lgd-digital.openapi.yaml";
+    public static final String OPENAPI_SCHEMA = "LgdDigitalLaunch";
 
+    private final String version;
     private final Map<String, ContractField> fields;
 
     public LgdDigitalContract() {
+        this(new OpenApiStrategyContractLoader().load(OPENAPI_RESOURCE, OPENAPI_SCHEMA));
+    }
+
+    LgdDigitalContract(StrategyContractDefinition definition) {
+        if (!STRATEGY_NAME.equals(definition.strategyName())) {
+            throw new IllegalStateException("LGD_DIGITAL contract strategyName mismatch: " + definition.strategyName());
+        }
+        if (!ROOT_PATH.equals(definition.rootPath())) {
+            throw new IllegalStateException("LGD_DIGITAL contract rootPath mismatch: " + definition.rootPath());
+        }
+
         LinkedHashMap<String, ContractField> contractFields = new LinkedHashMap<>();
-        add(contractFields, ROOT_PATH, ContractValueType.OBJECT, true, false, DiffCategory.CONTRACT_TECHNICAL);
-        add(contractFields, "strategyResponse.lgdData", ContractValueType.OBJECT, true, false, DiffCategory.CONTRACT_TECHNICAL);
-        add(contractFields, "strategyResponse.lgdData.lgd", ContractValueType.NUMBER, true, false, DiffCategory.METRIC);
-        add(contractFields, "strategyResponse.lgdData.lgdModel", ContractValueType.STRING, true, true, DiffCategory.MODEL);
-        add(contractFields, "strategyResponse.lgdData.lgdDt", ContractValueType.NUMBER, true, false, DiffCategory.METRIC);
-        add(contractFields, "strategyResponse.calculationInfo", ContractValueType.OBJECT, true, false, DiffCategory.CONTRACT_TECHNICAL);
-        add(contractFields, "strategyResponse.calculationInfo.mode", ContractValueType.STRING, true, false, DiffCategory.CONTRACT_TECHNICAL);
-        add(contractFields, "strategyResponse.calculationInfo.usingCollateral", ContractValueType.NUMBER, false, false, DiffCategory.CONTRACT_TECHNICAL);
-        add(contractFields, "strategyResponse.calculationInfo.type", ContractValueType.STRING, true, false, DiffCategory.CONTRACT_TECHNICAL);
-        add(contractFields, "strategyResponse.calculationInfo.scenario", ContractValueType.STRING, true, false, DiffCategory.CALCULATION_CONTEXT);
-        add(contractFields, "strategyResponse.calculationInfo.usedDefaultValue", ContractValueType.BOOLEAN, true, false, DiffCategory.CALCULATION_CONTEXT);
-        add(contractFields, "strategyResponse.calculationInfo.defaultValueReason", ContractValueType.STRING, true, false, DiffCategory.CALCULATION_CONTEXT);
+        for (ContractField field : definition.fields()) {
+            contractFields.put(field.path(), field);
+        }
+        this.version = definition.version();
         this.fields = Collections.unmodifiableMap(contractFields);
+    }
+
+    public String version() {
+        return version;
     }
 
     public Collection<ContractField> fields() {
@@ -58,16 +67,5 @@ public class LgdDigitalContract {
                 .filter(field -> field.valueType() == ContractValueType.OBJECT)
                 .map(ContractField::path)
                 .collect(Collectors.toUnmodifiableSet());
-    }
-
-    private static void add(
-            Map<String, ContractField> fields,
-            String path,
-            ContractValueType valueType,
-            boolean required,
-            boolean nullable,
-            DiffCategory category
-    ) {
-        fields.put(path, new ContractField(path, valueType, required, nullable, category));
     }
 }

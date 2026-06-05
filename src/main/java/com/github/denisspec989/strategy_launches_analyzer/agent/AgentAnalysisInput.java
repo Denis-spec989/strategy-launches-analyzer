@@ -12,6 +12,7 @@ public record AgentAnalysisInput(
         ComparisonSummary summary,
         List<DiffEntry> diffs,
         List<ContractIssue> contractValidation,
+        List<ContractFieldContext> contractContext,
         LaunchMetadata metadata
 ) {
 }

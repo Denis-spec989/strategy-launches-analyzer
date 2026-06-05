@@ -1,8 +1,8 @@
 {
   "overallSeverity": "WARNING",
   "mustMention": [
-    "usingCollateral appeared only in shadow",
-    "expected number but got string",
+    "usingCollateral is not declared in the contract",
+    "unknown field",
     "shape or serialization change"
   ]
 }

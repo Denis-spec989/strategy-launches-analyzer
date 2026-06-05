@@ -51,7 +51,7 @@ Content-Type: application/json
 }
 
 ### LGD_DIGITAL compare: optional field added in shadow
-POST {{baseUrl}}/api/v1/strategies/lgd-digital/compare
+POST http://localhost:8080/api/v1/strategies/lgd-digital/compare
 Content-Type: application/json
 
 {

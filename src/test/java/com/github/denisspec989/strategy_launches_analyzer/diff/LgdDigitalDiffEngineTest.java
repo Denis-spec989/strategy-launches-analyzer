@@ -35,8 +35,8 @@ class LgdDigitalDiffEngineTest {
         assertDiffsMatchExpected(result.diffs(), "model-change");
         assertThat(result.contractValidation()).isEmpty();
         assertThat(result.diffs()).hasSize(3);
-        assertThat(result.diffs().getFirst().absoluteDelta()).isEqualByComparingTo(new BigDecimal("2.3"));
-        assertThat(result.diffs().getFirst().relativeDeltaPercent()).isEqualByComparingTo(new BigDecimal("12.7072"));
+        assertThat(result.diffs().get(0).absoluteDelta()).isEqualByComparingTo(new BigDecimal("2.3"));
+        assertThat(result.diffs().get(0).relativeDeltaPercent()).isEqualByComparingTo(new BigDecimal("12.7072"));
     }
 
     @Test
@@ -55,7 +55,7 @@ class LgdDigitalDiffEngineTest {
     }
 
     @Test
-    void detectsOptionalFieldAddedInShadowAndTypeMismatch() {
+    void detectsRemovedFieldAddedInShadowAsUnknownField() {
         DiffResult result = compareFixture("using-collateral-added");
 
         assertDiffsMatchExpected(result.diffs(), "using-collateral-added");
@@ -64,8 +64,8 @@ class LgdDigitalDiffEngineTest {
                 .satisfies(issue -> {
                     assertThat(issue.side()).isEqualTo(LaunchSide.SHADOW);
                     assertThat(issue.path()).isEqualTo("strategyResponse.calculationInfo.usingCollateral");
-                    assertThat(issue.type()).isEqualTo(ContractIssueType.TYPE_MISMATCH);
-                    assertThat(issue.expected()).contains("number");
+                    assertThat(issue.type()).isEqualTo(ContractIssueType.UNKNOWN_FIELD);
+                    assertThat(issue.expected()).contains("field declared");
                     assertThat(issue.actual()).isEqualTo("string");
                 });
     }

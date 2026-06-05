@@ -14,26 +14,35 @@ import com.github.denisspec989.strategy_launches_analyzer.domain.Severity;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
+import java.util.List;
+
 import static org.assertj.core.api.Assertions.assertThat;
 
 class AgentAnalyzerTest {
     private final ObjectMapper objectMapper = new ObjectMapper();
+    private LgdDigitalContract contract;
     private LgdDigitalDiffEngine diffEngine;
 
     @BeforeEach
     void setUp() {
-        LgdDigitalContract contract = new LgdDigitalContract();
+        contract = new LgdDigitalContract();
         diffEngine = new LgdDigitalDiffEngine(contract, new ContractValidator(contract));
     }
 
     @Test
-    void promptContainsOnlyNormalizedComparisonPayload() {
+    void promptContainsOnlyNormalizedComparisonPayloadAndTouchedContractContext() {
         AgentAnalysisInput input = inputForFixture("model-change");
 
         String prompt = new AgentPromptBuilder(objectMapper).buildUserPrompt(input);
 
         assertThat(prompt).contains("\"diffs\"");
         assertThat(prompt).contains("\"contractValidation\"");
+        assertThat(prompt).contains("\"contractContext\"");
+        assertThat(prompt).contains("\"format\" : \"double\"");
+        assertThat(prompt).contains("LGD-\u043F\u043E\u0442\u0435\u0440\u0438 \u043F\u0440\u0438 \u0434\u0435\u0444\u043E\u043B\u0442\u0435 (%)");
+        assertThat(prompt).contains("\u041C\u043E\u0434\u0435\u043B\u044C \u0440\u0430\u0441\u0447\u0435\u0442\u0430");
+        assertThat(prompt).contains("LGD \u043F\u0440\u0438 \u044D\u043A\u043E\u043D\u043E\u043C\u0438\u0447\u0435\u0441\u043A\u043E\u043C \u0441\u043F\u0430\u0434\u0435 (%)");
+        assertThat(prompt).doesNotContain("\u0420\u0435\u0436\u0438\u043C \u0440\u0430\u0441\u0447\u0435\u0442\u0430");
         assertThat(prompt).doesNotContain("\"mainLaunch\"");
         assertThat(prompt).doesNotContain("\"shadowLaunch\"");
     }
@@ -74,7 +83,21 @@ class AgentAnalyzerTest {
                 summary,
                 diffResult.diffs(),
                 diffResult.contractValidation(),
+                contractContext(diffResult),
                 null
         );
+    }
+
+    private List<ContractFieldContext> contractContext(DiffResult diffResult) {
+        List<String> touchedPaths = java.util.stream.Stream.concat(
+                        diffResult.diffs().stream().map(diff -> diff.path()),
+                        diffResult.contractValidation().stream().map(issue -> issue.path())
+                )
+                .distinct()
+                .toList();
+        return contract.fields().stream()
+                .filter(field -> touchedPaths.contains(field.path()))
+                .map(ContractFieldContext::from)
+                .toList();
     }
 }
