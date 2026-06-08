@@ -4,7 +4,9 @@ import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.github.denisspec989.strategy_launches_analyzer.domain.AgentAnalysis;
 import com.github.denisspec989.strategy_launches_analyzer.domain.AgentAnalysisStatus;
+import com.github.denisspec989.strategy_launches_analyzer.domain.DiffEntry;
 import com.github.denisspec989.strategy_launches_analyzer.domain.DiffExplanation;
+import com.github.denisspec989.strategy_launches_analyzer.domain.DiffType;
 import com.github.denisspec989.strategy_launches_analyzer.domain.Severity;
 import com.github.denisspec989.strategy_launches_analyzer.domain.TokenUsage;
 import org.springframework.ai.chat.client.ChatClient;
@@ -63,7 +65,7 @@ public class SpringAiAgentAnalyzer implements AgentAnalyzer {
             LOGGER.info("LLM raw assistant response: requestId={}, response={}", requestId, rawAssistantText(chatResponse));
             LOGGER.info("LLM structured response: requestId={}, response={}", requestId, prettyJson(structuredResponse));
             LOGGER.info("LLM response metadata: requestId={}, tokenUsage={}", requestId, prettyJson(tokenUsage));
-            AgentAnalysis analysis = toDomain(structuredResponse, tokenUsage);
+            AgentAnalysis analysis = toDomain(structuredResponse, input, tokenUsage);
             LOGGER.info("LLM analysis mapped to domain: requestId={}, analysis={}", requestId, prettyJson(analysis));
             return analysis;
         } catch (RuntimeException ex) {
@@ -75,13 +77,14 @@ public class SpringAiAgentAnalyzer implements AgentAnalyzer {
         }
     }
 
-    private static AgentAnalysis toDomain(StructuredAgentAnalysis response, TokenUsage tokenUsage) {
+    static AgentAnalysis toDomain(StructuredAgentAnalysis response, AgentAnalysisInput input, TokenUsage tokenUsage) {
         if (response == null) {
             return AgentAnalysis.failed("Model returned an empty structured response.");
         }
+        Severity overallSeverity = response.overallSeverity() == null ? Severity.WARNING : response.overallSeverity();
         return new AgentAnalysis(
                 AgentAnalysisStatus.COMPLETED,
-                response.overallSeverity() == null ? Severity.WARNING : response.overallSeverity(),
+                applyHardCriticalGuardrail(input, overallSeverity),
                 nullToEmpty(response.summary()),
                 nullToEmpty(response.businessImpact()),
                 nullToEmpty(response.technicalRisks()),
@@ -90,6 +93,32 @@ public class SpringAiAgentAnalyzer implements AgentAnalyzer {
                 tokenUsage,
                 null
         );
+    }
+
+    private static Severity applyHardCriticalGuardrail(AgentAnalysisInput input, Severity modelSeverity) {
+        if (hasHardCriticalSignal(input)) {
+            return Severity.CRITICAL;
+        }
+        return modelSeverity;
+    }
+
+    private static boolean hasHardCriticalSignal(AgentAnalysisInput input) {
+        if (input == null) {
+            return false;
+        }
+        boolean hasCriticalIssue = input.contractValidation().stream()
+                .anyMatch(issue -> issue.severity() == Severity.CRITICAL);
+        boolean hasCriticalDiff = input.diffs().stream()
+                .anyMatch(SpringAiAgentAnalyzer::isHardCriticalDiff);
+        return hasCriticalIssue || hasCriticalDiff;
+    }
+
+    private static boolean isHardCriticalDiff(DiffEntry diff) {
+        return diff.type() == DiffType.TYPE_MISMATCH
+                || diff.type() == DiffType.NULLABILITY_VIOLATION
+                || diff.type() == DiffType.REQUIRED_FIELD_MISSING
+                || diff.path().endsWith(".mode")
+                || diff.path().endsWith(".type");
     }
 
     private static TokenUsage tokenUsage(ChatResponse response) {
@@ -151,7 +180,7 @@ public class SpringAiAgentAnalyzer implements AgentAnalyzer {
         return input.metadata().requestId();
     }
 
-    private record StructuredAgentAnalysis(
+    record StructuredAgentAnalysis(
             Severity overallSeverity,
             String summary,
             String businessImpact,

@@ -41,6 +41,8 @@ class LgdDigitalComparisonControllerTest {
                 .andExpect(jsonPath("$.diffs", hasSize(3)))
                 .andExpect(jsonPath("$.diffs[0].path").value("strategyResponse.lgdData.lgd"))
                 .andExpect(jsonPath("$.summary.totalDiffs").value(3))
+                .andExpect(jsonPath("$.summary.deterministicSeverity").value("WARNING"))
+                .andExpect(jsonPath("$.summary.highestSeverity").doesNotExist())
                 .andExpect(jsonPath("$.agentAnalysis.status").value("FAILED"))
                 .andExpect(jsonPath("$.agentAnalysis.tokenUsage.inputTokens").value(0))
                 .andExpect(jsonPath("$.agentAnalysis.tokenUsage.outputTokens").value(0))

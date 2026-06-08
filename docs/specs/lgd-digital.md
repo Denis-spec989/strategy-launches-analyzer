@@ -35,6 +35,8 @@ describes a launch object with `strategyResponse` as the root response field.
 
 - The agent receives only normalized diffs, contract validation issues, touched field contract context, summary, and optional launch metadata.
 - The agent uses OpenAPI `description` plus `x-summary-guidance` to explain business meaning.
+- Java comparison owns deterministic facts and `summary.deterministicSeverity`; the agent owns final semantic severity in `agentAnalysis.overallSeverity`.
+- `summary.deterministicSeverity` is a preliminary guardrail, not the final business severity.
 - The agent must not receive the full OpenAPI contract, compare raw launch JSON, or invent additional diffs.
 - The agent may describe model changes as a possible explanation for metric changes, not as proven root cause.
 - Shape, schema, type, and nullability issues must always be mentioned in analysis.

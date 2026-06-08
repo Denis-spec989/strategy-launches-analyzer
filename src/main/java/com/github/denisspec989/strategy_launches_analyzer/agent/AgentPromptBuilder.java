@@ -13,6 +13,9 @@ public class AgentPromptBuilder {
             Use contractContext descriptions and summaryGuidance to explain what changed in business terms.
             If a diff or contract issue has no matching contractContext entry, describe only its technical path/category and do not invent business meaning.
             Explain business impact, technical risks, and recommended follow-up actions.
+            Determine overallSeverity and each diffExplanation severity yourself from diffs, contractValidation, contractContext, and summaryGuidance.
+            Treat summary.deterministicSeverity as a preliminary deterministic guardrail, not as final business severity.
+            Do not downgrade contract/schema/type/nullability issues below CRITICAL when deterministic validation already marks them CRITICAL.
             Shape, schema, type, and nullability issues must always be mentioned.
             Write all user-facing analysis fields in Russian.
             """;

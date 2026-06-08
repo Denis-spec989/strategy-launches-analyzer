@@ -10,14 +10,14 @@ public record ComparisonSummary(
         int contractTechnicalDiffs,
         int contractValidationIssues,
         boolean hasCriticalIssues,
-        Severity highestSeverity
+        Severity deterministicSeverity
 ) {
     public static ComparisonSummary from(String strategyName, List<DiffEntry> diffs, List<ContractIssue> issues) {
         int metricDiffs = countByCategory(diffs, DiffCategory.METRIC);
         int modelDiffs = countByCategory(diffs, DiffCategory.MODEL);
         int contractTechnicalDiffs = countByCategory(diffs, DiffCategory.CONTRACT_TECHNICAL);
         boolean hasCriticalIssues = issues.stream().anyMatch(issue -> issue.severity() == Severity.CRITICAL);
-        Severity highestSeverity = hasCriticalIssues
+        Severity deterministicSeverity = hasCriticalIssues
                 ? Severity.CRITICAL
                 : (diffs.isEmpty() && issues.isEmpty() ? Severity.INFO : Severity.WARNING);
 
@@ -29,7 +29,7 @@ public record ComparisonSummary(
                 contractTechnicalDiffs,
                 issues.size(),
                 hasCriticalIssues,
-                highestSeverity
+                deterministicSeverity
         );
     }
 

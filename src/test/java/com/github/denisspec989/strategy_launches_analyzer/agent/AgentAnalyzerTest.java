@@ -10,7 +10,11 @@ import com.github.denisspec989.strategy_launches_analyzer.diff.LgdDigitalDiffEng
 import com.github.denisspec989.strategy_launches_analyzer.domain.AgentAnalysis;
 import com.github.denisspec989.strategy_launches_analyzer.domain.AgentAnalysisStatus;
 import com.github.denisspec989.strategy_launches_analyzer.domain.ComparisonSummary;
+import com.github.denisspec989.strategy_launches_analyzer.domain.ContractIssue;
+import com.github.denisspec989.strategy_launches_analyzer.domain.ContractIssueType;
+import com.github.denisspec989.strategy_launches_analyzer.domain.LaunchSide;
 import com.github.denisspec989.strategy_launches_analyzer.domain.Severity;
+import com.github.denisspec989.strategy_launches_analyzer.domain.TokenUsage;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
@@ -38,6 +42,9 @@ class AgentAnalyzerTest {
         assertThat(prompt).contains("\"diffs\"");
         assertThat(prompt).contains("\"contractValidation\"");
         assertThat(prompt).contains("\"contractContext\"");
+        assertThat(prompt).contains("\"deterministicSeverity\"");
+        assertThat(prompt).doesNotContain("\"highestSeverity\"");
+        assertThat(AgentPromptBuilder.SYSTEM_PROMPT).contains("not as final business severity");
         assertThat(prompt).contains("\"format\" : \"double\"");
         assertThat(prompt).contains("LGD-\u043F\u043E\u0442\u0435\u0440\u0438 \u043F\u0440\u0438 \u0434\u0435\u0444\u043E\u043B\u0442\u0435 (%)");
         assertThat(prompt).contains("\u041C\u043E\u0434\u0435\u043B\u044C \u0440\u0430\u0441\u0447\u0435\u0442\u0430");
@@ -69,9 +76,59 @@ class AgentAnalyzerTest {
                 assertThat(recommendation).contains("response constants"));
     }
 
+    @Test
+    void fallbackAgentMarksEmptyComparisonAsInfo() {
+        AgentAnalysis analysis = new FallbackAgentAnalyzer().analyze(inputForFixture("model-change", "main", "main"));
+
+        assertThat(analysis.overallSeverity()).isEqualTo(Severity.INFO);
+        assertThat(analysis.recommendations()).containsExactly("No action is required for this launch pair.");
+    }
+
+    @Test
+    void springAiMappingKeepsHardTechnicalDiffCriticalWhenModelDowngradesIt() {
+        AgentAnalysis analysis = SpringAiAgentAnalyzer.toDomain(
+                warningStructuredResponse(),
+                inputForFixture("mode-regression"),
+                TokenUsage.zero()
+        );
+
+        assertThat(analysis.overallSeverity()).isEqualTo(Severity.CRITICAL);
+    }
+
+    @Test
+    void springAiMappingKeepsCriticalContractIssueCriticalWhenModelDowngradesIt() {
+        ContractIssue issue = new ContractIssue(
+                "C001",
+                LaunchSide.SHADOW,
+                "strategyResponse.lgdData.lgd",
+                ContractIssueType.REQUIRED_FIELD_MISSING,
+                Severity.CRITICAL,
+                "number, 1..1",
+                "missing",
+                null,
+                "Required field is missing."
+        );
+        AgentAnalysisInput input = new AgentAnalysisInput(
+                LgdDigitalContract.STRATEGY_NAME,
+                ComparisonSummary.from(LgdDigitalContract.STRATEGY_NAME, List.of(), List.of(issue)),
+                List.of(),
+                List.of(issue),
+                List.of(),
+                null
+        );
+
+        AgentAnalysis analysis = SpringAiAgentAnalyzer.toDomain(warningStructuredResponse(), input, TokenUsage.zero());
+
+        assertThat(analysis.overallSeverity()).isEqualTo(Severity.CRITICAL);
+    }
+
     private AgentAnalysisInput inputForFixture(String fixtureName) {
-        JsonNode main = TestFixtures.json(objectMapper, "fixtures/lgd-digital/%s/main.json".formatted(fixtureName));
-        JsonNode shadow = TestFixtures.json(objectMapper, "fixtures/lgd-digital/%s/shadow.json".formatted(fixtureName));
+        return inputForFixture(fixtureName, "main", "shadow");
+    }
+
+    private AgentAnalysisInput inputForFixture(String fixtureName, String mainLaunchName, String shadowLaunchName) {
+        JsonNode main = TestFixtures.json(objectMapper, "fixtures/lgd-digital/%s/%s.json".formatted(fixtureName, mainLaunchName));
+        JsonNode shadow = TestFixtures.json(objectMapper, "fixtures/lgd-digital/%s/%s.json".formatted(fixtureName, shadowLaunchName));
         DiffResult diffResult = diffEngine.compare(main, shadow);
         ComparisonSummary summary = ComparisonSummary.from(
                 LgdDigitalContract.STRATEGY_NAME,
@@ -85,6 +142,17 @@ class AgentAnalyzerTest {
                 diffResult.contractValidation(),
                 contractContext(diffResult),
                 null
+        );
+    }
+
+    private SpringAiAgentAnalyzer.StructuredAgentAnalysis warningStructuredResponse() {
+        return new SpringAiAgentAnalyzer.StructuredAgentAnalysis(
+                Severity.WARNING,
+                "summary",
+                "business impact",
+                "technical risks",
+                List.of("recommendation"),
+                List.of()
         );
     }
 
