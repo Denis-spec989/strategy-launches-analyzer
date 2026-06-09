@@ -10,6 +10,8 @@ import com.github.denisspec989.strategy_launches_analyzer.dto.agent.AgentAnalysi
 import com.github.denisspec989.strategy_launches_analyzer.dto.comparison.DiffType;
 import com.github.denisspec989.strategy_launches_analyzer.dto.common.Severity;
 import com.github.denisspec989.strategy_launches_analyzer.dto.agent.TokenUsage;
+import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.ai.chat.client.ChatClient;
 import org.springframework.ai.chat.client.ResponseEntity;
 import org.springframework.ai.chat.messages.AssistantMessage;
@@ -17,43 +19,29 @@ import org.springframework.ai.chat.metadata.ChatResponseMetadata;
 import org.springframework.ai.chat.metadata.Usage;
 import org.springframework.ai.chat.model.Generation;
 import org.springframework.ai.chat.model.ChatResponse;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 import java.util.List;
 
+@Slf4j
+@RequiredArgsConstructor
 public class SpringAiAgentAnalyzer implements AgentAnalyzer {
-    private static final Logger LOGGER = LoggerFactory.getLogger(SpringAiAgentAnalyzer.class);
-
     private final ChatClient chatClient;
     private final AgentPromptBuilder promptBuilder;
     private final ObjectMapper objectMapper;
     private final String configuredModel;
 
-    public SpringAiAgentAnalyzer(
-            ChatClient.Builder chatClientBuilder,
-            AgentPromptBuilder promptBuilder,
-            ObjectMapper objectMapper,
-            String configuredModel
-    ) {
-        this.chatClient = chatClientBuilder.build();
-        this.promptBuilder = promptBuilder;
-        this.objectMapper = objectMapper;
-        this.configuredModel = configuredModel;
-    }
-
     @Override
     public AgentAnalysis analyze(AgentAnalysisInput input) {
         String requestId = requestId(input);
         String userPrompt = promptBuilder.buildUserPrompt(input);
-        LOGGER.info("LLM analysis request started: requestId={}, strategyName={}, configuredModel={}, diffCount={}, contractIssueCount={}",
+        log.info("LLM analysis request started: requestId={}, strategyName={}, configuredModel={}, diffCount={}, contractIssueCount={}",
                 requestId,
                 input.strategyName(),
                 configuredModel,
                 input.diffs().size(),
                 input.contractValidation().size());
-        LOGGER.info("LLM system prompt: requestId={}, systemPrompt={}", requestId, AgentPromptBuilder.SYSTEM_PROMPT);
-        LOGGER.info("LLM user prompt: requestId={}, userPrompt={}", requestId, userPrompt);
+        log.info("LLM system prompt: requestId={}, systemPrompt={}", requestId, AgentPromptBuilder.SYSTEM_PROMPT);
+        log.info("LLM user prompt: requestId={}, userPrompt={}", requestId, userPrompt);
         try {
             ResponseEntity<ChatResponse, StructuredAgentAnalysis> responseEntity = chatClient.prompt()
                     .system(AgentPromptBuilder.SYSTEM_PROMPT)
@@ -63,14 +51,14 @@ public class SpringAiAgentAnalyzer implements AgentAnalyzer {
             ChatResponse chatResponse = responseEntity.getResponse();
             StructuredAgentAnalysis structuredResponse = responseEntity.getEntity();
             TokenUsage tokenUsage = tokenUsage(chatResponse);
-            LOGGER.info("LLM raw assistant response: requestId={}, response={}", requestId, rawAssistantText(chatResponse));
-            LOGGER.info("LLM structured response: requestId={}, response={}", requestId, prettyJson(structuredResponse));
-            LOGGER.info("LLM response metadata: requestId={}, tokenUsage={}", requestId, prettyJson(tokenUsage));
+            log.info("LLM raw assistant response: requestId={}, response={}", requestId, rawAssistantText(chatResponse));
+            log.info("LLM structured response: requestId={}, response={}", requestId, prettyJson(structuredResponse));
+            log.info("LLM response metadata: requestId={}, tokenUsage={}", requestId, prettyJson(tokenUsage));
             AgentAnalysis analysis = toDomain(structuredResponse, input, tokenUsage);
-            LOGGER.info("LLM analysis mapped to domain: requestId={}, analysis={}", requestId, prettyJson(analysis));
+            log.info("LLM analysis mapped to domain: requestId={}, analysis={}", requestId, prettyJson(analysis));
             return analysis;
         } catch (RuntimeException ex) {
-            LOGGER.info("LLM analysis request failed: requestId={}, configuredModel={}, error={}",
+            log.info("LLM analysis request failed: requestId={}, configuredModel={}, error={}",
                     requestId,
                     configuredModel,
                     ex.toString());

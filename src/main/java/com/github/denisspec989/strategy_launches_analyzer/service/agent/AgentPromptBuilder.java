@@ -3,9 +3,11 @@ package com.github.denisspec989.strategy_launches_analyzer.service.agent;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.github.denisspec989.strategy_launches_analyzer.dto.agent.AgentAnalysisInput;
+import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
 
 @Component
+@RequiredArgsConstructor
 public class AgentPromptBuilder {
     public static final String SYSTEM_PROMPT = """
             You analyze deterministic strategy launch diffs for LGD_DIGITAL.
@@ -22,10 +24,6 @@ public class AgentPromptBuilder {
             """;
 
     private final ObjectMapper objectMapper;
-
-    public AgentPromptBuilder(ObjectMapper objectMapper) {
-        this.objectMapper = objectMapper;
-    }
 
     public String buildUserPrompt(AgentAnalysisInput input) {
         try {

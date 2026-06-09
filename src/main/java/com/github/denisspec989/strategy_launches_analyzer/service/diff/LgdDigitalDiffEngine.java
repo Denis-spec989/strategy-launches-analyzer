@@ -10,6 +10,7 @@ import com.github.denisspec989.strategy_launches_analyzer.dto.comparison.DiffEnt
 import com.github.denisspec989.strategy_launches_analyzer.dto.comparison.DiffResult;
 import com.github.denisspec989.strategy_launches_analyzer.dto.comparison.DiffType;
 import com.github.denisspec989.strategy_launches_analyzer.utils.JsonNodePath;
+import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
 
 import java.math.BigDecimal;
@@ -23,16 +24,12 @@ import java.util.Set;
 import java.util.concurrent.atomic.AtomicInteger;
 
 @Component
+@RequiredArgsConstructor
 public class LgdDigitalDiffEngine {
     private static final int RELATIVE_DELTA_SCALE = 6;
 
     private final LgdDigitalContract contract;
     private final ContractValidator contractValidator;
-
-    public LgdDigitalDiffEngine(LgdDigitalContract contract, ContractValidator contractValidator) {
-        this.contract = contract;
-        this.contractValidator = contractValidator;
-    }
 
     public DiffResult compare(JsonNode mainLaunch, JsonNode shadowLaunch) {
         AtomicInteger diffCounter = new AtomicInteger(1);

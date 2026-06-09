@@ -8,6 +8,7 @@ import com.github.denisspec989.strategy_launches_analyzer.dto.contract.ContractI
 import com.github.denisspec989.strategy_launches_analyzer.dto.comparison.LaunchSide;
 import com.github.denisspec989.strategy_launches_analyzer.dto.common.Severity;
 import com.github.denisspec989.strategy_launches_analyzer.utils.JsonNodePath;
+import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
 
 import java.util.ArrayList;
@@ -17,12 +18,9 @@ import java.util.Map;
 import java.util.concurrent.atomic.AtomicInteger;
 
 @Component
+@RequiredArgsConstructor
 public class ContractValidator {
     private final LgdDigitalContract contract;
-
-    public ContractValidator(LgdDigitalContract contract) {
-        this.contract = contract;
-    }
 
     public List<ContractIssue> validateBoth(JsonNode mainLaunch, JsonNode shadowLaunch) {
         AtomicInteger issueCounter = new AtomicInteger(1);

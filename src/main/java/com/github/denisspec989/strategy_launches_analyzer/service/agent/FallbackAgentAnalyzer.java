@@ -11,18 +11,16 @@ import com.github.denisspec989.strategy_launches_analyzer.dto.agent.DiffExplanat
 import com.github.denisspec989.strategy_launches_analyzer.dto.comparison.DiffType;
 import com.github.denisspec989.strategy_launches_analyzer.dto.common.Severity;
 import com.github.denisspec989.strategy_launches_analyzer.dto.agent.TokenUsage;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
+import lombok.extern.slf4j.Slf4j;
 
 import java.util.ArrayList;
 import java.util.List;
 
+@Slf4j
 public class FallbackAgentAnalyzer implements AgentAnalyzer {
-    private static final Logger LOGGER = LoggerFactory.getLogger(FallbackAgentAnalyzer.class);
-
     @Override
     public AgentAnalysis analyze(AgentAnalysisInput input) {
-        LOGGER.info("Fallback agent analysis started: requestId={}, strategyName={}, diffCount={}, contractIssueCount={}. LLM request is not performed in fallback mode.",
+        log.info("Fallback agent analysis started: requestId={}, strategyName={}, diffCount={}, contractIssueCount={}. LLM request is not performed in fallback mode.",
                 requestId(input),
                 input.strategyName(),
                 input.diffs().size(),
@@ -39,7 +37,7 @@ public class FallbackAgentAnalyzer implements AgentAnalyzer {
                 TokenUsage.zero(),
                 null
         );
-        LOGGER.info("Fallback agent analysis completed: requestId={}, status={}, severity={}",
+        log.info("Fallback agent analysis completed: requestId={}, status={}, severity={}",
                 requestId(input),
                 analysis.status(),
                 analysis.overallSeverity());

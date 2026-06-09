@@ -16,38 +16,26 @@ import com.github.denisspec989.strategy_launches_analyzer.dto.agent.AgentAnalysi
 import com.github.denisspec989.strategy_launches_analyzer.dto.comparison.ComparisonSummary;
 import com.github.denisspec989.strategy_launches_analyzer.exceptions.BadRequestException;
 import com.github.denisspec989.strategy_launches_analyzer.utils.JsonNodePath;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
+import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 
 import java.util.List;
 
 @Service
+@Slf4j
+@RequiredArgsConstructor
 public class CompareStrategyLaunchesUseCase {
-    private static final Logger LOGGER = LoggerFactory.getLogger(CompareStrategyLaunchesUseCase.class);
-
     private final LgdDigitalDiffEngine diffEngine;
     private final LgdDigitalContract contract;
     private final AgentAnalyzer agentAnalyzer;
     private final ObjectMapper objectMapper;
 
-    public CompareStrategyLaunchesUseCase(
-            LgdDigitalDiffEngine diffEngine,
-            LgdDigitalContract contract,
-            AgentAnalyzer agentAnalyzer,
-            ObjectMapper objectMapper
-    ) {
-        this.diffEngine = diffEngine;
-        this.contract = contract;
-        this.agentAnalyzer = agentAnalyzer;
-        this.objectMapper = objectMapper;
-    }
-
     public CompareStrategyResponse compare(CompareStrategyRequest request) {
         validateRequest(request);
         LaunchMetadata metadata = request.metadata();
         String requestId = requestId(metadata);
-        LOGGER.info(
+        log.info(
                 "LGD_DIGITAL comparison request accepted: requestId={}, mainLaunchId={}, shadowLaunchId={}, "
                         + "mainStrategyVersion={}, shadowStrategyVersion={}, launchTimestamp={}",
                 requestId,
@@ -57,9 +45,9 @@ public class CompareStrategyLaunchesUseCase {
                 valueOrNotProvided(metadata == null ? null : metadata.shadowStrategyVersion()),
                 valueOrNotProvided(metadata == null ? null : metadata.launchTimestamp())
         );
-        LOGGER.info("LGD_DIGITAL comparison request metadata: requestId={}, metadata={}", requestId, prettyJson(metadata));
-        LOGGER.info("LGD_DIGITAL main launch payload: requestId={}, mainLaunch={}", requestId, prettyJson(request.mainLaunch()));
-        LOGGER.info("LGD_DIGITAL shadow launch payload: requestId={}, shadowLaunch={}", requestId, prettyJson(request.shadowLaunch()));
+        log.info("LGD_DIGITAL comparison request metadata: requestId={}, metadata={}", requestId, prettyJson(metadata));
+        log.info("LGD_DIGITAL main launch payload: requestId={}, mainLaunch={}", requestId, prettyJson(request.mainLaunch()));
+        log.info("LGD_DIGITAL shadow launch payload: requestId={}, shadowLaunch={}", requestId, prettyJson(request.shadowLaunch()));
 
         DiffResult diffResult = diffEngine.compare(request.mainLaunch(), request.shadowLaunch());
         ComparisonSummary summary = ComparisonSummary.from(
@@ -67,12 +55,12 @@ public class CompareStrategyLaunchesUseCase {
                 diffResult.diffs(),
                 diffResult.contractValidation()
         );
-        LOGGER.info("LGD_DIGITAL deterministic comparison summary: requestId={}, summary={}", requestId, prettyJson(summary));
-        LOGGER.info("LGD_DIGITAL deterministic diffs: requestId={}, totalDiffs={}, diffs={}",
+        log.info("LGD_DIGITAL deterministic comparison summary: requestId={}, summary={}", requestId, prettyJson(summary));
+        log.info("LGD_DIGITAL deterministic diffs: requestId={}, totalDiffs={}, diffs={}",
                 requestId,
                 diffResult.diffs().size(),
                 prettyJson(diffResult.diffs()));
-        LOGGER.info("LGD_DIGITAL contract validation result: requestId={}, issueCount={}, issues={}",
+        log.info("LGD_DIGITAL contract validation result: requestId={}, issueCount={}, issues={}",
                 requestId,
                 diffResult.contractValidation().size(),
                 prettyJson(diffResult.contractValidation()));
@@ -86,13 +74,13 @@ public class CompareStrategyLaunchesUseCase {
                 diffResult.contractValidation(),
                 agentAnalysis
         );
-        LOGGER.info("LGD_DIGITAL comparison response ready: requestId={}, response={}", requestId, prettyJson(response));
+        log.info("LGD_DIGITAL comparison response ready: requestId={}, response={}", requestId, prettyJson(response));
         return response;
     }
 
     private AgentAnalysis analyze(ComparisonSummary summary, CompareStrategyRequest request, DiffResult diffResult) {
         String requestId = requestId(request.metadata());
-        LOGGER.info("LGD_DIGITAL agent analysis started: requestId={}, agentAnalyzer={}",
+        log.info("LGD_DIGITAL agent analysis started: requestId={}, agentAnalyzer={}",
                 requestId,
                 agentAnalyzer.getClass().getSimpleName());
         AgentAnalysisInput input = new AgentAnalysisInput(
@@ -103,16 +91,16 @@ public class CompareStrategyLaunchesUseCase {
                 contractContext(diffResult),
                 request.metadata()
         );
-        LOGGER.info("LGD_DIGITAL agent analysis input: requestId={}, input={}", requestId, prettyJson(input));
+        log.info("LGD_DIGITAL agent analysis input: requestId={}, input={}", requestId, prettyJson(input));
         try {
             AgentAnalysis analysis = agentAnalyzer.analyze(input);
-            LOGGER.info("LGD_DIGITAL agent analysis completed: requestId={}, status={}, result={}",
+            log.info("LGD_DIGITAL agent analysis completed: requestId={}, status={}, result={}",
                     requestId,
                     analysis.status(),
                     prettyJson(analysis));
             return analysis;
         } catch (RuntimeException ex) {
-            LOGGER.info("LGD_DIGITAL agent analysis failed before response mapping: requestId={}, error={}",
+            log.info("LGD_DIGITAL agent analysis failed before response mapping: requestId={}, error={}",
                     requestId,
                     ex.toString());
             return AgentAnalysis.failed(ex.getMessage());

@@ -4,6 +4,8 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.github.denisspec989.strategy_launches_analyzer.TestFixtures;
 import com.github.denisspec989.strategy_launches_analyzer.service.agent.AgentAnalyzer;
+import lombok.AccessLevel;
+import lombok.RequiredArgsConstructor;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -21,15 +23,10 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 @SpringBootTest(properties = "strategy-launches-analyzer.agent.provider=fallback")
 @AutoConfigureMockMvc
+@RequiredArgsConstructor(access = AccessLevel.PACKAGE, onConstructor_ = @Autowired)
 class LgdDigitalComparisonControllerTest {
     private final MockMvc mockMvc;
     private final ObjectMapper objectMapper;
-
-    @Autowired
-    LgdDigitalComparisonControllerTest(MockMvc mockMvc, ObjectMapper objectMapper) {
-        this.mockMvc = mockMvc;
-        this.objectMapper = objectMapper;
-    }
 
     @Test
     void returnsDiffsEvenWhenAgentFails() throws Exception {

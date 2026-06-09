@@ -22,7 +22,7 @@ public class AgentConfiguration {
             ObjectMapper objectMapper,
             @Value("${spring.ai.openai.chat.model:not-configured}") String configuredModel
     ) {
-        return new SpringAiAgentAnalyzer(chatClientBuilder, promptBuilder, objectMapper, configuredModel);
+        return new SpringAiAgentAnalyzer(chatClientBuilder.build(), promptBuilder, objectMapper, configuredModel);
     }
 
     @Bean
