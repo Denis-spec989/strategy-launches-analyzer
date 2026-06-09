@@ -60,10 +60,10 @@ public class FallbackAgentAnalyzer implements AgentAnalyzer {
 
     private static String summary(AgentAnalysisInput input) {
         if (input.diffs().isEmpty() && input.contractValidation().isEmpty()) {
-            return "Main and shadow launches match by the LGD_DIGITAL v1 contract.";
+            return "Main and shadow launches match by the %s contract.".formatted(input.strategyName());
         }
-        return "Found %d deterministic diffs and %d contract validation issues for LGD_DIGITAL."
-                .formatted(input.diffs().size(), input.contractValidation().size());
+        return "Found %d deterministic diffs and %d contract validation issues for %s."
+                .formatted(input.diffs().size(), input.contractValidation().size(), input.strategyName());
     }
 
     private static String businessImpact(AgentAnalysisInput input) {
@@ -72,17 +72,17 @@ public class FallbackAgentAnalyzer implements AgentAnalyzer {
         boolean hasModelDiff = diffs.stream().anyMatch(diff -> diff.category() == DiffCategory.MODEL);
         String metricDescriptions = descriptions(input, DiffCategory.METRIC);
         if (hasMetricDiff && hasModelDiff) {
-            return "Shadow launch changed LGD metrics%s and the selected LGD model. The model change may explain the metric delta, but it should be confirmed by strategy traces or business rules."
+            return "Shadow launch changed metric fields%s and the selected model. The model change may explain the metric delta, but it should be confirmed by strategy traces or business rules."
                     .formatted(metricDescriptions.isBlank() ? "" : " (" + metricDescriptions + ")");
         }
         if (hasMetricDiff) {
-            return "Shadow launch changed LGD metrics%s. Review absolute and relative deltas before promoting the shadow logic."
+            return "Shadow launch changed metric fields%s. Review absolute and relative deltas before promoting the shadow logic."
                     .formatted(metricDescriptions.isBlank() ? "" : " (" + metricDescriptions + ")");
         }
         if (hasModelDiff) {
-            return "Shadow launch selected a different LGD model while metrics may or may not have changed.";
+            return "Shadow launch selected a different model while metrics may or may not have changed.";
         }
-        return "No direct LGD metric impact was detected from deterministic diffs.";
+        return "No direct metric impact was detected from deterministic diffs.";
     }
 
     private static String technicalRisks(AgentAnalysisInput input) {
@@ -93,7 +93,7 @@ public class FallbackAgentAnalyzer implements AgentAnalyzer {
             return "The response has contract or shape changes. These must be resolved or explicitly approved before the shadow version can become main.";
         }
         if (hasContractIssues) {
-            return "The response violates the declared LGD_DIGITAL contract.";
+            return "The response violates the declared %s contract.".formatted(input.strategyName());
         }
         if (hasTechnicalDiffs) {
             return "The response changed technical/context fields. Check constants and serialization logic.";
@@ -111,7 +111,7 @@ public class FallbackAgentAnalyzer implements AgentAnalyzer {
             recommendations.add("Fix or approve contract validation issues before promoting the shadow strategy.");
         }
         if (input.diffs().stream().anyMatch(diff -> diff.category() == DiffCategory.METRIC)) {
-            recommendations.add("Validate LGD metric deltas against the expected strategy change.");
+            recommendations.add("Validate metric deltas against the expected strategy change.");
         }
         if (input.diffs().stream().anyMatch(diff -> diff.path().endsWith(".mode") || diff.path().endsWith(".type"))) {
             recommendations.add("Check response constants and mapping code for accidental regressions.");
@@ -139,7 +139,7 @@ public class FallbackAgentAnalyzer implements AgentAnalyzer {
             return prefix + "Numeric value changed in shadow launch. Absolute and relative deltas are calculated by the Java diff engine.";
         }
         if (diff.category() == DiffCategory.MODEL) {
-            return prefix + "LGD model changed in shadow launch. Treat this as a possible explanation for metric changes, not as proven root cause.";
+            return prefix + "Model changed in shadow launch. Treat this as a possible explanation for metric changes, not as proven root cause.";
         }
         if (diff.path().endsWith(".mode") || diff.path().endsWith(".type")) {
             return prefix + "Technical response field changed. This resembles a constant or mapping regression and should be checked.";

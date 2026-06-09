@@ -8,7 +8,6 @@ import com.github.denisspec989.strategy_launches_analyzer.dto.contract.ContractI
 import com.github.denisspec989.strategy_launches_analyzer.dto.comparison.LaunchSide;
 import com.github.denisspec989.strategy_launches_analyzer.dto.common.Severity;
 import com.github.denisspec989.strategy_launches_analyzer.utils.JsonNodePath;
-import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
 
 import java.util.ArrayList;
@@ -18,19 +17,21 @@ import java.util.Map;
 import java.util.concurrent.atomic.AtomicInteger;
 
 @Component
-@RequiredArgsConstructor
 public class ContractValidator {
-    private final LgdDigitalContract contract;
-
-    public List<ContractIssue> validateBoth(JsonNode mainLaunch, JsonNode shadowLaunch) {
+    public List<ContractIssue> validateBoth(StrategyContract contract, JsonNode mainLaunch, JsonNode shadowLaunch) {
         AtomicInteger issueCounter = new AtomicInteger(1);
         List<ContractIssue> issues = new ArrayList<>();
-        issues.addAll(validate(mainLaunch, LaunchSide.MAIN, issueCounter));
-        issues.addAll(validate(shadowLaunch, LaunchSide.SHADOW, issueCounter));
+        issues.addAll(validate(contract, mainLaunch, LaunchSide.MAIN, issueCounter));
+        issues.addAll(validate(contract, shadowLaunch, LaunchSide.SHADOW, issueCounter));
         return List.copyOf(issues);
     }
 
-    public List<ContractIssue> validate(JsonNode launch, LaunchSide side, AtomicInteger issueCounter) {
+    public List<ContractIssue> validate(
+            StrategyContract contract,
+            JsonNode launch,
+            LaunchSide side,
+            AtomicInteger issueCounter
+    ) {
         List<ContractIssue> issues = new ArrayList<>();
 
         for (ContractField field : contract.fields()) {
@@ -79,30 +80,32 @@ public class ContractValidator {
                         expected(field),
                         ContractValueType.actualTypeOf(node),
                         node,
-                        "Field type does not match the LGD_DIGITAL contract."
+                        "Field type does not match the %s contract.".formatted(contract.strategyName())
                 ));
             }
         }
 
-        addUnknownFieldIssues(launch, side, issueCounter, issues);
+        addUnknownFieldIssues(contract, launch, side, issueCounter, issues);
         return issues;
     }
 
     private void addUnknownFieldIssues(
+            StrategyContract contract,
             JsonNode launch,
             LaunchSide side,
             AtomicInteger issueCounter,
             List<ContractIssue> issues
     ) {
-        JsonNode root = JsonNodePath.at(launch, LgdDigitalContract.ROOT_PATH);
+        JsonNode root = JsonNodePath.at(launch, contract.rootPath());
         if (!JsonNodePath.isPresent(root) || !root.isObject()) {
             return;
         }
 
-        addUnknownFieldIssues(root, LgdDigitalContract.ROOT_PATH, side, issueCounter, issues);
+        addUnknownFieldIssues(contract, root, contract.rootPath(), side, issueCounter, issues);
     }
 
     private void addUnknownFieldIssues(
+            StrategyContract contract,
             JsonNode node,
             String currentPath,
             LaunchSide side,
@@ -119,7 +122,7 @@ public class ContractValidator {
             String childPath = currentPath + "." + entry.getKey();
             JsonNode childNode = entry.getValue();
             if (contract.knownPaths().contains(childPath)) {
-                addUnknownFieldIssues(childNode, childPath, side, issueCounter, issues);
+                addUnknownFieldIssues(contract, childNode, childPath, side, issueCounter, issues);
                 continue;
             }
 
@@ -129,10 +132,10 @@ public class ContractValidator {
                     childPath,
                     ContractIssueType.UNKNOWN_FIELD,
                     Severity.WARNING,
-                    "field declared in LGD_DIGITAL contract",
+                    "field declared in %s contract".formatted(contract.strategyName()),
                     ContractValueType.actualTypeOf(childNode),
                     childNode,
-                    "Field is not declared in the LGD_DIGITAL contract."
+                    "Field is not declared in the %s contract.".formatted(contract.strategyName())
             ));
         }
     }

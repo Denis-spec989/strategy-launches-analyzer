@@ -9,9 +9,10 @@ import com.github.denisspec989.strategy_launches_analyzer.dto.contract.ContractF
 import com.github.denisspec989.strategy_launches_analyzer.dto.api.CompareStrategyRequest;
 import com.github.denisspec989.strategy_launches_analyzer.dto.api.CompareStrategyResponse;
 import com.github.denisspec989.strategy_launches_analyzer.dto.api.LaunchMetadata;
-import com.github.denisspec989.strategy_launches_analyzer.service.contract.LgdDigitalContract;
+import com.github.denisspec989.strategy_launches_analyzer.service.contract.StrategyContract;
+import com.github.denisspec989.strategy_launches_analyzer.service.contract.StrategyContractRegistry;
 import com.github.denisspec989.strategy_launches_analyzer.dto.comparison.DiffResult;
-import com.github.denisspec989.strategy_launches_analyzer.service.diff.LgdDigitalDiffEngine;
+import com.github.denisspec989.strategy_launches_analyzer.service.diff.StrategyDiffEngine;
 import com.github.denisspec989.strategy_launches_analyzer.dto.agent.AgentAnalysis;
 import com.github.denisspec989.strategy_launches_analyzer.dto.comparison.ComparisonSummary;
 import com.github.denisspec989.strategy_launches_analyzer.exceptions.BadRequestException;
@@ -26,18 +27,21 @@ import java.util.List;
 @Slf4j
 @RequiredArgsConstructor
 public class CompareStrategyLaunchesUseCase {
-    private final LgdDigitalDiffEngine diffEngine;
-    private final LgdDigitalContract contract;
+    private final StrategyDiffEngine diffEngine;
+    private final StrategyContractRegistry contractRegistry;
     private final AgentAnalyzer agentAnalyzer;
     private final ObjectMapper objectMapper;
 
     public CompareStrategyResponse compare(CompareStrategyRequest request) {
         validateRequest(request);
+        StrategyContract contract = contractRegistry.get(request.strategy());
+        validateLaunchRoots(request, contract);
         LaunchMetadata metadata = request.metadata();
         String requestId = requestId(metadata);
         log.info(
-                "LGD_DIGITAL comparison request accepted: requestId={}, mainLaunchId={}, shadowLaunchId={}, "
+                "{} comparison request accepted: requestId={}, mainLaunchId={}, shadowLaunchId={}, "
                         + "mainStrategyVersion={}, shadowStrategyVersion={}, launchTimestamp={}",
+                contract.strategyName(),
                 requestId,
                 valueOrNotProvided(metadata == null ? null : metadata.mainLaunchId()),
                 valueOrNotProvided(metadata == null ? null : metadata.shadowLaunchId()),
@@ -45,69 +49,85 @@ public class CompareStrategyLaunchesUseCase {
                 valueOrNotProvided(metadata == null ? null : metadata.shadowStrategyVersion()),
                 valueOrNotProvided(metadata == null ? null : metadata.launchTimestamp())
         );
-        log.info("LGD_DIGITAL comparison request metadata: requestId={}, metadata={}", requestId, prettyJson(metadata));
-        log.info("LGD_DIGITAL main launch payload: requestId={}, mainLaunch={}", requestId, prettyJson(request.mainLaunch()));
-        log.info("LGD_DIGITAL shadow launch payload: requestId={}, shadowLaunch={}", requestId, prettyJson(request.shadowLaunch()));
+        log.info("{} comparison request metadata: requestId={}, metadata={}",
+                contract.strategyName(), requestId, prettyJson(metadata));
+        log.info("{} main launch payload: requestId={}, mainLaunch={}",
+                contract.strategyName(), requestId, prettyJson(request.mainLaunch()));
+        log.info("{} shadow launch payload: requestId={}, shadowLaunch={}",
+                contract.strategyName(), requestId, prettyJson(request.shadowLaunch()));
 
-        DiffResult diffResult = diffEngine.compare(request.mainLaunch(), request.shadowLaunch());
+        DiffResult diffResult = diffEngine.compare(contract, request.mainLaunch(), request.shadowLaunch());
         ComparisonSummary summary = ComparisonSummary.from(
-                LgdDigitalContract.STRATEGY_NAME,
+                contract.strategyName(),
                 diffResult.diffs(),
                 diffResult.contractValidation()
         );
-        log.info("LGD_DIGITAL deterministic comparison summary: requestId={}, summary={}", requestId, prettyJson(summary));
-        log.info("LGD_DIGITAL deterministic diffs: requestId={}, totalDiffs={}, diffs={}",
+        log.info("{} deterministic comparison summary: requestId={}, summary={}",
+                contract.strategyName(), requestId, prettyJson(summary));
+        log.info("{} deterministic diffs: requestId={}, totalDiffs={}, diffs={}",
+                contract.strategyName(),
                 requestId,
                 diffResult.diffs().size(),
                 prettyJson(diffResult.diffs()));
-        log.info("LGD_DIGITAL contract validation result: requestId={}, issueCount={}, issues={}",
+        log.info("{} contract validation result: requestId={}, issueCount={}, issues={}",
+                contract.strategyName(),
                 requestId,
                 diffResult.contractValidation().size(),
                 prettyJson(diffResult.contractValidation()));
 
-        AgentAnalysis agentAnalysis = analyze(summary, request, diffResult);
+        AgentAnalysis agentAnalysis = analyze(contract, summary, request, diffResult);
 
         CompareStrategyResponse response = new CompareStrategyResponse(
-                LgdDigitalContract.STRATEGY_NAME,
+                contract.strategyName(),
                 summary,
                 diffResult.diffs(),
                 diffResult.contractValidation(),
                 agentAnalysis
         );
-        log.info("LGD_DIGITAL comparison response ready: requestId={}, response={}", requestId, prettyJson(response));
+        log.info("{} comparison response ready: requestId={}, response={}",
+                contract.strategyName(), requestId, prettyJson(response));
         return response;
     }
 
-    private AgentAnalysis analyze(ComparisonSummary summary, CompareStrategyRequest request, DiffResult diffResult) {
+    private AgentAnalysis analyze(
+            StrategyContract contract,
+            ComparisonSummary summary,
+            CompareStrategyRequest request,
+            DiffResult diffResult
+    ) {
         String requestId = requestId(request.metadata());
-        log.info("LGD_DIGITAL agent analysis started: requestId={}, agentAnalyzer={}",
+        log.info("{} agent analysis started: requestId={}, agentAnalyzer={}",
+                contract.strategyName(),
                 requestId,
                 agentAnalyzer.getClass().getSimpleName());
         AgentAnalysisInput input = new AgentAnalysisInput(
-                LgdDigitalContract.STRATEGY_NAME,
+                contract.strategyName(),
                 summary,
                 diffResult.diffs(),
                 diffResult.contractValidation(),
-                contractContext(diffResult),
+                contractContext(contract, diffResult),
                 request.metadata()
         );
-        log.info("LGD_DIGITAL agent analysis input: requestId={}, input={}", requestId, prettyJson(input));
+        log.info("{} agent analysis input: requestId={}, input={}",
+                contract.strategyName(), requestId, prettyJson(input));
         try {
             AgentAnalysis analysis = agentAnalyzer.analyze(input);
-            log.info("LGD_DIGITAL agent analysis completed: requestId={}, status={}, result={}",
+            log.info("{} agent analysis completed: requestId={}, status={}, result={}",
+                    contract.strategyName(),
                     requestId,
                     analysis.status(),
                     prettyJson(analysis));
             return analysis;
         } catch (RuntimeException ex) {
-            log.info("LGD_DIGITAL agent analysis failed before response mapping: requestId={}, error={}",
+            log.info("{} agent analysis failed before response mapping: requestId={}, error={}",
+                    contract.strategyName(),
                     requestId,
                     ex.toString());
             return AgentAnalysis.failed(ex.getMessage());
         }
     }
 
-    private List<ContractFieldContext> contractContext(DiffResult diffResult) {
+    private List<ContractFieldContext> contractContext(StrategyContract contract, DiffResult diffResult) {
         java.util.Set<String> touchedPaths = new java.util.LinkedHashSet<>();
         diffResult.diffs().forEach(diff -> touchedPaths.add(diff.path()));
         diffResult.contractValidation().forEach(issue -> touchedPaths.add(issue.path()));
@@ -121,17 +141,26 @@ public class CompareStrategyLaunchesUseCase {
         if (request == null) {
             throw new BadRequestException("Request body is required.");
         }
-        requireLaunchRoot(request.mainLaunch(), "mainLaunch");
-        requireLaunchRoot(request.shadowLaunch(), "shadowLaunch");
+        if (request.strategy() == null) {
+            throw new BadRequestException("strategy is required.");
+        }
+        if (request.mainLaunch() == null || request.mainLaunch().isNull()) {
+            throw new BadRequestException("mainLaunch is required.");
+        }
+        if (request.shadowLaunch() == null || request.shadowLaunch().isNull()) {
+            throw new BadRequestException("shadowLaunch is required.");
+        }
     }
 
-    private static void requireLaunchRoot(JsonNode launch, String fieldName) {
-        if (launch == null || launch.isNull()) {
-            throw new BadRequestException(fieldName + " is required.");
-        }
-        JsonNode strategyResponse = JsonNodePath.at(launch, LgdDigitalContract.ROOT_PATH);
-        if (!JsonNodePath.isPresent(strategyResponse) || !strategyResponse.isObject()) {
-            throw new BadRequestException(fieldName + ".strategyResponse object is required.");
+    private static void validateLaunchRoots(CompareStrategyRequest request, StrategyContract contract) {
+        requireLaunchRoot(request.mainLaunch(), "mainLaunch", contract.rootPath());
+        requireLaunchRoot(request.shadowLaunch(), "shadowLaunch", contract.rootPath());
+    }
+
+    private static void requireLaunchRoot(JsonNode launch, String fieldName, String rootPath) {
+        JsonNode root = JsonNodePath.at(launch, rootPath);
+        if (!JsonNodePath.isPresent(root) || !root.isObject()) {
+            throw new BadRequestException(fieldName + "." + rootPath + " object is required.");
         }
     }
 

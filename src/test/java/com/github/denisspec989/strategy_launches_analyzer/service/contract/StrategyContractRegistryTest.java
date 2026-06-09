@@ -6,35 +6,54 @@ import com.fasterxml.jackson.dataformat.yaml.YAMLFactory;
 import com.github.denisspec989.strategy_launches_analyzer.dto.contract.ContractField;
 import com.github.denisspec989.strategy_launches_analyzer.dto.contract.ContractValueType;
 import com.github.denisspec989.strategy_launches_analyzer.dto.comparison.DiffCategory;
+import com.github.denisspec989.strategy_launches_analyzer.dto.strategy.StrategyName;
 import org.junit.jupiter.api.Test;
 
 import java.io.InputStream;
+import java.util.Arrays;
 import java.util.Iterator;
 import java.util.Map;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-class LgdDigitalContractTest {
+class StrategyContractRegistryTest {
+    private static final StrategyName STRATEGY = StrategyName.LGD_DIGITAL;
+
     private final ObjectMapper yamlMapper = new ObjectMapper(new YAMLFactory());
 
     @Test
-    void openApiContractIsStandardDocumentWithLgdDigitalSchema() throws Exception {
-        JsonNode openApi = openApi();
+    void registryLoadsContractForEverySupportedStrategy() {
+        StrategyContractRegistry registry = new StrategyContractRegistry(new OpenApiStrategyContractLoader());
+
+        assertThat(Arrays.stream(StrategyName.values())
+                .map(registry::get)
+                .map(StrategyContract::strategyName))
+                .containsExactly(Arrays.stream(StrategyName.values())
+                        .map(StrategyName::name)
+                        .toArray(String[]::new));
+    }
+
+    @Test
+    void openApiContractIsStandardDocumentWithMatchingStrategyName() throws Exception {
+        JsonNode openApi = openApi(STRATEGY);
 
         assertThat(openApi.path("openapi").asText()).isEqualTo("3.0.3");
-        assertThat(openApi.path("info").path("x-strategy-name").asText()).isEqualTo(LgdDigitalContract.STRATEGY_NAME);
+        assertThat(openApi.path("info").path("x-strategy-name").asText()).isEqualTo(STRATEGY.name());
         assertThat(openApi.path("paths").isObject()).isTrue();
-        assertThat(openApi.path("components").path("schemas").has(LgdDigitalContract.OPENAPI_SCHEMA)).isTrue();
+        assertThat(openApi.path("components").path("schemas").has(STRATEGY.openApiSchema())).isTrue();
         assertObjectSchemasDisallowAdditionalProperties(
-                openApi.path("components").path("schemas").path(LgdDigitalContract.OPENAPI_SCHEMA)
+                openApi.path("components").path("schemas").path(STRATEGY.openApiSchema())
         );
     }
 
     @Test
-    void loadsLgdDigitalContractFromOpenApiInContractOrder() {
-        LgdDigitalContract contract = new LgdDigitalContract();
+    void loadsStrategyContractFromOpenApiInContractOrder() {
+        StrategyContract contract = contract();
 
+        assertThat(contract.strategy()).isEqualTo(STRATEGY);
+        assertThat(contract.strategyName()).isEqualTo(STRATEGY.name());
         assertThat(contract.version()).isEqualTo("v1");
+        assertThat(contract.rootPath()).isEqualTo("strategyResponse");
         assertThat(contract.fields())
                 .extracting(ContractField::path)
                 .containsExactly(
@@ -54,7 +73,7 @@ class LgdDigitalContractTest {
 
     @Test
     void mapsOpenApiTypesRequiredNullableAndExtensionsToContractFields() {
-        LgdDigitalContract contract = new LgdDigitalContract();
+        StrategyContract contract = contract();
 
         assertThat(contract.field("strategyResponse.lgdData.lgd"))
                 .get()
@@ -83,9 +102,13 @@ class LgdDigitalContractTest {
         assertThat(contract.field("strategyResponse.calculationInfo.usingCollateral")).isEmpty();
     }
 
-    private JsonNode openApi() throws Exception {
+    private StrategyContract contract() {
+        return new StrategyContractRegistry(new OpenApiStrategyContractLoader()).get(STRATEGY);
+    }
+
+    private JsonNode openApi(StrategyName strategy) throws Exception {
         ClassLoader classLoader = Thread.currentThread().getContextClassLoader();
-        try (InputStream stream = classLoader.getResourceAsStream(LgdDigitalContract.OPENAPI_RESOURCE)) {
+        try (InputStream stream = classLoader.getResourceAsStream(strategy.openApiResource())) {
             assertThat(stream).isNotNull();
             return yamlMapper.readTree(stream);
         }

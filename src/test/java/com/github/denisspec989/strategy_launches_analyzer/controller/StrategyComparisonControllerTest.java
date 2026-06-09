@@ -3,6 +3,7 @@ package com.github.denisspec989.strategy_launches_analyzer.controller;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.github.denisspec989.strategy_launches_analyzer.TestFixtures;
+import com.github.denisspec989.strategy_launches_analyzer.dto.strategy.StrategyName;
 import com.github.denisspec989.strategy_launches_analyzer.service.agent.AgentAnalyzer;
 import lombok.AccessLevel;
 import lombok.RequiredArgsConstructor;
@@ -24,13 +25,13 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 @SpringBootTest(properties = "strategy-launches-analyzer.agent.provider=fallback")
 @AutoConfigureMockMvc
 @RequiredArgsConstructor(access = AccessLevel.PACKAGE, onConstructor_ = @Autowired)
-class LgdDigitalComparisonControllerTest {
+class StrategyComparisonControllerTest {
     private final MockMvc mockMvc;
     private final ObjectMapper objectMapper;
 
     @Test
     void returnsDiffsEvenWhenAgentFails() throws Exception {
-        mockMvc.perform(post("/api/v1/strategies/lgd-digital/compare")
+        mockMvc.perform(post("/api/v1/strategies/compare")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(requestBody("model-change")))
                 .andExpect(status().isOk())
@@ -47,8 +48,16 @@ class LgdDigitalComparisonControllerTest {
     }
 
     @Test
-    void rejectsInvalidJson() throws Exception {
+    void oldLgdSpecificEndpointIsNotRegistered() throws Exception {
         mockMvc.perform(post("/api/v1/strategies/lgd-digital/compare")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(requestBody("model-change")))
+                .andExpect(status().isNotFound());
+    }
+
+    @Test
+    void rejectsInvalidJson() throws Exception {
+        mockMvc.perform(post("/api/v1/strategies/compare")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{"))
                 .andExpect(status().isBadRequest())
@@ -56,15 +65,40 @@ class LgdDigitalComparisonControllerTest {
     }
 
     @Test
+    void rejectsMissingStrategy() throws Exception {
+        ObjectNode body = objectMapper.readValue(requestBody("model-change"), ObjectNode.class);
+        body.remove("strategy");
+
+        mockMvc.perform(post("/api/v1/strategies/compare")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(body)))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.message").value("strategy is required."));
+    }
+
+    @Test
+    void rejectsUnknownStrategy() throws Exception {
+        ObjectNode body = objectMapper.readValue(requestBody("model-change"), ObjectNode.class);
+        body.put("strategy", "lgd-digital");
+
+        mockMvc.perform(post("/api/v1/strategies/compare")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(body)))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.message").value("strategy must be one of: LGD_DIGITAL."));
+    }
+
+    @Test
     void rejectsMissingStrategyResponse() throws Exception {
         ObjectNode body = objectMapper.createObjectNode();
+        body.put("strategy", StrategyName.LGD_DIGITAL.name());
         body.set("mainLaunch", objectMapper.createObjectNode());
         body.set("shadowLaunch", TestFixtures.json(
                 objectMapper,
                 "fixtures/lgd-digital/model-change/shadow.json"
         ));
 
-        mockMvc.perform(post("/api/v1/strategies/lgd-digital/compare")
+        mockMvc.perform(post("/api/v1/strategies/compare")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(body)))
                 .andExpect(status().isBadRequest())
@@ -73,6 +107,7 @@ class LgdDigitalComparisonControllerTest {
 
     private String requestBody(String fixtureName) throws Exception {
         ObjectNode body = objectMapper.createObjectNode();
+        body.put("strategy", StrategyName.LGD_DIGITAL.name());
         body.set("mainLaunch", TestFixtures.json(
                 objectMapper,
                 "fixtures/lgd-digital/%s/main.json".formatted(fixtureName)

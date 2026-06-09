@@ -3,8 +3,11 @@ package com.github.denisspec989.strategy_launches_analyzer.service.diff;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.github.denisspec989.strategy_launches_analyzer.TestFixtures;
+import com.github.denisspec989.strategy_launches_analyzer.dto.strategy.StrategyName;
 import com.github.denisspec989.strategy_launches_analyzer.service.contract.ContractValidator;
-import com.github.denisspec989.strategy_launches_analyzer.service.contract.LgdDigitalContract;
+import com.github.denisspec989.strategy_launches_analyzer.service.contract.OpenApiStrategyContractLoader;
+import com.github.denisspec989.strategy_launches_analyzer.service.contract.StrategyContract;
+import com.github.denisspec989.strategy_launches_analyzer.service.contract.StrategyContractRegistry;
 import com.github.denisspec989.strategy_launches_analyzer.dto.contract.ContractIssueType;
 import com.github.denisspec989.strategy_launches_analyzer.dto.comparison.DiffCategory;
 import com.github.denisspec989.strategy_launches_analyzer.dto.comparison.DiffEntry;
@@ -19,14 +22,15 @@ import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-class LgdDigitalDiffEngineTest {
+class StrategyDiffEngineTest {
     private final ObjectMapper objectMapper = new ObjectMapper();
-    private LgdDigitalDiffEngine diffEngine;
+    private StrategyContract contract;
+    private StrategyDiffEngine diffEngine;
 
     @BeforeEach
     void setUp() {
-        LgdDigitalContract contract = new LgdDigitalContract();
-        diffEngine = new LgdDigitalDiffEngine(contract, new ContractValidator(contract));
+        contract = new StrategyContractRegistry(new OpenApiStrategyContractLoader()).get(StrategyName.LGD_DIGITAL);
+        diffEngine = new StrategyDiffEngine(new ContractValidator());
     }
 
     @Test
@@ -90,7 +94,7 @@ class LgdDigitalDiffEngineTest {
         ((com.fasterxml.jackson.databind.node.ObjectNode) shadow.at("/strategyResponse/lgdData")).put("lgd", 18.1);
         ((com.fasterxml.jackson.databind.node.ObjectNode) shadow.at("/strategyResponse/lgdData")).put("lgdDt", 18.1);
 
-        DiffResult result = diffEngine.compare(main, shadow);
+        DiffResult result = diffEngine.compare(contract, main, shadow);
 
         assertThat(result.diffs()).isEmpty();
         assertThat(result.contractValidation()).isEmpty();
@@ -99,7 +103,7 @@ class LgdDigitalDiffEngineTest {
     private DiffResult compareFixture(String name) {
         JsonNode main = TestFixtures.json(objectMapper, "fixtures/lgd-digital/%s/main.json".formatted(name));
         JsonNode shadow = TestFixtures.json(objectMapper, "fixtures/lgd-digital/%s/shadow.json".formatted(name));
-        return diffEngine.compare(main, shadow);
+        return diffEngine.compare(contract, main, shadow);
     }
 
     private void assertDiffsMatchExpected(List<DiffEntry> diffs, String fixtureName) {

@@ -7,6 +7,7 @@ import com.github.denisspec989.strategy_launches_analyzer.dto.contract.ContractF
 import com.github.denisspec989.strategy_launches_analyzer.dto.contract.ContractValueType;
 import com.github.denisspec989.strategy_launches_analyzer.dto.contract.StrategyContractDefinition;
 import com.github.denisspec989.strategy_launches_analyzer.dto.comparison.DiffCategory;
+import org.springframework.stereotype.Component;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -19,6 +20,7 @@ import java.util.Set;
 import java.util.stream.Collectors;
 import java.util.stream.StreamSupport;
 
+@Component
 public class OpenApiStrategyContractLoader {
     private static final String OPENAPI_VERSION = "3.0.3";
     private static final String EXT_STRATEGY_NAME = "x-strategy-name";

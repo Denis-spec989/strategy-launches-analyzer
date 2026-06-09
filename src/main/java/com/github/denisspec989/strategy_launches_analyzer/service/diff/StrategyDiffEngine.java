@@ -4,7 +4,7 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.github.denisspec989.strategy_launches_analyzer.dto.contract.ContractField;
 import com.github.denisspec989.strategy_launches_analyzer.service.contract.ContractValidator;
 import com.github.denisspec989.strategy_launches_analyzer.dto.contract.ContractValueType;
-import com.github.denisspec989.strategy_launches_analyzer.service.contract.LgdDigitalContract;
+import com.github.denisspec989.strategy_launches_analyzer.service.contract.StrategyContract;
 import com.github.denisspec989.strategy_launches_analyzer.dto.comparison.DiffCategory;
 import com.github.denisspec989.strategy_launches_analyzer.dto.comparison.DiffEntry;
 import com.github.denisspec989.strategy_launches_analyzer.dto.comparison.DiffResult;
@@ -25,24 +25,23 @@ import java.util.concurrent.atomic.AtomicInteger;
 
 @Component
 @RequiredArgsConstructor
-public class LgdDigitalDiffEngine {
+public class StrategyDiffEngine {
     private static final int RELATIVE_DELTA_SCALE = 6;
 
-    private final LgdDigitalContract contract;
     private final ContractValidator contractValidator;
 
-    public DiffResult compare(JsonNode mainLaunch, JsonNode shadowLaunch) {
+    public DiffResult compare(StrategyContract contract, JsonNode mainLaunch, JsonNode shadowLaunch) {
         AtomicInteger diffCounter = new AtomicInteger(1);
         List<DiffEntry> diffs = new ArrayList<>();
 
         for (ContractField field : contract.leafFields()) {
             addKnownFieldDiff(mainLaunch, shadowLaunch, field, diffCounter, diffs);
         }
-        addUnknownShapeDiffs(mainLaunch, shadowLaunch, diffCounter, diffs);
+        addUnknownShapeDiffs(contract, mainLaunch, shadowLaunch, diffCounter, diffs);
 
         return new DiffResult(
                 List.copyOf(diffs),
-                contractValidator.validateBoth(mainLaunch, shadowLaunch)
+                contractValidator.validateBoth(contract, mainLaunch, shadowLaunch)
         );
     }
 
@@ -219,13 +218,14 @@ public class LgdDigitalDiffEngine {
     }
 
     private void addUnknownShapeDiffs(
+            StrategyContract contract,
             JsonNode mainLaunch,
             JsonNode shadowLaunch,
             AtomicInteger diffCounter,
             List<DiffEntry> diffs
     ) {
-        Set<String> mainUnknownPaths = collectUnknownRootPaths(mainLaunch);
-        Set<String> shadowUnknownPaths = collectUnknownRootPaths(shadowLaunch);
+        Set<String> mainUnknownPaths = collectUnknownRootPaths(contract, mainLaunch);
+        Set<String> shadowUnknownPaths = collectUnknownRootPaths(contract, shadowLaunch);
 
         for (String shadowOnlyPath : difference(shadowUnknownPaths, mainUnknownPaths)) {
             diffs.add(diff(
@@ -256,18 +256,23 @@ public class LgdDigitalDiffEngine {
         }
     }
 
-    private Set<String> collectUnknownRootPaths(JsonNode launch) {
-        JsonNode root = JsonNodePath.at(launch, LgdDigitalContract.ROOT_PATH);
+    private Set<String> collectUnknownRootPaths(StrategyContract contract, JsonNode launch) {
+        JsonNode root = JsonNodePath.at(launch, contract.rootPath());
         if (!JsonNodePath.isPresent(root) || !root.isObject()) {
             return Set.of();
         }
 
         LinkedHashSet<String> paths = new LinkedHashSet<>();
-        collectUnknownRootPaths(root, LgdDigitalContract.ROOT_PATH, paths);
+        collectUnknownRootPaths(contract, root, contract.rootPath(), paths);
         return paths;
     }
 
-    private void collectUnknownRootPaths(JsonNode node, String currentPath, Set<String> paths) {
+    private void collectUnknownRootPaths(
+            StrategyContract contract,
+            JsonNode node,
+            String currentPath,
+            Set<String> paths
+    ) {
         if (!node.isObject()) {
             return;
         }
@@ -280,7 +285,7 @@ public class LgdDigitalDiffEngine {
                 paths.add(childPath);
                 continue;
             }
-            collectUnknownRootPaths(entry.getValue(), childPath, paths);
+            collectUnknownRootPaths(contract, entry.getValue(), childPath, paths);
         }
     }
 

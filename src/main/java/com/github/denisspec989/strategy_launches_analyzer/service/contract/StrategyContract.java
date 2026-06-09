@@ -3,7 +3,7 @@ package com.github.denisspec989.strategy_launches_analyzer.service.contract;
 import com.github.denisspec989.strategy_launches_analyzer.dto.contract.ContractField;
 import com.github.denisspec989.strategy_launches_analyzer.dto.contract.ContractValueType;
 import com.github.denisspec989.strategy_launches_analyzer.dto.contract.StrategyContractDefinition;
-import org.springframework.stereotype.Component;
+import com.github.denisspec989.strategy_launches_analyzer.dto.strategy.StrategyName;
 
 import java.util.Collection;
 import java.util.Collections;
@@ -13,38 +13,43 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Collectors;
 
-@Component
-public class LgdDigitalContract {
-    public static final String STRATEGY_NAME = "LGD_DIGITAL";
-    public static final String ROOT_PATH = "strategyResponse";
-    public static final String OPENAPI_RESOURCE = "openapi/lgd-digital.openapi.yaml";
-    public static final String OPENAPI_SCHEMA = "LgdDigitalLaunch";
-
+public class StrategyContract {
+    private final StrategyName strategy;
     private final String version;
+    private final String rootPath;
     private final Map<String, ContractField> fields;
 
-    public LgdDigitalContract() {
-        this(new OpenApiStrategyContractLoader().load(OPENAPI_RESOURCE, OPENAPI_SCHEMA));
-    }
-
-    LgdDigitalContract(StrategyContractDefinition definition) {
-        if (!STRATEGY_NAME.equals(definition.strategyName())) {
-            throw new IllegalStateException("LGD_DIGITAL contract strategyName mismatch: " + definition.strategyName());
-        }
-        if (!ROOT_PATH.equals(definition.rootPath())) {
-            throw new IllegalStateException("LGD_DIGITAL contract rootPath mismatch: " + definition.rootPath());
+    public StrategyContract(StrategyName strategy, StrategyContractDefinition definition) {
+        if (!strategy.name().equals(definition.strategyName())) {
+            throw new IllegalStateException(
+                    "%s contract strategyName mismatch: %s".formatted(strategy.name(), definition.strategyName())
+            );
         }
 
         LinkedHashMap<String, ContractField> contractFields = new LinkedHashMap<>();
         for (ContractField field : definition.fields()) {
             contractFields.put(field.path(), field);
         }
+        this.strategy = strategy;
         this.version = definition.version();
+        this.rootPath = definition.rootPath();
         this.fields = Collections.unmodifiableMap(contractFields);
+    }
+
+    public StrategyName strategy() {
+        return strategy;
+    }
+
+    public String strategyName() {
+        return strategy.name();
     }
 
     public String version() {
         return version;
+    }
+
+    public String rootPath() {
+        return rootPath;
     }
 
     public Collection<ContractField> fields() {

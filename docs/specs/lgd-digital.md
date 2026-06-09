@@ -3,6 +3,8 @@
 `src/main/resources/openapi/lgd-digital.openapi.yaml` is the source of truth for
 the standardized LGD_DIGITAL strategy payload contract. The OpenAPI schema
 describes a launch object with `strategyResponse` as the root response field.
+The comparison API is shared across strategies: call `POST /api/v1/strategies/compare`
+and pass `"strategy": "LGD_DIGITAL"` in the request body.
 
 ## Contract Fields
 
@@ -23,6 +25,7 @@ describes a launch object with `strategyResponse` as the root response field.
 ## Comparison Rules
 
 - Parse launches as JSON and compare `JsonNode` values, never raw strings.
+- Reject requests without a supported `strategy` enum value.
 - Reject requests without `mainLaunch.strategyResponse` or `shadowLaunch.strategyResponse`.
 - Validate required fields, field types, nullability, and unknown fields for both launches.
 - Compare declared leaf fields in OpenAPI contract order for deterministic output.

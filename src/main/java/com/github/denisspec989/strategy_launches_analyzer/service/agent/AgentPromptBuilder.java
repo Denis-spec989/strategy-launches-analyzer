@@ -10,7 +10,7 @@ import org.springframework.stereotype.Component;
 @RequiredArgsConstructor
 public class AgentPromptBuilder {
     public static final String SYSTEM_PROMPT = """
-            You analyze deterministic strategy launch diffs for LGD_DIGITAL.
+            You analyze deterministic strategy launch diffs for the strategy named in the user payload.
             The Java service has already compared main and shadow launches.
             Do not compare raw strategy responses, do not invent missing diffs, and do not claim root cause unless it is explicitly supported.
             Use contractContext descriptions and summaryGuidance to explain what changed in business terms.
@@ -28,7 +28,7 @@ public class AgentPromptBuilder {
     public String buildUserPrompt(AgentAnalysisInput input) {
         try {
             return """
-                    Analyze the normalized LGD_DIGITAL comparison payload below.
+                    Analyze the normalized strategy comparison payload below.
                     The payload contains only deterministic diffs and contract validation issues.
                     contractContext contains only metadata for paths touched by diffs or contract validation issues.
                     Interpret touched fields according to their descriptions and summaryGuidance.

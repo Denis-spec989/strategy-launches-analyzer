@@ -3,12 +3,15 @@ package com.github.denisspec989.strategy_launches_analyzer.service.agent;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.github.denisspec989.strategy_launches_analyzer.TestFixtures;
+import com.github.denisspec989.strategy_launches_analyzer.dto.strategy.StrategyName;
 import com.github.denisspec989.strategy_launches_analyzer.service.contract.ContractValidator;
-import com.github.denisspec989.strategy_launches_analyzer.service.contract.LgdDigitalContract;
+import com.github.denisspec989.strategy_launches_analyzer.service.contract.OpenApiStrategyContractLoader;
+import com.github.denisspec989.strategy_launches_analyzer.service.contract.StrategyContract;
+import com.github.denisspec989.strategy_launches_analyzer.service.contract.StrategyContractRegistry;
 import com.github.denisspec989.strategy_launches_analyzer.dto.contract.ContractFieldContext;
 import com.github.denisspec989.strategy_launches_analyzer.dto.agent.AgentAnalysisInput;
 import com.github.denisspec989.strategy_launches_analyzer.dto.comparison.DiffResult;
-import com.github.denisspec989.strategy_launches_analyzer.service.diff.LgdDigitalDiffEngine;
+import com.github.denisspec989.strategy_launches_analyzer.service.diff.StrategyDiffEngine;
 import com.github.denisspec989.strategy_launches_analyzer.dto.agent.AgentAnalysis;
 import com.github.denisspec989.strategy_launches_analyzer.dto.comparison.ComparisonSummary;
 import com.github.denisspec989.strategy_launches_analyzer.dto.contract.ContractIssue;
@@ -27,13 +30,13 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 class AgentAnalyzerTest {
     private final ObjectMapper objectMapper = new ObjectMapper();
-    private LgdDigitalContract contract;
-    private LgdDigitalDiffEngine diffEngine;
+    private StrategyContract contract;
+    private StrategyDiffEngine diffEngine;
 
     @BeforeEach
     void setUp() {
-        contract = new LgdDigitalContract();
-        diffEngine = new LgdDigitalDiffEngine(contract, new ContractValidator(contract));
+        contract = new StrategyContractRegistry(new OpenApiStrategyContractLoader()).get(StrategyName.LGD_DIGITAL);
+        diffEngine = new StrategyDiffEngine(new ContractValidator());
     }
 
     @Test
@@ -47,7 +50,9 @@ class AgentAnalyzerTest {
         assertThat(prompt).contains("\"contractContext\"");
         assertThat(prompt).contains("\"deterministicSeverity\"");
         assertThat(prompt).doesNotContain("\"highestSeverity\"");
+        assertThat(AgentPromptBuilder.SYSTEM_PROMPT).doesNotContain("LGD_DIGITAL");
         assertThat(AgentPromptBuilder.SYSTEM_PROMPT).contains("not as final business severity");
+        assertThat(prompt).contains("\"strategyName\" : \"LGD_DIGITAL\"");
         assertThat(prompt).contains("\"format\" : \"double\"");
         assertThat(prompt).contains("LGD-\u043F\u043E\u0442\u0435\u0440\u0438 \u043F\u0440\u0438 \u0434\u0435\u0444\u043E\u043B\u0442\u0435 (%)");
         assertThat(prompt).contains("\u041C\u043E\u0434\u0435\u043B\u044C \u0440\u0430\u0441\u0447\u0435\u0442\u0430");
@@ -112,8 +117,8 @@ class AgentAnalyzerTest {
                 "Required field is missing."
         );
         AgentAnalysisInput input = new AgentAnalysisInput(
-                LgdDigitalContract.STRATEGY_NAME,
-                ComparisonSummary.from(LgdDigitalContract.STRATEGY_NAME, List.of(), List.of(issue)),
+                contract.strategyName(),
+                ComparisonSummary.from(contract.strategyName(), List.of(), List.of(issue)),
                 List.of(),
                 List.of(issue),
                 List.of(),
@@ -132,14 +137,14 @@ class AgentAnalyzerTest {
     private AgentAnalysisInput inputForFixture(String fixtureName, String mainLaunchName, String shadowLaunchName) {
         JsonNode main = TestFixtures.json(objectMapper, "fixtures/lgd-digital/%s/%s.json".formatted(fixtureName, mainLaunchName));
         JsonNode shadow = TestFixtures.json(objectMapper, "fixtures/lgd-digital/%s/%s.json".formatted(fixtureName, shadowLaunchName));
-        DiffResult diffResult = diffEngine.compare(main, shadow);
+        DiffResult diffResult = diffEngine.compare(contract, main, shadow);
         ComparisonSummary summary = ComparisonSummary.from(
-                LgdDigitalContract.STRATEGY_NAME,
+                contract.strategyName(),
                 diffResult.diffs(),
                 diffResult.contractValidation()
         );
         return new AgentAnalysisInput(
-                LgdDigitalContract.STRATEGY_NAME,
+                contract.strategyName(),
                 summary,
                 diffResult.diffs(),
                 diffResult.contractValidation(),

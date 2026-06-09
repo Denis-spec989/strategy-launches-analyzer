@@ -4,8 +4,11 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.github.denisspec989.strategy_launches_analyzer.TestFixtures;
+import com.github.denisspec989.strategy_launches_analyzer.dto.strategy.StrategyName;
 import com.github.denisspec989.strategy_launches_analyzer.service.contract.ContractValidator;
-import com.github.denisspec989.strategy_launches_analyzer.service.contract.LgdDigitalContract;
+import com.github.denisspec989.strategy_launches_analyzer.service.contract.OpenApiStrategyContractLoader;
+import com.github.denisspec989.strategy_launches_analyzer.service.contract.StrategyContract;
+import com.github.denisspec989.strategy_launches_analyzer.service.contract.StrategyContractRegistry;
 import com.github.denisspec989.strategy_launches_analyzer.dto.contract.ContractIssueType;
 import com.github.denisspec989.strategy_launches_analyzer.dto.comparison.LaunchSide;
 import org.junit.jupiter.api.BeforeEach;
@@ -17,11 +20,13 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 class ContractValidationTest {
     private final ObjectMapper objectMapper = new ObjectMapper();
+    private StrategyContract contract;
     private ContractValidator validator;
 
     @BeforeEach
     void setUp() {
-        validator = new ContractValidator(new LgdDigitalContract());
+        contract = new StrategyContractRegistry(new OpenApiStrategyContractLoader()).get(StrategyName.LGD_DIGITAL);
+        validator = new ContractValidator();
     }
 
     @Test
@@ -29,7 +34,7 @@ class ContractValidationTest {
         ObjectNode launch = fixture().deepCopy();
         ((ObjectNode) launch.at("/strategyResponse/lgdData")).remove("lgd");
 
-        assertThat(validator.validate(launch, LaunchSide.SHADOW, new AtomicInteger(1)))
+        assertThat(validator.validate(contract, launch, LaunchSide.SHADOW, new AtomicInteger(1)))
                 .singleElement()
                 .satisfies(issue -> {
                     assertThat(issue.type()).isEqualTo(ContractIssueType.REQUIRED_FIELD_MISSING);
@@ -43,12 +48,12 @@ class ContractValidationTest {
         ObjectNode launch = fixture().deepCopy();
         ((ObjectNode) launch.at("/strategyResponse/lgdData")).putNull("lgdModel");
 
-        assertThat(validator.validate(launch, LaunchSide.MAIN, new AtomicInteger(1))).isEmpty();
+        assertThat(validator.validate(contract, launch, LaunchSide.MAIN, new AtomicInteger(1))).isEmpty();
     }
 
     @Test
     void validatesFixtureWithoutRemovedUsingCollateral() {
-        assertThat(validator.validate(fixture(), LaunchSide.MAIN, new AtomicInteger(1))).isEmpty();
+        assertThat(validator.validate(contract, fixture(), LaunchSide.MAIN, new AtomicInteger(1))).isEmpty();
     }
 
     @Test
@@ -58,7 +63,7 @@ class ContractValidationTest {
                 "fixtures/lgd-digital/using-collateral-added/shadow.json"
         );
 
-        assertThat(validator.validate(launch, LaunchSide.SHADOW, new AtomicInteger(1)))
+        assertThat(validator.validate(contract, launch, LaunchSide.SHADOW, new AtomicInteger(1)))
                 .singleElement()
                 .satisfies(issue -> {
                     assertThat(issue.type()).isEqualTo(ContractIssueType.UNKNOWN_FIELD);
@@ -73,7 +78,7 @@ class ContractValidationTest {
         ((ObjectNode) launch.at("/strategyResponse/calculationInfo"))
                 .set("newContainer", objectMapper.createObjectNode().put("nested", "value"));
 
-        assertThat(validator.validate(launch, LaunchSide.SHADOW, new AtomicInteger(1)))
+        assertThat(validator.validate(contract, launch, LaunchSide.SHADOW, new AtomicInteger(1)))
                 .singleElement()
                 .satisfies(issue -> {
                     assertThat(issue.type()).isEqualTo(ContractIssueType.UNKNOWN_FIELD);

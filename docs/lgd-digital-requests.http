@@ -1,10 +1,11 @@
 @baseUrl = http://localhost:8080
 
 ### LGD_DIGITAL compare: model and metric changes
-POST  http://localhost:8080/api/v1/strategies/lgd-digital/compare
+POST  http://localhost:8080/api/v1/strategies/compare
 Content-Type: application/json
 
 {
+  "strategy": "LGD_DIGITAL",
   "mainLaunch": {
     "strategyResponse": {
       "lgdData": {
@@ -51,10 +52,11 @@ Content-Type: application/json
 }
 
 ### LGD_DIGITAL compare: optional field added in shadow
-POST http://localhost:8080/api/v1/strategies/lgd-digital/compare
+POST http://localhost:8080/api/v1/strategies/compare
 Content-Type: application/json
 
 {
+  "strategy": "LGD_DIGITAL",
   "mainLaunch": {
     "strategyResponse": {
       "lgdData": {
@@ -96,10 +98,11 @@ Content-Type: application/json
 }
 
 ### LGD_DIGITAL compare: technical mode regression
-POST {{baseUrl}}/api/v1/strategies/lgd-digital/compare
+POST {{baseUrl}}/api/v1/strategies/compare
 Content-Type: application/json
 
 {
+  "strategy": "LGD_DIGITAL",
   "mainLaunch": {
     "strategyResponse": {
       "lgdData": {
@@ -140,10 +143,11 @@ Content-Type: application/json
 }
 
 ### Bad request: missing mainLaunch.strategyResponse
-POST {{baseUrl}}/api/v1/strategies/lgd-digital/compare
+POST {{baseUrl}}/api/v1/strategies/compare
 Content-Type: application/json
 
 {
+  "strategy": "LGD_DIGITAL",
   "mainLaunch": {},
   "shadowLaunch": {
     "strategyResponse": {
@@ -164,7 +168,7 @@ Content-Type: application/json
 }
 
 ### Bad request: invalid JSON
-POST {{baseUrl}}/api/v1/strategies/lgd-digital/compare
+POST {{baseUrl}}/api/v1/strategies/compare
 Content-Type: application/json
 
 {
