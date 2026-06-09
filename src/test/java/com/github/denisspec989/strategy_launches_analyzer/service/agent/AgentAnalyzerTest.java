@@ -20,13 +20,16 @@ import com.github.denisspec989.strategy_launches_analyzer.dto.agent.AgentAnalysi
 import com.github.denisspec989.strategy_launches_analyzer.dto.contract.ContractIssueType;
 import com.github.denisspec989.strategy_launches_analyzer.dto.comparison.LaunchSide;
 import com.github.denisspec989.strategy_launches_analyzer.dto.common.Severity;
+import com.github.denisspec989.strategy_launches_analyzer.dto.agent.DiffExplanation;
 import com.github.denisspec989.strategy_launches_analyzer.dto.agent.TokenUsage;
+import com.github.denisspec989.strategy_launches_analyzer.exceptions.AgentAnalysisException;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
 import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 class AgentAnalyzerTest {
     private final ObjectMapper objectMapper = new ObjectMapper();
@@ -63,44 +66,16 @@ class AgentAnalyzerTest {
     }
 
     @Test
-    void fallbackAgentExplainsModelAndMetricDiffWithoutClaimingRootCause() {
-        AgentAnalysis analysis = new FallbackAgentAnalyzer().analyze(inputForFixture("model-change"));
-
-        assertThat(analysis.status()).isEqualTo(AgentAnalysisStatus.COMPLETED);
-        assertThat(analysis.overallSeverity()).isEqualTo(Severity.WARNING);
-        assertThat(analysis.businessImpact()).contains("may explain");
-        assertThat(analysis.businessImpact()).contains("should be confirmed");
-        assertThat(analysis.diffExplanations()).hasSize(3);
-        assertThat(analysis.tokenUsage().totalTokens()).isZero();
-    }
-
-    @Test
-    void fallbackAgentMarksModeRegressionAsCritical() {
-        AgentAnalysis analysis = new FallbackAgentAnalyzer().analyze(inputForFixture("mode-regression"));
-
-        assertThat(analysis.overallSeverity()).isEqualTo(Severity.CRITICAL);
-        assertThat(analysis.technicalRisks()).contains("constants");
-        assertThat(analysis.recommendations()).anySatisfy(recommendation ->
-                assertThat(recommendation).contains("response constants"));
-    }
-
-    @Test
-    void fallbackAgentMarksEmptyComparisonAsInfo() {
-        AgentAnalysis analysis = new FallbackAgentAnalyzer().analyze(inputForFixture("model-change", "main", "main"));
-
-        assertThat(analysis.overallSeverity()).isEqualTo(Severity.INFO);
-        assertThat(analysis.recommendations()).containsExactly("No action is required for this launch pair.");
-    }
-
-    @Test
     void springAiMappingKeepsHardTechnicalDiffCriticalWhenModelDowngradesIt() {
+        AgentAnalysisInput input = inputForFixture("mode-regression");
         AgentAnalysis analysis = SpringAiAgentAnalyzer.toDomain(
-                warningStructuredResponse(),
-                inputForFixture("mode-regression"),
+                warningStructuredResponse(List.of(explanationFor(input.diffs().get(0)))),
+                input,
                 TokenUsage.zero()
         );
 
         assertThat(analysis.overallSeverity()).isEqualTo(Severity.CRITICAL);
+        assertThat(analysis.status()).isEqualTo(AgentAnalysisStatus.COMPLETED);
     }
 
     @Test
@@ -125,9 +100,97 @@ class AgentAnalyzerTest {
                 null
         );
 
-        AgentAnalysis analysis = SpringAiAgentAnalyzer.toDomain(warningStructuredResponse(), input, TokenUsage.zero());
+        AgentAnalysis analysis = SpringAiAgentAnalyzer.toDomain(warningStructuredResponse(List.of()), input, TokenUsage.zero());
 
         assertThat(analysis.overallSeverity()).isEqualTo(Severity.CRITICAL);
+    }
+
+    @Test
+    void springAiMappingRejectsFabricatedDiffId() {
+        AgentAnalysisInput input = inputForFixture("model-change");
+
+        assertThatThrownBy(() -> SpringAiAgentAnalyzer.toDomain(
+                warningStructuredResponse(List.of(new DiffExplanation(
+                        "D999",
+                        "strategyResponse.lgdData.lgd",
+                        Severity.WARNING,
+                        "explanation"
+                ))),
+                input,
+                TokenUsage.zero()
+        )).isInstanceOf(AgentAnalysisException.class);
+    }
+
+    @Test
+    void springAiMappingRejectsMismatchedDiffPath() {
+        AgentAnalysisInput input = inputForFixture("model-change");
+
+        assertThatThrownBy(() -> SpringAiAgentAnalyzer.toDomain(
+                warningStructuredResponse(List.of(new DiffExplanation(
+                        "D001",
+                        "strategyResponse.lgdData.lgdModel",
+                        Severity.WARNING,
+                        "explanation"
+                ))),
+                input,
+                TokenUsage.zero()
+        )).isInstanceOf(AgentAnalysisException.class);
+    }
+
+    @Test
+    void springAiMappingRejectsNullDiffSeverity() {
+        AgentAnalysisInput input = inputForFixture("model-change");
+
+        assertThatThrownBy(() -> SpringAiAgentAnalyzer.toDomain(
+                warningStructuredResponse(List.of(new DiffExplanation(
+                        "D001",
+                        "strategyResponse.lgdData.lgd",
+                        null,
+                        "explanation"
+                ))),
+                input,
+                TokenUsage.zero()
+        )).isInstanceOf(AgentAnalysisException.class);
+    }
+
+    @Test
+    void springAiMappingRejectsBlankDiffExplanation() {
+        AgentAnalysisInput input = inputForFixture("model-change");
+
+        assertThatThrownBy(() -> SpringAiAgentAnalyzer.toDomain(
+                warningStructuredResponse(List.of(new DiffExplanation(
+                        "D001",
+                        "strategyResponse.lgdData.lgd",
+                        Severity.WARNING,
+                        " "
+                ))),
+                input,
+                TokenUsage.zero()
+        )).isInstanceOf(AgentAnalysisException.class);
+    }
+
+    @Test
+    void springAiMappingRejectsMissingHardCriticalDiffExplanation() {
+        AgentAnalysisInput input = inputForFixture("mode-regression");
+
+        assertThatThrownBy(() -> SpringAiAgentAnalyzer.toDomain(
+                warningStructuredResponse(List.of()),
+                input,
+                TokenUsage.zero()
+        )).isInstanceOf(AgentAnalysisException.class);
+    }
+
+    @Test
+    void springAiMappingRejectsOversizedRecommendationList() {
+        AgentAnalysisInput input = inputForFixture("model-change");
+
+        assertThatThrownBy(() -> SpringAiAgentAnalyzer.toDomain(
+                structuredResponse(Severity.WARNING, List.of(
+                        "r1", "r2", "r3", "r4", "r5", "r6", "r7", "r8", "r9", "r10", "r11"
+                ), List.of()),
+                input,
+                TokenUsage.zero()
+        )).isInstanceOf(AgentAnalysisException.class);
     }
 
     private AgentAnalysisInput inputForFixture(String fixtureName) {
@@ -153,15 +216,27 @@ class AgentAnalyzerTest {
         );
     }
 
-    private StructuredAgentAnalysis warningStructuredResponse() {
+    private StructuredAgentAnalysis warningStructuredResponse(List<DiffExplanation> diffExplanations) {
+        return structuredResponse(Severity.WARNING, List.of("recommendation"), diffExplanations);
+    }
+
+    private StructuredAgentAnalysis structuredResponse(
+            Severity severity,
+            List<String> recommendations,
+            List<DiffExplanation> diffExplanations
+    ) {
         return new StructuredAgentAnalysis(
-                Severity.WARNING,
+                severity,
                 "summary",
                 "business impact",
                 "technical risks",
-                List.of("recommendation"),
-                List.of()
+                recommendations,
+                diffExplanations
         );
+    }
+
+    private DiffExplanation explanationFor(com.github.denisspec989.strategy_launches_analyzer.dto.comparison.DiffEntry diff) {
+        return new DiffExplanation(diff.id(), diff.path(), Severity.WARNING, "explanation");
     }
 
     private List<ContractFieldContext> contractContext(DiffResult diffResult) {

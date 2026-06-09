@@ -1,6 +1,7 @@
 package com.github.denisspec989.strategy_launches_analyzer.service.diff;
 
 import com.fasterxml.jackson.databind.JsonNode;
+import com.github.denisspec989.strategy_launches_analyzer.dto.common.JsonValueSummary;
 import com.github.denisspec989.strategy_launches_analyzer.dto.contract.ContractField;
 import com.github.denisspec989.strategy_launches_analyzer.service.contract.ContractValidator;
 import com.github.denisspec989.strategy_launches_analyzer.dto.contract.ContractValueType;
@@ -234,7 +235,9 @@ public class StrategyDiffEngine {
                     DiffType.FIELD_ADDED_IN_SHADOW,
                     DiffCategory.CONTRACT_TECHNICAL,
                     null,
-                    JsonNodePath.at(shadowLaunch, shadowOnlyPath),
+                    null,
+                    null,
+                    JsonValueSummary.from(JsonNodePath.at(shadowLaunch, shadowOnlyPath)),
                     null,
                     null,
                     "Undeclared field is present only in shadow launch."
@@ -247,7 +250,9 @@ public class StrategyDiffEngine {
                     mainOnlyPath,
                     DiffType.FIELD_ADDED_IN_MAIN,
                     DiffCategory.CONTRACT_TECHNICAL,
-                    JsonNodePath.at(mainLaunch, mainOnlyPath),
+                    null,
+                    null,
+                    JsonValueSummary.from(JsonNodePath.at(mainLaunch, mainOnlyPath)),
                     null,
                     null,
                     null,
@@ -318,6 +323,8 @@ public class StrategyDiffEngine {
             DiffCategory category,
             JsonNode mainValue,
             JsonNode shadowValue,
+            JsonValueSummary mainValueSummary,
+            JsonValueSummary shadowValueSummary,
             BigDecimal absoluteDelta,
             BigDecimal relativeDeltaPercent,
             String description
@@ -329,6 +336,34 @@ public class StrategyDiffEngine {
                 category,
                 mainValue,
                 shadowValue,
+                mainValueSummary,
+                shadowValueSummary,
+                absoluteDelta,
+                relativeDeltaPercent,
+                description
+        );
+    }
+
+    private static DiffEntry diff(
+            AtomicInteger diffCounter,
+            String path,
+            DiffType type,
+            DiffCategory category,
+            JsonNode mainValue,
+            JsonNode shadowValue,
+            BigDecimal absoluteDelta,
+            BigDecimal relativeDeltaPercent,
+            String description
+    ) {
+        return diff(
+                diffCounter,
+                path,
+                type,
+                category,
+                mainValue,
+                shadowValue,
+                null,
+                null,
                 absoluteDelta,
                 relativeDeltaPercent,
                 description

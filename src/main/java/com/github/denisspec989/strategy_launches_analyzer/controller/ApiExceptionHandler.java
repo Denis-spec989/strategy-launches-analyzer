@@ -3,6 +3,7 @@ package com.github.denisspec989.strategy_launches_analyzer.controller;
 import com.fasterxml.jackson.databind.exc.InvalidFormatException;
 import com.github.denisspec989.strategy_launches_analyzer.dto.api.ErrorResponse;
 import com.github.denisspec989.strategy_launches_analyzer.dto.strategy.StrategyName;
+import com.github.denisspec989.strategy_launches_analyzer.exceptions.AgentAnalysisException;
 import com.github.denisspec989.strategy_launches_analyzer.exceptions.BadRequestException;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
@@ -48,6 +49,15 @@ public class ApiExceptionHandler {
         return error(HttpStatus.BAD_REQUEST, message);
     }
 
+    @ExceptionHandler(AgentAnalysisException.class)
+    public ResponseEntity<ErrorResponse> handleAgentAnalysisFailure(AgentAnalysisException ex) {
+        log.warn("Comparison request failed during agent analysis: status={}, errorType={}, message={}",
+                HttpStatus.INTERNAL_SERVER_ERROR.value(),
+                ex.getClass().getSimpleName(),
+                safeMessage(ex));
+        return error(HttpStatus.INTERNAL_SERVER_ERROR, "LLM analysis failed.");
+    }
+
     private static ResponseEntity<ErrorResponse> error(HttpStatus status, String message) {
         return ResponseEntity.status(status)
                 .body(new ErrorResponse(
@@ -78,5 +88,16 @@ public class ApiExceptionHandler {
         return String.join(", ", Arrays.stream(StrategyName.values())
                 .map(StrategyName::name)
                 .toList());
+    }
+
+    private static String safeMessage(RuntimeException ex) {
+        if (ex.getMessage() == null || ex.getMessage().isBlank()) {
+            return "not-provided";
+        }
+        String message = ex.getMessage()
+                .replace('\r', ' ')
+                .replace('\n', ' ')
+                .replace('\t', ' ');
+        return message.length() <= 128 ? message : message.substring(0, 128);
     }
 }

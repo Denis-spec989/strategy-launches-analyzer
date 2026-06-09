@@ -1,8 +1,7 @@
 package com.github.denisspec989.strategy_launches_analyzer.service;
 
-import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import com.github.denisspec989.strategy_launches_analyzer.dto.agent.TokenUsage;
 import com.github.denisspec989.strategy_launches_analyzer.dto.agent.AgentAnalysisInput;
 import com.github.denisspec989.strategy_launches_analyzer.service.agent.AgentAnalyzer;
 import com.github.denisspec989.strategy_launches_analyzer.dto.contract.ContractFieldContext;
@@ -15,6 +14,7 @@ import com.github.denisspec989.strategy_launches_analyzer.dto.comparison.DiffRes
 import com.github.denisspec989.strategy_launches_analyzer.service.diff.StrategyDiffEngine;
 import com.github.denisspec989.strategy_launches_analyzer.dto.agent.AgentAnalysis;
 import com.github.denisspec989.strategy_launches_analyzer.dto.comparison.ComparisonSummary;
+import com.github.denisspec989.strategy_launches_analyzer.exceptions.AgentAnalysisException;
 import com.github.denisspec989.strategy_launches_analyzer.exceptions.BadRequestException;
 import com.github.denisspec989.strategy_launches_analyzer.utils.JsonNodePath;
 import lombok.RequiredArgsConstructor;
@@ -30,7 +30,6 @@ public class CompareStrategyLaunchesUseCase {
     private final StrategyDiffEngine diffEngine;
     private final StrategyContractRegistry contractRegistry;
     private final AgentAnalyzer agentAnalyzer;
-    private final ObjectMapper objectMapper;
 
     public CompareStrategyResponse compare(CompareStrategyRequest request) {
         validateRequest(request);
@@ -43,18 +42,12 @@ public class CompareStrategyLaunchesUseCase {
                         + "mainStrategyVersion={}, shadowStrategyVersion={}, launchTimestamp={}",
                 contract.strategyName(),
                 requestId,
-                valueOrNotProvided(metadata == null ? null : metadata.mainLaunchId()),
-                valueOrNotProvided(metadata == null ? null : metadata.shadowLaunchId()),
-                valueOrNotProvided(metadata == null ? null : metadata.mainStrategyVersion()),
-                valueOrNotProvided(metadata == null ? null : metadata.shadowStrategyVersion()),
-                valueOrNotProvided(metadata == null ? null : metadata.launchTimestamp())
+                logValue(metadata == null ? null : metadata.mainLaunchId()),
+                logValue(metadata == null ? null : metadata.shadowLaunchId()),
+                logValue(metadata == null ? null : metadata.mainStrategyVersion()),
+                logValue(metadata == null ? null : metadata.shadowStrategyVersion()),
+                logValue(metadata == null ? null : metadata.launchTimestamp())
         );
-        log.info("{} comparison request metadata: requestId={}, metadata={}",
-                contract.strategyName(), requestId, prettyJson(metadata));
-        log.info("{} main launch payload: requestId={}, mainLaunch={}",
-                contract.strategyName(), requestId, prettyJson(request.mainLaunch()));
-        log.info("{} shadow launch payload: requestId={}, shadowLaunch={}",
-                contract.strategyName(), requestId, prettyJson(request.shadowLaunch()));
 
         DiffResult diffResult = diffEngine.compare(contract, request.mainLaunch(), request.shadowLaunch());
         ComparisonSummary summary = ComparisonSummary.from(
@@ -62,18 +55,18 @@ public class CompareStrategyLaunchesUseCase {
                 diffResult.diffs(),
                 diffResult.contractValidation()
         );
-        log.info("{} deterministic comparison summary: requestId={}, summary={}",
-                contract.strategyName(), requestId, prettyJson(summary));
-        log.info("{} deterministic diffs: requestId={}, totalDiffs={}, diffs={}",
+        log.info(
+                "{} deterministic comparison completed: requestId={}, totalDiffs={}, metricDiffs={}, "
+                        + "modelDiffs={}, contractTechnicalDiffs={}, contractValidationIssues={}, deterministicSeverity={}",
                 contract.strategyName(),
                 requestId,
-                diffResult.diffs().size(),
-                prettyJson(diffResult.diffs()));
-        log.info("{} contract validation result: requestId={}, issueCount={}, issues={}",
-                contract.strategyName(),
-                requestId,
-                diffResult.contractValidation().size(),
-                prettyJson(diffResult.contractValidation()));
+                summary.totalDiffs(),
+                summary.metricDiffs(),
+                summary.modelDiffs(),
+                summary.contractTechnicalDiffs(),
+                summary.contractValidationIssues(),
+                summary.deterministicSeverity()
+        );
 
         AgentAnalysis agentAnalysis = analyze(contract, summary, request, diffResult);
 
@@ -84,8 +77,15 @@ public class CompareStrategyLaunchesUseCase {
                 diffResult.contractValidation(),
                 agentAnalysis
         );
-        log.info("{} comparison response ready: requestId={}, response={}",
-                contract.strategyName(), requestId, prettyJson(response));
+        log.info(
+                "{} comparison response ready: requestId={}, status={}, overallSeverity={}, totalDiffs={}, contractIssueCount={}",
+                contract.strategyName(),
+                requestId,
+                agentAnalysis.status(),
+                agentAnalysis.overallSeverity(),
+                diffResult.diffs().size(),
+                diffResult.contractValidation().size()
+        );
         return response;
     }
 
@@ -96,10 +96,6 @@ public class CompareStrategyLaunchesUseCase {
             DiffResult diffResult
     ) {
         String requestId = requestId(request.metadata());
-        log.info("{} agent analysis started: requestId={}, agentAnalyzer={}",
-                contract.strategyName(),
-                requestId,
-                agentAnalyzer.getClass().getSimpleName());
         AgentAnalysisInput input = new AgentAnalysisInput(
                 contract.strategyName(),
                 summary,
@@ -108,22 +104,46 @@ public class CompareStrategyLaunchesUseCase {
                 contractContext(contract, diffResult),
                 request.metadata()
         );
-        log.info("{} agent analysis input: requestId={}, input={}",
-                contract.strategyName(), requestId, prettyJson(input));
+        log.info(
+                "{} agent analysis started: requestId={}, agentAnalyzer={}, diffCount={}, contractIssueCount={}, "
+                        + "contractContextCount={}, deterministicSeverity={}",
+                contract.strategyName(),
+                requestId,
+                agentAnalyzer.getClass().getSimpleName(),
+                input.diffs().size(),
+                input.contractValidation().size(),
+                input.contractContext().size(),
+                input.summary().deterministicSeverity()
+        );
+        long startedAtNanos = System.nanoTime();
         try {
             AgentAnalysis analysis = agentAnalyzer.analyze(input);
-            log.info("{} agent analysis completed: requestId={}, status={}, result={}",
+            log.info(
+                    "{} agent analysis completed: requestId={}, status={}, overallSeverity={}, recommendationCount={}, "
+                            + "diffExplanationCount={}, tokenUsage={}, durationMs={}",
                     contract.strategyName(),
                     requestId,
                     analysis.status(),
-                    prettyJson(analysis));
+                    analysis.overallSeverity(),
+                    analysis.recommendations() == null ? 0 : analysis.recommendations().size(),
+                    analysis.diffExplanations() == null ? 0 : analysis.diffExplanations().size(),
+                    tokenUsageSummary(analysis.tokenUsage()),
+                    durationMs(startedAtNanos)
+            );
             return analysis;
+        } catch (AgentAnalysisException ex) {
+            throw ex;
         } catch (RuntimeException ex) {
-            log.info("{} agent analysis failed before response mapping: requestId={}, error={}",
+            log.warn(
+                    "{} agent analysis failed: requestId={}, agentAnalyzer={}, errorType={}, errorMessage={}, durationMs={}",
                     contract.strategyName(),
                     requestId,
-                    ex.toString());
-            return AgentAnalysis.failed(ex.getMessage());
+                    agentAnalyzer.getClass().getSimpleName(),
+                    ex.getClass().getSimpleName(),
+                    safeMessage(ex),
+                    durationMs(startedAtNanos)
+            );
+            throw new AgentAnalysisException("Agent analysis failed.", ex);
         }
     }
 
@@ -164,25 +184,44 @@ public class CompareStrategyLaunchesUseCase {
         }
     }
 
-    private String prettyJson(Object value) {
-        if (value == null) {
-            return "null";
-        }
-        try {
-            return objectMapper.writerWithDefaultPrettyPrinter().writeValueAsString(value);
-        } catch (JsonProcessingException ex) {
-            return String.valueOf(value);
-        }
-    }
-
     private static String requestId(LaunchMetadata metadata) {
         if (metadata == null || metadata.requestId() == null || metadata.requestId().isBlank()) {
             return "not-provided";
         }
-        return metadata.requestId();
+        return logValue(metadata.requestId());
     }
 
-    private static Object valueOrNotProvided(Object value) {
-        return value == null ? "not-provided" : value;
+    private static String logValue(Object value) {
+        if (value == null) {
+            return "not-provided";
+        }
+        String text = String.valueOf(value)
+                .replace('\r', ' ')
+                .replace('\n', ' ')
+                .replace('\t', ' ');
+        return text.length() <= 128 ? text : text.substring(0, 128);
+    }
+
+    private static long durationMs(long startedAtNanos) {
+        return java.util.concurrent.TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - startedAtNanos);
+    }
+
+    private static String tokenUsageSummary(TokenUsage usage) {
+        if (usage == null) {
+            return "not-provided";
+        }
+        return "input=%s, output=%s, total=%s, model=%s".formatted(
+                usage.inputTokens(),
+                usage.outputTokens(),
+                usage.totalTokens(),
+                logValue(usage.model())
+        );
+    }
+
+    private static String safeMessage(RuntimeException ex) {
+        if (ex.getMessage() == null || ex.getMessage().isBlank()) {
+            return "not-provided";
+        }
+        return logValue(ex.getMessage());
     }
 }

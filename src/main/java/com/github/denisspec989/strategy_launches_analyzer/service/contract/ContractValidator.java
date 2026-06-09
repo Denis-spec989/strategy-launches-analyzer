@@ -1,6 +1,7 @@
 package com.github.denisspec989.strategy_launches_analyzer.service.contract;
 
 import com.fasterxml.jackson.databind.JsonNode;
+import com.github.denisspec989.strategy_launches_analyzer.dto.common.JsonValueSummary;
 import com.github.denisspec989.strategy_launches_analyzer.dto.contract.ContractField;
 import com.github.denisspec989.strategy_launches_analyzer.dto.contract.ContractValueType;
 import com.github.denisspec989.strategy_launches_analyzer.dto.contract.ContractIssue;
@@ -134,7 +135,8 @@ public class ContractValidator {
                     Severity.WARNING,
                     "field declared in %s contract".formatted(contract.strategyName()),
                     ContractValueType.actualTypeOf(childNode),
-                    childNode,
+                    null,
+                    JsonValueSummary.from(childNode),
                     "Field is not declared in the %s contract.".formatted(contract.strategyName())
             ));
         }
@@ -149,6 +151,7 @@ public class ContractValidator {
             String expected,
             String actual,
             JsonNode actualValue,
+            JsonValueSummary actualValueSummary,
             String message
     ) {
         return new ContractIssue(
@@ -160,8 +163,23 @@ public class ContractValidator {
                 expected,
                 actual,
                 actualValue,
+                actualValueSummary,
                 message
         );
+    }
+
+    private static ContractIssue issue(
+            AtomicInteger issueCounter,
+            LaunchSide side,
+            String path,
+            ContractIssueType type,
+            Severity severity,
+            String expected,
+            String actual,
+            JsonNode actualValue,
+            String message
+    ) {
+        return issue(issueCounter, side, path, type, severity, expected, actual, actualValue, null, message);
     }
 
     private static String expected(ContractField field) {

@@ -2,6 +2,7 @@ package com.github.denisspec989.strategy_launches_analyzer.service.diff;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.github.denisspec989.strategy_launches_analyzer.TestFixtures;
 import com.github.denisspec989.strategy_launches_analyzer.dto.strategy.StrategyName;
 import com.github.denisspec989.strategy_launches_analyzer.service.contract.ContractValidator;
@@ -64,6 +65,16 @@ class StrategyDiffEngineTest {
         DiffResult result = compareFixture("using-collateral-added");
 
         assertDiffsMatchExpected(result.diffs(), "using-collateral-added");
+        assertThat(result.diffs())
+                .singleElement()
+                .satisfies(diff -> {
+                    assertThat(diff.mainValue()).isNull();
+                    assertThat(diff.shadowValue()).isNull();
+                    assertThat(diff.mainValueSummary()).isNull();
+                    assertThat(diff.shadowValueSummary().jsonType()).isEqualTo("string");
+                    assertThat(diff.shadowValueSummary().stringLength()).isEqualTo(1);
+                    assertThat(diff.shadowValueSummary().preview()).isEqualTo("4");
+                });
         assertThat(result.contractValidation())
                 .singleElement()
                 .satisfies(issue -> {
@@ -72,6 +83,30 @@ class StrategyDiffEngineTest {
                     assertThat(issue.type()).isEqualTo(ContractIssueType.UNKNOWN_FIELD);
                     assertThat(issue.expected()).contains("field declared");
                     assertThat(issue.actual()).isEqualTo("string");
+                });
+    }
+
+    @Test
+    void summarizesUnknownObjectDiffWithoutRawSubtree() {
+        ObjectNode main = fixture().deepCopy();
+        ObjectNode shadow = fixture().deepCopy();
+        ((ObjectNode) shadow.at("/strategyResponse/calculationInfo"))
+                .set("extra", objectMapper.createObjectNode()
+                        .put("token", "secret-token")
+                        .set("nested", objectMapper.createObjectNode().put("value", "hidden-value")));
+
+        DiffResult result = diffEngine.compare(contract, main, shadow);
+
+        assertThat(result.diffs())
+                .singleElement()
+                .satisfies(diff -> {
+                    assertThat(diff.path()).isEqualTo("strategyResponse.calculationInfo.extra");
+                    assertThat(diff.mainValue()).isNull();
+                    assertThat(diff.shadowValue()).isNull();
+                    assertThat(diff.shadowValueSummary().jsonType()).isEqualTo("object");
+                    assertThat(diff.shadowValueSummary().objectFieldCount()).isEqualTo(2);
+                    assertThat(diff.shadowValueSummary().preview()).contains("token", "nested");
+                    assertThat(diff.shadowValueSummary().preview()).doesNotContain("secret-token", "hidden-value");
                 });
     }
 
@@ -104,6 +139,13 @@ class StrategyDiffEngineTest {
         JsonNode main = TestFixtures.json(objectMapper, "fixtures/lgd-digital/%s/main.json".formatted(name));
         JsonNode shadow = TestFixtures.json(objectMapper, "fixtures/lgd-digital/%s/shadow.json".formatted(name));
         return diffEngine.compare(contract, main, shadow);
+    }
+
+    private ObjectNode fixture() {
+        return (ObjectNode) TestFixtures.json(
+                objectMapper,
+                "fixtures/lgd-digital/model-change/main.json"
+        );
     }
 
     private void assertDiffsMatchExpected(List<DiffEntry> diffs, String fixtureName) {

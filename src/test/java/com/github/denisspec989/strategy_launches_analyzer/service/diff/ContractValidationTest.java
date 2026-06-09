@@ -69,6 +69,10 @@ class ContractValidationTest {
                     assertThat(issue.type()).isEqualTo(ContractIssueType.UNKNOWN_FIELD);
                     assertThat(issue.path()).isEqualTo("strategyResponse.calculationInfo.usingCollateral");
                     assertThat(issue.actual()).isEqualTo("string");
+                    assertThat(issue.actualValue()).isNull();
+                    assertThat(issue.actualValueSummary().jsonType()).isEqualTo("string");
+                    assertThat(issue.actualValueSummary().preview()).isEqualTo("4");
+                    assertThat(issue.actualValueSummary().stringLength()).isEqualTo(1);
                 });
     }
 
@@ -83,6 +87,32 @@ class ContractValidationTest {
                 .satisfies(issue -> {
                     assertThat(issue.type()).isEqualTo(ContractIssueType.UNKNOWN_FIELD);
                     assertThat(issue.path()).isEqualTo("strategyResponse.calculationInfo.newContainer");
+                    assertThat(issue.actualValue()).isNull();
+                    assertThat(issue.actualValueSummary().jsonType()).isEqualTo("object");
+                    assertThat(issue.actualValueSummary().objectFieldCount()).isEqualTo(1);
+                    assertThat(issue.actualValueSummary().preview()).contains("nested");
+                    assertThat(issue.actualValueSummary().preview()).doesNotContain("value");
+                });
+    }
+
+    @Test
+    void reportsUnknownArrayWithSummaryOnly() {
+        ObjectNode launch = fixture().deepCopy();
+        ((ObjectNode) launch.at("/strategyResponse/calculationInfo"))
+                .set("newArray", objectMapper.createArrayNode()
+                        .add("secret-value")
+                        .add(objectMapper.createObjectNode().put("token", "hidden")));
+
+        assertThat(validator.validate(contract, launch, LaunchSide.SHADOW, new AtomicInteger(1)))
+                .singleElement()
+                .satisfies(issue -> {
+                    assertThat(issue.type()).isEqualTo(ContractIssueType.UNKNOWN_FIELD);
+                    assertThat(issue.path()).isEqualTo("strategyResponse.calculationInfo.newArray");
+                    assertThat(issue.actualValue()).isNull();
+                    assertThat(issue.actualValueSummary().jsonType()).isEqualTo("array");
+                    assertThat(issue.actualValueSummary().arrayElementCount()).isEqualTo(2);
+                    assertThat(issue.actualValueSummary().preview()).contains("string", "object");
+                    assertThat(issue.actualValueSummary().preview()).doesNotContain("secret-value", "hidden");
                 });
     }
 

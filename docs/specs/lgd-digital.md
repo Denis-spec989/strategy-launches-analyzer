@@ -33,6 +33,7 @@ and pass `"strategy": "LGD_DIGITAL"` in the request body.
 - For `lgd` and `lgdDt`, calculate absolute delta as `shadow - main` and relative delta as `absolute / main * 100` when main is not zero.
 - Compare optional fields only when at least one launch provides them.
 - Report response shape changes when a field exists only in main or only in shadow.
+- For undeclared fields, return only bounded value summaries in diff and contract validation output; do not expose full unknown JSON subtrees.
 
 ## Agent Rules
 
@@ -43,3 +44,4 @@ and pass `"strategy": "LGD_DIGITAL"` in the request body.
 - The agent must not receive the full OpenAPI contract, compare raw launch JSON, or invent additional diffs.
 - The agent may describe model changes as a possible explanation for metric changes, not as proven root cause.
 - Shape, schema, type, and nullability issues must always be mentioned in analysis.
+- LLM analysis is required for a successful comparison response; unavailable LLM calls or invalid structured model output fail the request with HTTP 500.

@@ -17,17 +17,4 @@ public record AgentAnalysis(
         TokenUsage tokenUsage,
         String errorMessage
 ) {
-    public static AgentAnalysis failed(String errorMessage) {
-        return new AgentAnalysis(
-                AgentAnalysisStatus.FAILED,
-                Severity.WARNING,
-                "Agent analysis is unavailable. Deterministic diffs are still returned.",
-                "",
-                "LLM analysis failed and should be retried after checking model configuration.",
-                List.of("Review deterministic diffs manually."),
-                List.of(),
-                TokenUsage.zero(),
-                errorMessage
-        );
-    }
 }
