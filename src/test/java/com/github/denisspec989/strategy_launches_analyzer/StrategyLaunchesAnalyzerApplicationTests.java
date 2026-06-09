@@ -1,7 +1,7 @@
 package com.github.denisspec989.strategy_launches_analyzer;
 
-import com.github.denisspec989.strategy_launches_analyzer.agent.AgentAnalyzer;
-import com.github.denisspec989.strategy_launches_analyzer.agent.FallbackAgentAnalyzer;
+import com.github.denisspec989.strategy_launches_analyzer.service.agent.AgentAnalyzer;
+import com.github.denisspec989.strategy_launches_analyzer.service.agent.FallbackAgentAnalyzer;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
