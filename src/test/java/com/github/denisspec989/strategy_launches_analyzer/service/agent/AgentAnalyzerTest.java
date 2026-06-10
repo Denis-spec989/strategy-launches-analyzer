@@ -3,30 +3,35 @@ package com.github.denisspec989.strategy_launches_analyzer.service.agent;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.github.denisspec989.strategy_launches_analyzer.TestFixtures;
+import com.github.denisspec989.strategy_launches_analyzer.dto.agent.AgentAnalysis;
+import com.github.denisspec989.strategy_launches_analyzer.dto.agent.AgentAnalysisInput;
+import com.github.denisspec989.strategy_launches_analyzer.dto.agent.AgentAnalysisStatus;
+import com.github.denisspec989.strategy_launches_analyzer.dto.agent.DiffExplanation;
+import com.github.denisspec989.strategy_launches_analyzer.dto.agent.StructuredAgentAnalysis;
+import com.github.denisspec989.strategy_launches_analyzer.dto.agent.TokenUsage;
+import com.github.denisspec989.strategy_launches_analyzer.dto.common.Severity;
+import com.github.denisspec989.strategy_launches_analyzer.dto.comparison.ComparisonSummary;
+import com.github.denisspec989.strategy_launches_analyzer.dto.comparison.DeterministicSeverityCalculator;
+import com.github.denisspec989.strategy_launches_analyzer.dto.comparison.DiffEntry;
+import com.github.denisspec989.strategy_launches_analyzer.dto.comparison.DiffResult;
+import com.github.denisspec989.strategy_launches_analyzer.dto.comparison.LaunchSide;
+import com.github.denisspec989.strategy_launches_analyzer.dto.contract.ContractFieldContext;
+import com.github.denisspec989.strategy_launches_analyzer.dto.contract.ContractIssue;
+import com.github.denisspec989.strategy_launches_analyzer.dto.contract.ContractIssueType;
 import com.github.denisspec989.strategy_launches_analyzer.dto.strategy.StrategyName;
+import com.github.denisspec989.strategy_launches_analyzer.exceptions.AgentAnalysisException;
 import com.github.denisspec989.strategy_launches_analyzer.service.contract.ContractValidator;
 import com.github.denisspec989.strategy_launches_analyzer.service.contract.OpenApiStrategyContractLoader;
 import com.github.denisspec989.strategy_launches_analyzer.service.contract.StrategyContract;
 import com.github.denisspec989.strategy_launches_analyzer.service.contract.StrategyContractRegistry;
-import com.github.denisspec989.strategy_launches_analyzer.dto.contract.ContractFieldContext;
-import com.github.denisspec989.strategy_launches_analyzer.dto.agent.AgentAnalysisInput;
-import com.github.denisspec989.strategy_launches_analyzer.dto.comparison.DiffResult;
 import com.github.denisspec989.strategy_launches_analyzer.service.diff.StrategyDiffEngine;
-import com.github.denisspec989.strategy_launches_analyzer.dto.agent.AgentAnalysis;
-import com.github.denisspec989.strategy_launches_analyzer.dto.comparison.ComparisonSummary;
-import com.github.denisspec989.strategy_launches_analyzer.dto.contract.ContractIssue;
-import com.github.denisspec989.strategy_launches_analyzer.dto.agent.StructuredAgentAnalysis;
-import com.github.denisspec989.strategy_launches_analyzer.dto.agent.AgentAnalysisStatus;
-import com.github.denisspec989.strategy_launches_analyzer.dto.contract.ContractIssueType;
-import com.github.denisspec989.strategy_launches_analyzer.dto.comparison.LaunchSide;
-import com.github.denisspec989.strategy_launches_analyzer.dto.common.Severity;
-import com.github.denisspec989.strategy_launches_analyzer.dto.agent.TokenUsage;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
 import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 class AgentAnalyzerTest {
     private final ObjectMapper objectMapper = new ObjectMapper();
@@ -63,43 +68,16 @@ class AgentAnalyzerTest {
     }
 
     @Test
-    void fallbackAgentExplainsModelAndMetricDiffWithoutClaimingRootCause() {
-        AgentAnalysis analysis = new FallbackAgentAnalyzer().analyze(inputForFixture("model-change"));
-
-        assertThat(analysis.status()).isEqualTo(AgentAnalysisStatus.COMPLETED);
-        assertThat(analysis.overallSeverity()).isEqualTo(Severity.WARNING);
-        assertThat(analysis.businessImpact()).contains("may explain");
-        assertThat(analysis.businessImpact()).contains("should be confirmed");
-        assertThat(analysis.diffExplanations()).hasSize(3);
-        assertThat(analysis.tokenUsage().totalTokens()).isZero();
-    }
-
-    @Test
-    void fallbackAgentMarksModeRegressionAsCritical() {
-        AgentAnalysis analysis = new FallbackAgentAnalyzer().analyze(inputForFixture("mode-regression"));
-
-        assertThat(analysis.overallSeverity()).isEqualTo(Severity.CRITICAL);
-        assertThat(analysis.technicalRisks()).contains("constants");
-        assertThat(analysis.recommendations()).anySatisfy(recommendation ->
-                assertThat(recommendation).contains("response constants"));
-    }
-
-    @Test
-    void fallbackAgentMarksEmptyComparisonAsInfo() {
-        AgentAnalysis analysis = new FallbackAgentAnalyzer().analyze(inputForFixture("model-change", "main", "main"));
-
-        assertThat(analysis.overallSeverity()).isEqualTo(Severity.INFO);
-        assertThat(analysis.recommendations()).containsExactly("No action is required for this launch pair.");
-    }
-
-    @Test
     void springAiMappingKeepsHardTechnicalDiffCriticalWhenModelDowngradesIt() {
+        AgentAnalysisInput input = inputForFixture("mode-regression");
+
         AgentAnalysis analysis = SpringAiAgentAnalyzer.toDomain(
-                warningStructuredResponse(),
-                inputForFixture("mode-regression"),
+                structuredResponse(input, Severity.WARNING),
+                input,
                 TokenUsage.zero()
         );
 
+        assertThat(analysis.status()).isEqualTo(AgentAnalysisStatus.COMPLETED);
         assertThat(analysis.overallSeverity()).isEqualTo(Severity.CRITICAL);
     }
 
@@ -125,9 +103,70 @@ class AgentAnalyzerTest {
                 null
         );
 
-        AgentAnalysis analysis = SpringAiAgentAnalyzer.toDomain(warningStructuredResponse(), input, TokenUsage.zero());
+        AgentAnalysis analysis = SpringAiAgentAnalyzer.toDomain(
+                structuredResponse(input, Severity.WARNING),
+                input,
+                TokenUsage.zero()
+        );
 
         assertThat(analysis.overallSeverity()).isEqualTo(Severity.CRITICAL);
+        assertThat(analysis.technicalRisks()).contains("\u043a\u0440\u0438\u0442\u0438\u0447\u0435\u0441\u043a\u0438\u0435 "
+                + "\u043d\u0430\u0440\u0443\u0448\u0435\u043d\u0438\u044f");
+    }
+
+    @Test
+    void springAiMappingRejectsFabricatedDiffExplanation() {
+        AgentAnalysisInput input = inputForFixture("model-change");
+        StructuredAgentAnalysis response = new StructuredAgentAnalysis(
+                Severity.WARNING,
+                "summary",
+                "business impact",
+                "technical risks",
+                List.of("recommendation"),
+                List.of(new DiffExplanation(
+                        "D999",
+                        "strategyResponse.fabricated",
+                        Severity.WARNING,
+                        "fabricated explanation"
+                ))
+        );
+
+        assertThatThrownBy(() -> SpringAiAgentAnalyzer.toDomain(response, input, TokenUsage.zero()))
+                .isInstanceOf(AgentAnalysisException.class)
+                .hasMessageContaining("diffId is not in deterministic diffs");
+    }
+
+    @Test
+    void springAiMappingAddsDeterministicExplanationForMissingHardCriticalDiff() {
+        AgentAnalysisInput input = inputForFixture("mode-regression");
+        List<DiffExplanation> modelExplanations = input.diffs().stream()
+                .filter(diff -> !DeterministicSeverityCalculator.isHardCriticalDiff(diff))
+                .map(AgentAnalyzerTest::explanation)
+                .toList();
+        StructuredAgentAnalysis response = structuredResponse(input, Severity.WARNING, modelExplanations);
+
+        AgentAnalysis analysis = SpringAiAgentAnalyzer.toDomain(response, input, TokenUsage.zero());
+
+        assertThat(input.diffs()).anyMatch(DeterministicSeverityCalculator::isHardCriticalDiff);
+        assertThat(analysis.diffExplanations()).anySatisfy(explanation ->
+                assertThat(explanation.severity()).isEqualTo(Severity.CRITICAL));
+    }
+
+    @Test
+    void springAiMappingRejectsBlankRequiredText() {
+        AgentAnalysisInput input = inputForFixture("model-change");
+        StructuredAgentAnalysis response = new StructuredAgentAnalysis(
+                Severity.WARNING,
+                "",
+                "business impact",
+                "technical risks",
+                List.of("recommendation"),
+                explanations(input)
+        );
+
+        assertThatThrownBy(() -> SpringAiAgentAnalyzer.toDomain(response, input, TokenUsage.zero()))
+                .isInstanceOf(AgentAnalysisException.class)
+                .hasMessageContaining("summary is blank");
     }
 
     private AgentAnalysisInput inputForFixture(String fixtureName) {
@@ -153,14 +192,37 @@ class AgentAnalyzerTest {
         );
     }
 
-    private StructuredAgentAnalysis warningStructuredResponse() {
+    private StructuredAgentAnalysis structuredResponse(AgentAnalysisInput input, Severity severity) {
+        return structuredResponse(input, severity, explanations(input));
+    }
+
+    private StructuredAgentAnalysis structuredResponse(
+            AgentAnalysisInput input,
+            Severity severity,
+            List<DiffExplanation> explanations
+    ) {
         return new StructuredAgentAnalysis(
-                Severity.WARNING,
+                severity,
                 "summary",
                 "business impact",
                 "technical risks",
                 List.of("recommendation"),
-                List.of()
+                explanations
+        );
+    }
+
+    private static List<DiffExplanation> explanations(AgentAnalysisInput input) {
+        return input.diffs().stream()
+                .map(AgentAnalyzerTest::explanation)
+                .toList();
+    }
+
+    private static DiffExplanation explanation(DiffEntry diff) {
+        return new DiffExplanation(
+                diff.id(),
+                diff.path(),
+                Severity.WARNING,
+                "explanation for " + diff.id()
         );
     }
 

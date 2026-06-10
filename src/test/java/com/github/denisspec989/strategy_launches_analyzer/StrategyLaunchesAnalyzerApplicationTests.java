@@ -1,7 +1,7 @@
 package com.github.denisspec989.strategy_launches_analyzer;
 
 import com.github.denisspec989.strategy_launches_analyzer.service.agent.AgentAnalyzer;
-import com.github.denisspec989.strategy_launches_analyzer.service.agent.FallbackAgentAnalyzer;
+import com.github.denisspec989.strategy_launches_analyzer.service.agent.SpringAiAgentAnalyzer;
 import lombok.AccessLevel;
 import lombok.RequiredArgsConstructor;
 import org.junit.jupiter.api.Test;
@@ -11,15 +11,15 @@ import org.springframework.test.context.ActiveProfiles;
 
 import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 
-@SpringBootTest
-@ActiveProfiles("fallback")
+@SpringBootTest(properties = "OPENAI_API_KEY=dummy-test-key")
+@ActiveProfiles("openai")
 @RequiredArgsConstructor(access = AccessLevel.PACKAGE, onConstructor_ = @Autowired)
 class StrategyLaunchesAnalyzerApplicationTests {
 	private final AgentAnalyzer agentAnalyzer;
 
 	@Test
-	void contextLoadsWithFallbackAgentByDefault() {
-		assertInstanceOf(FallbackAgentAnalyzer.class, agentAnalyzer);
+	void contextLoadsWithSpringAiAgent() {
+		assertInstanceOf(SpringAiAgentAnalyzer.class, agentAnalyzer);
 	}
 
 }

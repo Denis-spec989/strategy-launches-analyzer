@@ -18,9 +18,14 @@ public record AgentAnalysis(
         String errorMessage
 ) {
     public static AgentAnalysis failed(String errorMessage) {
+        return failed(errorMessage, Severity.WARNING);
+    }
+
+    public static AgentAnalysis failed(String errorMessage, Severity deterministicSeverity) {
+        Severity failureSeverity = max(deterministicSeverity, Severity.WARNING);
         return new AgentAnalysis(
                 AgentAnalysisStatus.FAILED,
-                Severity.WARNING,
+                failureSeverity,
                 "Agent analysis is unavailable. Deterministic diffs are still returned.",
                 "",
                 "LLM analysis failed and should be retried after checking model configuration.",
@@ -29,5 +34,11 @@ public record AgentAnalysis(
                 TokenUsage.zero(),
                 errorMessage
         );
+    }
+
+    private static Severity max(Severity left, Severity right) {
+        Severity safeLeft = left == null ? Severity.WARNING : left;
+        Severity safeRight = right == null ? Severity.WARNING : right;
+        return safeLeft.ordinal() >= safeRight.ordinal() ? safeLeft : safeRight;
     }
 }

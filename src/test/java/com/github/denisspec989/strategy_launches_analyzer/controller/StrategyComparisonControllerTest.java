@@ -17,12 +17,11 @@ import org.springframework.context.annotation.Primary;
 import org.springframework.http.MediaType;
 import org.springframework.test.web.servlet.MockMvc;
 
-import static org.hamcrest.Matchers.hasSize;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
-@SpringBootTest(properties = "strategy-launches-analyzer.agent.provider=fallback")
+@SpringBootTest(properties = "strategy-launches-analyzer.agent.provider=test")
 @AutoConfigureMockMvc
 @RequiredArgsConstructor(access = AccessLevel.PACKAGE, onConstructor_ = @Autowired)
 class StrategyComparisonControllerTest {
@@ -30,21 +29,15 @@ class StrategyComparisonControllerTest {
     private final ObjectMapper objectMapper;
 
     @Test
-    void returnsDiffsEvenWhenAgentFails() throws Exception {
+    void returnsInternalServerErrorWhenAgentFails() throws Exception {
         mockMvc.perform(post("/api/v1/strategies/compare")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(requestBody("model-change")))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.strategyName").value("LGD_DIGITAL"))
-                .andExpect(jsonPath("$.diffs", hasSize(3)))
-                .andExpect(jsonPath("$.diffs[0].path").value("strategyResponse.lgdData.lgd"))
-                .andExpect(jsonPath("$.summary.totalDiffs").value(3))
-                .andExpect(jsonPath("$.summary.deterministicSeverity").value("WARNING"))
-                .andExpect(jsonPath("$.summary.highestSeverity").doesNotExist())
-                .andExpect(jsonPath("$.agentAnalysis.status").value("FAILED"))
-                .andExpect(jsonPath("$.agentAnalysis.tokenUsage.inputTokens").value(0))
-                .andExpect(jsonPath("$.agentAnalysis.tokenUsage.outputTokens").value(0))
-                .andExpect(jsonPath("$.agentAnalysis.tokenUsage.totalTokens").value(0));
+                .andExpect(status().isInternalServerError())
+                .andExpect(jsonPath("$.status").value(500))
+                .andExpect(jsonPath("$.message").value("Agent analysis failed. Check LLM configuration and availability."))
+                .andExpect(jsonPath("$.diffs").doesNotExist())
+                .andExpect(jsonPath("$.agentAnalysis").doesNotExist());
     }
 
     @Test

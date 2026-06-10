@@ -41,6 +41,14 @@ class ComparisonSummaryTest {
     }
 
     @Test
+    void comparisonWithHardCriticalDiffUsesCriticalDeterministicSeverity() {
+        ComparisonSummary summary = ComparisonSummary.from("LGD_DIGITAL", List.of(hardCriticalDiff()), List.of());
+
+        assertThat(summary.deterministicSeverity()).isEqualTo(Severity.CRITICAL);
+        assertThat(summary.hasCriticalIssues()).isTrue();
+    }
+
+    @Test
     void serializesDeterministicSeverityWithoutHighestSeverity() throws Exception {
         String json = objectMapper.writeValueAsString(ComparisonSummary.from("LGD_DIGITAL", List.of(metricDiff()), List.of()));
 
@@ -59,6 +67,20 @@ class ComparisonSummaryTest {
                 null,
                 null,
                 "Numeric value changed in shadow launch."
+        );
+    }
+
+    private static DiffEntry hardCriticalDiff() {
+        return new DiffEntry(
+                "D001",
+                "strategyResponse.lgdData.mode",
+                DiffType.STRING_VALUE_CHANGED,
+                DiffCategory.CONTRACT_TECHNICAL,
+                null,
+                null,
+                null,
+                null,
+                "Technical field changed in shadow launch."
         );
     }
 

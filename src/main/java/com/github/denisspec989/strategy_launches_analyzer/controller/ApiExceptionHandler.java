@@ -3,6 +3,7 @@ package com.github.denisspec989.strategy_launches_analyzer.controller;
 import com.fasterxml.jackson.databind.exc.InvalidFormatException;
 import com.github.denisspec989.strategy_launches_analyzer.dto.api.ErrorResponse;
 import com.github.denisspec989.strategy_launches_analyzer.dto.strategy.StrategyName;
+import com.github.denisspec989.strategy_launches_analyzer.exceptions.AgentAnalysisException;
 import com.github.denisspec989.strategy_launches_analyzer.exceptions.BadRequestException;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
@@ -48,6 +49,16 @@ public class ApiExceptionHandler {
         return error(HttpStatus.BAD_REQUEST, message);
     }
 
+    @ExceptionHandler(AgentAnalysisException.class)
+    public ResponseEntity<ErrorResponse> handleAgentAnalysisException(AgentAnalysisException ex) {
+        String message = "Agent analysis failed. Check LLM configuration and availability.";
+        log.error("Comparison request failed: status={}, message={}, causeType={}",
+                HttpStatus.INTERNAL_SERVER_ERROR.value(),
+                message,
+                causeType(ex));
+        return error(HttpStatus.INTERNAL_SERVER_ERROR, message);
+    }
+
     private static ResponseEntity<ErrorResponse> error(HttpStatus status, String message) {
         return ResponseEntity.status(status)
                 .body(new ErrorResponse(
@@ -79,4 +90,10 @@ public class ApiExceptionHandler {
                 .map(StrategyName::name)
                 .toList());
     }
+
+    private static String causeType(Throwable ex) {
+        Throwable cause = ex.getCause() == null ? ex : ex.getCause();
+        return cause.getClass().getSimpleName();
+    }
+
 }

@@ -19,10 +19,8 @@ public record ComparisonSummary(
         int metricDiffs = countByCategory(diffs, DiffCategory.METRIC);
         int modelDiffs = countByCategory(diffs, DiffCategory.MODEL);
         int contractTechnicalDiffs = countByCategory(diffs, DiffCategory.CONTRACT_TECHNICAL);
-        boolean hasCriticalIssues = issues.stream().anyMatch(issue -> issue.severity() == Severity.CRITICAL);
-        Severity deterministicSeverity = hasCriticalIssues
-                ? Severity.CRITICAL
-                : (diffs.isEmpty() && issues.isEmpty() ? Severity.INFO : Severity.WARNING);
+        Severity deterministicSeverity = DeterministicSeverityCalculator.calculate(diffs, issues);
+        boolean hasCriticalIssues = deterministicSeverity == Severity.CRITICAL;
 
         return new ComparisonSummary(
                 strategyName,
