@@ -54,6 +54,8 @@ class AgentAnalyzerTest {
         assertThat(prompt).contains("\"contractValidation\"");
         assertThat(prompt).contains("\"contractContext\"");
         assertThat(prompt).contains("\"deterministicSeverity\"");
+        assertThat(prompt).contains("summary, businessImpact, technicalRisks, recommendations");
+        assertThat(prompt).contains("only from summary, diffs, contractValidation, contractContext, and metadata");
         assertThat(prompt).doesNotContain("\"highestSeverity\"");
         assertThat(AgentPromptBuilder.SYSTEM_PROMPT).doesNotContain("LGD_DIGITAL");
         assertThat(AgentPromptBuilder.SYSTEM_PROMPT).contains("not as final business severity");
@@ -65,6 +67,25 @@ class AgentAnalyzerTest {
         assertThat(prompt).doesNotContain("\u0420\u0435\u0436\u0438\u043C \u0440\u0430\u0441\u0447\u0435\u0442\u0430");
         assertThat(prompt).doesNotContain("\"mainLaunch\"");
         assertThat(prompt).doesNotContain("\"shadowLaunch\"");
+    }
+
+    @Test
+    void systemPromptDefinesAnalyticalOutputFieldContract() {
+        String systemPrompt = AgentPromptBuilder.SYSTEM_PROMPT;
+
+        assertThat(systemPrompt).contains("Output field contract:");
+        assertThat(systemPrompt).contains("summary: Briefly summarize the overall deterministic diffs");
+        assertThat(systemPrompt).contains("Do not include business impact conclusions");
+        assertThat(systemPrompt).contains("businessImpact: Explain how the diffs can affect business interpretation");
+        assertThat(systemPrompt).contains("contractContext.description");
+        assertThat(systemPrompt).contains("summaryGuidance");
+        assertThat(systemPrompt).contains("shadow-minus-main direction");
+        assertThat(systemPrompt).contains("technicalRisks: Explain technical and contract risks");
+        assertThat(systemPrompt).contains("contract/schema/type/nullability issues");
+        assertThat(systemPrompt).contains("unknown fields");
+        assertThat(systemPrompt).contains("serialization/mapping/integration mode regressions");
+        assertThat(systemPrompt).contains("recommendations: Return concrete actionable follow-up actions");
+        assertThat(systemPrompt).contains("blocking promotion for CRITICAL issues");
     }
 
     @Test

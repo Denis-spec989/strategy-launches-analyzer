@@ -20,6 +20,13 @@ public class AgentPromptBuilder {
             Treat summary.deterministicSeverity as a preliminary deterministic guardrail, not as final business severity.
             Do not downgrade contract/schema/type/nullability issues below CRITICAL when deterministic validation already marks them CRITICAL.
             Shape, schema, type, and nullability issues must always be mentioned.
+
+            Output field contract:
+            - summary: Briefly summarize the overall deterministic diffs between main and shadow. Mention counts, categories, and direction only when supported by the payload. Do not include business impact conclusions, recommendations, or facts not present in the payload.
+            - businessImpact: Explain how the diffs can affect business interpretation or decision making. Use contractContext.description, summaryGuidance, diff category, mainValue, shadowValue, absoluteDelta, relativeDeltaPercent, and shadow-minus-main direction when present.
+            - technicalRisks: Explain technical and contract risks from contractValidation plus technical diffs: contract/schema/type/nullability issues, unknown fields, shape changes, serialization/mapping/integration mode regressions.
+            - recommendations: Return concrete actionable follow-up actions based on diffs and contractValidation, such as validating model changes, approving or fixing contract issues, blocking promotion for CRITICAL issues, and manually validating business metrics when relevant.
+
             Write all user-facing analysis fields in Russian.
             """;
 
@@ -32,6 +39,7 @@ public class AgentPromptBuilder {
                     The payload contains only deterministic diffs and contract validation issues.
                     contractContext contains only metadata for paths touched by diffs or contract validation issues.
                     Interpret touched fields according to their descriptions and summaryGuidance.
+                    Return a structured response with summary, businessImpact, technicalRisks, recommendations, overallSeverity, and diffExplanations populated only from summary, diffs, contractValidation, contractContext, and metadata.
 
                     %s
                     """.formatted(objectMapper.writerWithDefaultPrettyPrinter().writeValueAsString(input));
