@@ -56,6 +56,7 @@ class AgentAnalyzerTest {
         assertThat(prompt).contains("\"deterministicSeverity\"");
         assertThat(prompt).contains("summary, businessImpact, technicalRisks, recommendations");
         assertThat(prompt).contains("only from summary, diffs, contractValidation, contractContext, and metadata");
+        assertThat(prompt).contains("Apply the Severity contract");
         assertThat(prompt).doesNotContain("\"highestSeverity\"");
         assertThat(AgentPromptBuilder.SYSTEM_PROMPT).doesNotContain("LGD_DIGITAL");
         assertThat(AgentPromptBuilder.SYSTEM_PROMPT).contains("not as final business severity");
@@ -86,6 +87,29 @@ class AgentAnalyzerTest {
         assertThat(systemPrompt).contains("serialization/mapping/integration mode regressions");
         assertThat(systemPrompt).contains("recommendations: Return concrete actionable follow-up actions");
         assertThat(systemPrompt).contains("blocking promotion for CRITICAL issues");
+    }
+
+    @Test
+    void systemPromptDefinesOverallSeverityContract() {
+        String systemPrompt = AgentPromptBuilder.SYSTEM_PROMPT;
+
+        assertThat(systemPrompt).contains("Severity contract:");
+        assertThat(systemPrompt).contains("INFO: Use only when there are no deterministic diffs");
+        assertThat(systemPrompt).contains("no contract validation issues");
+        assertThat(systemPrompt).contains("WARNING: Use when there are non-critical diffs");
+        assertThat(systemPrompt).contains("warning-level contract issues");
+        assertThat(systemPrompt).contains("no blocking contract/schema/type/nullability signal");
+        assertThat(systemPrompt).contains("CRITICAL: Use when there is a critical contract validation issue");
+        assertThat(systemPrompt).contains("hard-critical diff");
+        assertThat(systemPrompt).contains(".mode or .type change");
+        assertThat(systemPrompt).contains("required field missing");
+        assertThat(systemPrompt).contains("type mismatch");
+        assertThat(systemPrompt).contains("nullability violation");
+        assertThat(systemPrompt).contains("payload-supported risk that should block promotion");
+        assertThat(systemPrompt).contains("You may raise summary.deterministicSeverity");
+        assertThat(systemPrompt).contains("never lower deterministic CRITICAL");
+        assertThat(systemPrompt).contains("if any diffExplanation severity is CRITICAL");
+        assertThat(systemPrompt).contains("overallSeverity must be CRITICAL");
     }
 
     @Test

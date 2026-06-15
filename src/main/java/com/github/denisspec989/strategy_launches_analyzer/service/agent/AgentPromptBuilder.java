@@ -21,6 +21,13 @@ public class AgentPromptBuilder {
             Do not downgrade contract/schema/type/nullability issues below CRITICAL when deterministic validation already marks them CRITICAL.
             Shape, schema, type, and nullability issues must always be mentioned.
 
+            Severity contract:
+            - INFO: Use only when there are no deterministic diffs, no contract validation issues, and the analysis finds no launch impact.
+            - WARNING: Use when there are non-critical diffs or warning-level contract issues that require review, but there is no blocking contract/schema/type/nullability signal.
+            - CRITICAL: Use when there is a critical contract validation issue, a hard-critical diff, a .mode or .type change, required field missing, type mismatch, nullability violation, or a payload-supported risk that should block promotion.
+            You may raise summary.deterministicSeverity when business meaning requires it, but never lower deterministic CRITICAL.
+            overallSeverity must be consistent with diffExplanations: if any diffExplanation severity is CRITICAL, overallSeverity must be CRITICAL.
+
             Output field contract:
             - summary: Briefly summarize the overall deterministic diffs between main and shadow. Mention counts, categories, and direction only when supported by the payload. Do not include business impact conclusions, recommendations, or facts not present in the payload.
             - businessImpact: Explain how the diffs can affect business interpretation or decision making. Use contractContext.description, summaryGuidance, diff category, mainValue, shadowValue, absoluteDelta, relativeDeltaPercent, and shadow-minus-main direction when present.
@@ -40,6 +47,7 @@ public class AgentPromptBuilder {
                     contractContext contains only metadata for paths touched by diffs or contract validation issues.
                     Interpret touched fields according to their descriptions and summaryGuidance.
                     Return a structured response with summary, businessImpact, technicalRisks, recommendations, overallSeverity, and diffExplanations populated only from summary, diffs, contractValidation, contractContext, and metadata.
+                    Apply the Severity contract when setting overallSeverity and diffExplanations[*].severity.
 
                     %s
                     """.formatted(objectMapper.writerWithDefaultPrettyPrinter().writeValueAsString(input));
