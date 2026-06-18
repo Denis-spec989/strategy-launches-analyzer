@@ -1,7 +1,34 @@
 @baseUrl = http://localhost:8080
 
-### LGD_DIGITAL compare: model and metric changes
-POST  http://localhost:8080/api/v1/strategies/compare
+###############################################################################
+# Примеры запросов к LGD_DIGITAL: POST {{baseUrl}}/api/v1/strategies/compare
+#
+# Что учитывать после доработок (детерминированная часть ответа предсказуема,
+# текст бизнес-анализа генерирует LLM):
+# - Трассируемость ответа: contractVersion ("v1") и analyzedAt.
+# - summary содержит отдельный счётчик calculationContextDiffs (категория
+#   CALCULATION_CONTEXT); сумма по категориям сходится с totalDiffs.
+# - Severity-гейт: hard-critical diff (путь .mode/.type, TYPE_MISMATCH,
+#   NULLABILITY_VIOLATION, отсутствие required-поля) и любой CRITICAL
+#   contract issue форсят agentAnalysis.overallSeverity = CRITICAL; LLM может
+#   только повысить severity, понизить детерминированный CRITICAL — не может.
+# - Изоляция входа LLM: metadata.attributes в модель НЕ передаются (остаются
+#   только в логах); сырые object/array-значения незадекларированных полей
+#   уходят в LLM компактным дескриптором "object(size=N): ...", а в ответе API
+#   сохраняются как есть.
+# - Лимиты тела запроса: > 5000 узлов JSON или глубина вложенности > 20 → 400
+#   (BadRequest). Примеры с такими телами здесь не приводятся из-за объёма.
+# - Деградация LLM: до 2 попыток, таймаут 20s; при переполнении одновременных
+#   вызовов агента (> 20) запрос быстро отклоняется с 503.
+###############################################################################
+
+
+### 1. Изменения модели и метрик (lgdModel 2022 -> 2023)
+# Детерминированно: 2 METRIC (lgd, lgdDt) + 1 MODEL (lgdModel), hard-critical нет.
+# Ожидаемо в ответе: summary.deterministicSeverity = WARNING,
+# contractVersion = "v1", analyzedAt заполнен.
+# attributes присутствуют в запросе, но в промпт LLM не попадают.
+POST {{baseUrl}}/api/v1/strategies/compare
 Content-Type: application/json
 
 {
@@ -42,8 +69,6 @@ Content-Type: application/json
     "requestId": "REQ-1",
     "mainLaunchId": "MAIN-1",
     "shadowLaunchId": "SHADOW-1",
-    "mainStrategyVersion": "2022",
-    "shadowStrategyVersion": "2023",
     "launchTimestamp": "2026-06-04T11:00:00Z",
     "attributes": {
       "source": "manual-http-check"
@@ -51,8 +76,61 @@ Content-Type: application/json
   }
 }
 
-### LGD_DIGITAL compare: optional field added in shadow
-POST http://localhost:8080/api/v1/strategies/compare
+
+### 2. Изменение контекста расчёта (CALCULATION_CONTEXT)
+# lgdData идентичны; меняются scenario, usedDefaultValue, defaultValueReason.
+# Ожидаемо: summary.calculationContextDiffs = 3, totalDiffs = 3,
+# deterministicSeverity = WARNING (hard-critical нет).
+POST {{baseUrl}}/api/v1/strategies/compare
+Content-Type: application/json
+
+{
+  "strategy": "LGD_DIGITAL",
+  "mainLaunch": {
+    "strategyResponse": {
+      "lgdData": {
+        "lgd": 18.1,
+        "lgdModel": "Corporate clients 2022",
+        "lgdDt": 18.1
+      },
+      "calculationInfo": {
+        "mode": "DEAL",
+        "type": "ONLINE",
+        "scenario": "LGD_CALCULATION_FOR_FZHN",
+        "usedDefaultValue": true,
+        "defaultValueReason": "LGD_CALCULATION_FOR_FZHN"
+      }
+    }
+  },
+  "shadowLaunch": {
+    "strategyResponse": {
+      "lgdData": {
+        "lgd": 18.1,
+        "lgdModel": "Corporate clients 2022",
+        "lgdDt": 18.1
+      },
+      "calculationInfo": {
+        "mode": "DEAL",
+        "type": "ONLINE",
+        "scenario": "LGD_CALCULATION_DEFAULT",
+        "usedDefaultValue": false,
+        "defaultValueReason": "MANUAL_OVERRIDE"
+      }
+    }
+  },
+  "metadata": {
+    "requestId": "REQ-2",
+    "mainLaunchId": "MAIN-2",
+    "shadowLaunchId": "SHADOW-2"
+  }
+}
+
+
+### 3. Незадекларированное скалярное поле только в shadow
+# usingCollateral нет в контракте (additionalProperties: false).
+# Ожидаемо: diff FIELD_ADDED_IN_SHADOW (CONTRACT_TECHNICAL) + UNKNOWN_FIELD
+# (WARNING) в contractValidation; deterministicSeverity = WARNING.
+POST {{baseUrl}}/api/v1/strategies/compare
 Content-Type: application/json
 
 {
@@ -91,13 +169,75 @@ Content-Type: application/json
     }
   },
   "metadata": {
-    "requestId": "REQ-2",
-    "mainLaunchId": "MAIN-2",
-    "shadowLaunchId": "SHADOW-2"
+    "requestId": "REQ-3",
+    "mainLaunchId": "MAIN-3",
+    "shadowLaunchId": "SHADOW-3"
   }
 }
 
-### LGD_DIGITAL compare: technical mode regression
+
+### 4. Незадекларированное вложенное object-поле (проверка изоляции входа LLM)
+# shadow добавляет calculationInfo.debugInfo = {...}. В ответе API diff.shadowValue
+# и contractValidation[].actualValue содержат сырой объект, а в промпт LLM уходит
+# только компактный дескриптор вида "object(size=2): {...}".
+# Ожидаемо: FIELD_ADDED_IN_SHADOW (CONTRACT_TECHNICAL) + UNKNOWN_FIELD (WARNING),
+# deterministicSeverity = WARNING.
+POST {{baseUrl}}/api/v1/strategies/compare
+Content-Type: application/json
+
+{
+  "strategy": "LGD_DIGITAL",
+  "mainLaunch": {
+    "strategyResponse": {
+      "lgdData": {
+        "lgd": 18.1,
+        "lgdModel": "Corporate clients 2022",
+        "lgdDt": 18.1
+      },
+      "calculationInfo": {
+        "mode": "DEAL",
+        "type": "ONLINE",
+        "scenario": "LGD_CALCULATION_FOR_FZHN",
+        "usedDefaultValue": true,
+        "defaultValueReason": "LGD_CALCULATION_FOR_FZHN"
+      }
+    }
+  },
+  "shadowLaunch": {
+    "strategyResponse": {
+      "lgdData": {
+        "lgd": 18.1,
+        "lgdModel": "Corporate clients 2022",
+        "lgdDt": 18.1
+      },
+      "calculationInfo": {
+        "mode": "DEAL",
+        "type": "ONLINE",
+        "scenario": "LGD_CALCULATION_FOR_FZHN",
+        "usedDefaultValue": true,
+        "defaultValueReason": "LGD_CALCULATION_FOR_FZHN",
+        "debugInfo": {
+          "trace": "calc-engine-internal-trace-id-9f1c",
+          "nested": {
+            "elapsedMs": 42,
+            "cacheHit": false
+          }
+        }
+      }
+    }
+  },
+  "metadata": {
+    "requestId": "REQ-4",
+    "mainLaunchId": "MAIN-4",
+    "shadowLaunchId": "SHADOW-4"
+  }
+}
+
+
+### 5. Регрессия режима расчёта (.mode) — HARD-CRITICAL
+# mode: DEAL -> PORTFOLIO. Путь оканчивается на .mode → hard-critical.
+# Ожидаемо: deterministicSeverity = CRITICAL и agentAnalysis.overallSeverity =
+# CRITICAL (LLM не может понизить); diff по .mode объяснён как CRITICAL.
 POST {{baseUrl}}/api/v1/strategies/compare
 Content-Type: application/json
 
@@ -136,13 +276,112 @@ Content-Type: application/json
     }
   },
   "metadata": {
-    "requestId": "REQ-3",
-    "mainLaunchId": "MAIN-3",
-    "shadowLaunchId": "SHADOW-3"
+    "requestId": "REQ-5",
+    "mainLaunchId": "MAIN-5",
+    "shadowLaunchId": "SHADOW-5"
   }
 }
 
-### Bad request: missing mainLaunch.strategyResponse
+
+### 6. Несовпадение типа (TYPE_MISMATCH) — HARD-CRITICAL
+# shadow присылает lgd строкой "20.4" вместо number. Ожидаемо: diff TYPE_MISMATCH
+# по lgd + CRITICAL contract issue (required-поле с неверным типом) →
+# deterministicSeverity = CRITICAL, overallSeverity = CRITICAL.
+POST {{baseUrl}}/api/v1/strategies/compare
+Content-Type: application/json
+
+{
+  "strategy": "LGD_DIGITAL",
+  "mainLaunch": {
+    "strategyResponse": {
+      "lgdData": {
+        "lgd": 18.1,
+        "lgdModel": "Corporate clients 2022",
+        "lgdDt": 18.1
+      },
+      "calculationInfo": {
+        "mode": "DEAL",
+        "type": "ONLINE",
+        "scenario": "LGD_CALCULATION_FOR_FZHN",
+        "usedDefaultValue": true,
+        "defaultValueReason": "LGD_CALCULATION_FOR_FZHN"
+      }
+    }
+  },
+  "shadowLaunch": {
+    "strategyResponse": {
+      "lgdData": {
+        "lgd": "20.4",
+        "lgdModel": "Corporate clients 2022",
+        "lgdDt": 18.1
+      },
+      "calculationInfo": {
+        "mode": "DEAL",
+        "type": "ONLINE",
+        "scenario": "LGD_CALCULATION_FOR_FZHN",
+        "usedDefaultValue": true,
+        "defaultValueReason": "LGD_CALCULATION_FOR_FZHN"
+      }
+    }
+  },
+  "metadata": {
+    "requestId": "REQ-6",
+    "mainLaunchId": "MAIN-6",
+    "shadowLaunchId": "SHADOW-6"
+  }
+}
+
+
+### 7. Идентичные запуски — severity INFO
+# Диффов и contract issues нет. Ожидаемо: totalDiffs = 0,
+# deterministicSeverity = INFO. LLM всё равно вызывается (short-circuit не вводился).
+POST {{baseUrl}}/api/v1/strategies/compare
+Content-Type: application/json
+
+{
+  "strategy": "LGD_DIGITAL",
+  "mainLaunch": {
+    "strategyResponse": {
+      "lgdData": {
+        "lgd": 18.1,
+        "lgdModel": "Corporate clients 2022",
+        "lgdDt": 18.1
+      },
+      "calculationInfo": {
+        "mode": "DEAL",
+        "type": "ONLINE",
+        "scenario": "LGD_CALCULATION_FOR_FZHN",
+        "usedDefaultValue": true,
+        "defaultValueReason": "LGD_CALCULATION_FOR_FZHN"
+      }
+    }
+  },
+  "shadowLaunch": {
+    "strategyResponse": {
+      "lgdData": {
+        "lgd": 18.1,
+        "lgdModel": "Corporate clients 2022",
+        "lgdDt": 18.1
+      },
+      "calculationInfo": {
+        "mode": "DEAL",
+        "type": "ONLINE",
+        "scenario": "LGD_CALCULATION_FOR_FZHN",
+        "usedDefaultValue": true,
+        "defaultValueReason": "LGD_CALCULATION_FOR_FZHN"
+      }
+    }
+  },
+  "metadata": {
+    "requestId": "REQ-7",
+    "mainLaunchId": "MAIN-7",
+    "shadowLaunchId": "SHADOW-7"
+  }
+}
+
+
+### 8. Bad request (400): отсутствует mainLaunch.strategyResponse
+# Ожидаемо: 400, ErrorResponse{status:400, message:"mainLaunch.strategyResponse object is required."}.
 POST {{baseUrl}}/api/v1/strategies/compare
 Content-Type: application/json
 
@@ -167,8 +406,47 @@ Content-Type: application/json
   }
 }
 
-### Bad request: invalid JSON
+
+### 9. Bad request (400): тело не является валидным JSON
+# Ожидаемо: 400, ErrorResponse{status:400, message:"Request body must be valid JSON."}.
 POST {{baseUrl}}/api/v1/strategies/compare
 Content-Type: application/json
 
 {
+  "strategy": "LGD_DIGITAL",
+  "mainLaunch":
+}
+
+
+### 10. Bad request (400): неизвестная стратегия
+# Ожидаемо: 400, message:"strategy must be one of: LGD_DIGITAL.".
+POST {{baseUrl}}/api/v1/strategies/compare
+Content-Type: application/json
+
+{
+  "strategy": "UNKNOWN_STRATEGY",
+  "mainLaunch": {
+    "strategyResponse": {
+      "lgdData": { "lgd": 18.1, "lgdModel": "Corporate clients 2022", "lgdDt": 18.1 },
+      "calculationInfo": {
+        "mode": "DEAL",
+        "type": "ONLINE",
+        "scenario": "LGD_CALCULATION_FOR_FZHN",
+        "usedDefaultValue": true,
+        "defaultValueReason": "LGD_CALCULATION_FOR_FZHN"
+      }
+    }
+  },
+  "shadowLaunch": {
+    "strategyResponse": {
+      "lgdData": { "lgd": 18.1, "lgdModel": "Corporate clients 2022", "lgdDt": 18.1 },
+      "calculationInfo": {
+        "mode": "DEAL",
+        "type": "ONLINE",
+        "scenario": "LGD_CALCULATION_FOR_FZHN",
+        "usedDefaultValue": true,
+        "defaultValueReason": "LGD_CALCULATION_FOR_FZHN"
+      }
+    }
+  }
+}

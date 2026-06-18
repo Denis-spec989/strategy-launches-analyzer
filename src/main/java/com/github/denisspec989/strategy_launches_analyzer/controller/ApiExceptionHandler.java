@@ -4,6 +4,7 @@ import com.fasterxml.jackson.databind.exc.InvalidFormatException;
 import com.github.denisspec989.strategy_launches_analyzer.dto.api.ErrorResponse;
 import com.github.denisspec989.strategy_launches_analyzer.dto.strategy.StrategyName;
 import com.github.denisspec989.strategy_launches_analyzer.exceptions.AgentAnalysisException;
+import com.github.denisspec989.strategy_launches_analyzer.exceptions.AgentUnavailableException;
 import com.github.denisspec989.strategy_launches_analyzer.exceptions.BadRequestException;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
@@ -57,6 +58,32 @@ public class ApiExceptionHandler {
                 message,
                 causeType(ex));
         return error(HttpStatus.INTERNAL_SERVER_ERROR, message);
+    }
+
+    @ExceptionHandler(AgentUnavailableException.class)
+    public ResponseEntity<ErrorResponse> handleAgentUnavailable(AgentUnavailableException ex) {
+        String message = "Agent analysis is temporarily unavailable. Retry later.";
+        log.warn("Comparison request rejected: status={}, message={}",
+                HttpStatus.SERVICE_UNAVAILABLE.value(),
+                message);
+        return error(HttpStatus.SERVICE_UNAVAILABLE, message);
+    }
+
+    @ExceptionHandler(Exception.class)
+    public ResponseEntity<ErrorResponse> handleUnexpected(Exception ex) {
+        // Стандартные Spring MVC исключения (404/405/415 и т.п.) реализуют ErrorResponse —
+        // сохраняем их статус, чтобы catch-all не превращал их в 500.
+        if (ex instanceof org.springframework.web.ErrorResponse springError) {
+            HttpStatus status = HttpStatus.valueOf(springError.getStatusCode().value());
+            String message = status.is5xxServerError() ? "Internal error." : status.getReasonPhrase() + ".";
+            log.info("Comparison request not handled: status={}, message={}", status.value(), message);
+            return error(status, message);
+        }
+        log.error("Comparison request failed unexpectedly: status={}, errorType={}",
+                HttpStatus.INTERNAL_SERVER_ERROR.value(),
+                ex.getClass().getSimpleName(),
+                ex);
+        return error(HttpStatus.INTERNAL_SERVER_ERROR, "Internal error.");
     }
 
     private static ResponseEntity<ErrorResponse> error(HttpStatus status, String message) {

@@ -32,9 +32,10 @@ public class AgentPromptBuilder {
             - summary: Briefly summarize the overall deterministic diffs between main and shadow. Mention counts, categories, and direction only when supported by the payload. Do not include business impact conclusions, recommendations, or facts not present in the payload.
             - businessImpact: Explain how the diffs can affect business interpretation or decision making. Use contractContext.description, summaryGuidance, diff category, mainValue, shadowValue, absoluteDelta, relativeDeltaPercent, and shadow-minus-main direction when present.
             - technicalRisks: Explain technical and contract risks from contractValidation plus technical diffs: contract/schema/type/nullability issues, unknown fields, shape changes, serialization/mapping/integration mode regressions.
-            - recommendations: Return concrete actionable follow-up actions based on diffs and contractValidation, such as validating model changes, approving or fixing contract issues, blocking promotion for CRITICAL issues, and manually validating business metrics when relevant.
+            - recommendations: Return concrete actionable follow-up actions based on diffs and contractValidation, such as validating model changes, approving or fixing contract issues, blocking promotion for CRITICAL issues, and manually validating business metrics when relevant. Return at most 10 recommendations; merge or drop the least important ones if you would exceed 10.
+            - diffExplanations: Return exactly one diffExplanation for every NON-critical diff in diffs[] (match by diffId and copy its path verbatim). Set each diffExplanation severity per the Severity contract. You MAY omit hard-critical diffs because the service overrides them. Never invent a diffId or path that is not present in diffs[], and never return a duplicate diffId.
 
-            Write all user-facing analysis fields in Russian.
+            Write summary, businessImpact, technicalRisks, every recommendations entry, and every diffExplanations[*].explanation in Russian. Keep identifiers such as diffId, path, and diff type names unchanged.
             """;
 
     private final ObjectMapper objectMapper;
@@ -48,6 +49,7 @@ public class AgentPromptBuilder {
                     Interpret touched fields according to their descriptions and summaryGuidance.
                     Return a structured response with summary, businessImpact, technicalRisks, recommendations, overallSeverity, and diffExplanations populated only from summary, diffs, contractValidation, contractContext, and metadata.
                     Apply the Severity contract when setting overallSeverity and diffExplanations[*].severity.
+                    Provide exactly one diffExplanation for every non-critical diff in diffs[], keep recommendations to at most 10, and write all analysis text in Russian.
 
                     %s
                     """.formatted(objectMapper.writerWithDefaultPrettyPrinter().writeValueAsString(input));

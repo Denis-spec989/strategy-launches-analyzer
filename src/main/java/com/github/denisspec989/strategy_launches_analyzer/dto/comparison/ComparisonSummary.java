@@ -10,6 +10,7 @@ public record ComparisonSummary(
         int totalDiffs,
         int metricDiffs,
         int modelDiffs,
+        int calculationContextDiffs,
         int contractTechnicalDiffs,
         int contractValidationIssues,
         boolean hasCriticalIssues,
@@ -18,6 +19,7 @@ public record ComparisonSummary(
     public static ComparisonSummary from(String strategyName, List<DiffEntry> diffs, List<ContractIssue> issues) {
         int metricDiffs = countByCategory(diffs, DiffCategory.METRIC);
         int modelDiffs = countByCategory(diffs, DiffCategory.MODEL);
+        int calculationContextDiffs = countByCategory(diffs, DiffCategory.CALCULATION_CONTEXT);
         int contractTechnicalDiffs = countByCategory(diffs, DiffCategory.CONTRACT_TECHNICAL);
         Severity deterministicSeverity = DeterministicSeverityCalculator.calculate(diffs, issues);
         boolean hasCriticalIssues = deterministicSeverity == Severity.CRITICAL;
@@ -27,6 +29,7 @@ public record ComparisonSummary(
                 diffs.size(),
                 metricDiffs,
                 modelDiffs,
+                calculationContextDiffs,
                 contractTechnicalDiffs,
                 issues.size(),
                 hasCriticalIssues,

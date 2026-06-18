@@ -12,6 +12,7 @@ import com.github.denisspec989.strategy_launches_analyzer.dto.comparison.DiffEnt
 import com.github.denisspec989.strategy_launches_analyzer.exceptions.AgentAnalysisException;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.ai.chat.client.AdvisorParams;
 import org.springframework.ai.chat.client.ChatClient;
 import org.springframework.ai.chat.client.ResponseEntity;
 import org.springframework.ai.chat.metadata.ChatResponseMetadata;
@@ -49,6 +50,7 @@ public class SpringAiAgentAnalyzer implements AgentAnalyzer {
         try {
             String userPrompt = promptBuilder.buildUserPrompt(input);
             ResponseEntity<ChatResponse, StructuredAgentAnalysis> responseEntity = chatClient.prompt()
+                    .advisors(AdvisorParams.ENABLE_NATIVE_STRUCTURED_OUTPUT)
                     .system(AgentPromptBuilder.SYSTEM_PROMPT)
                     .user(userPrompt)
                     .call()
@@ -88,13 +90,17 @@ public class SpringAiAgentAnalyzer implements AgentAnalyzer {
 
     static AgentAnalysis toDomain(StructuredAgentAnalysis response, AgentAnalysisInput input, TokenUsage tokenUsage) {
         validate(response, input);
-        List<DiffExplanation> diffExplanations = withDeterministicHardCriticalExplanations(
+        List<DiffExplanation> diffExplanations = withDeterministicDiffExplanations(
                 input,
                 response.diffExplanations() == null ? List.of() : response.diffExplanations()
         );
+        Severity overallSeverity = escalateToExplanationSeverity(
+                applyHardCriticalGuardrail(input, response.overallSeverity()),
+                diffExplanations
+        );
         return new AgentAnalysis(
                 AgentAnalysisStatus.COMPLETED,
-                applyHardCriticalGuardrail(input, response.overallSeverity()),
+                overallSeverity,
                 response.summary().trim(),
                 response.businessImpact().trim(),
                 withCriticalContractIssueRisk(response.technicalRisks().trim(), input),
@@ -175,18 +181,9 @@ public class SpringAiAgentAnalyzer implements AgentAnalyzer {
                 violations.add("diffExplanations[" + index + "].diffId is duplicated");
             }
         }
-
-        List<String> missingNonCriticalDiffs = expectedNonCriticalDiffs(input).stream()
-                .filter(diff -> !coveredDiffIds.contains(diff.id()))
-                .map(DiffEntry::id)
-                .limit(10)
-                .toList();
-        if (!missingNonCriticalDiffs.isEmpty()) {
-            violations.add("diffExplanations missing non-critical diffs: " + String.join(", ", missingNonCriticalDiffs));
-        }
     }
 
-    private static List<DiffExplanation> withDeterministicHardCriticalExplanations(
+    private static List<DiffExplanation> withDeterministicDiffExplanations(
             AgentAnalysisInput input,
             List<DiffExplanation> modelExplanations
     ) {
@@ -205,6 +202,16 @@ public class SpringAiAgentAnalyzer implements AgentAnalyzer {
                 .filter(DeterministicSeverityCalculator::isHardCriticalDiff)
                 .filter(diff -> !byDiffId.containsKey(diff.id()))
                 .forEach(diff -> byDiffId.put(diff.id(), deterministicHardCriticalExplanation(diff)));
+
+        List<DiffEntry> uncoveredNonCriticalDiffs = expectedNonCriticalDiffs(input).stream()
+                .filter(diff -> !byDiffId.containsKey(diff.id()))
+                .toList();
+        uncoveredNonCriticalDiffs.forEach(diff -> byDiffId.put(diff.id(), neutralNonCriticalExplanation(diff)));
+        if (!uncoveredNonCriticalDiffs.isEmpty()) {
+            log.warn("Filled {} non-critical diffExplanations omitted by the model with neutral stubs: diffIds={}",
+                    uncoveredNonCriticalDiffs.size(),
+                    uncoveredNonCriticalDiffs.stream().map(DiffEntry::id).limit(10).toList());
+        }
         return List.copyOf(byDiffId.values());
     }
 
@@ -237,6 +244,17 @@ public class SpringAiAgentAnalyzer implements AgentAnalyzer {
         );
     }
 
+    private static DiffExplanation neutralNonCriticalExplanation(DiffEntry diff) {
+        return new DiffExplanation(
+                diff.id(),
+                diff.path(),
+                Severity.WARNING,
+                "\u041d\u0435\u043a\u0440\u0438\u0442\u0438\u0447\u043d\u043e\u0435 \u0438\u0437\u043c\u0435\u043d\u0435\u043d\u0438\u0435; "
+                        + "\u043c\u043e\u0434\u0435\u043b\u044c \u043d\u0435 \u043f\u0440\u0435\u0434\u043e\u0441\u0442\u0430\u0432\u0438\u043b\u0430 "
+                        + "\u043e\u0442\u0434\u0435\u043b\u044c\u043d\u043e\u0435 \u043e\u0431\u044a\u044f\u0441\u043d\u0435\u043d\u0438\u0435."
+        );
+    }
+
     private static String withCriticalContractIssueRisk(String technicalRisks, AgentAnalysisInput input) {
         long criticalIssueCount = input.contractValidation().stream()
                 .filter(issue -> issue.severity() == Severity.CRITICAL)
@@ -259,6 +277,26 @@ public class SpringAiAgentAnalyzer implements AgentAnalyzer {
             return Severity.CRITICAL;
         }
         return modelSeverity;
+    }
+
+    private static Severity escalateToExplanationSeverity(Severity base, List<DiffExplanation> diffExplanations) {
+        Severity result = base;
+        for (DiffExplanation explanation : diffExplanations) {
+            if (explanation != null) {
+                result = maxSeverity(result, explanation.severity());
+            }
+        }
+        return result;
+    }
+
+    private static Severity maxSeverity(Severity left, Severity right) {
+        if (left == null) {
+            return right;
+        }
+        if (right == null) {
+            return left;
+        }
+        return left.ordinal() >= right.ordinal() ? left : right;
     }
 
     private static Map<String, String> expectedDiffs(AgentAnalysisInput input) {

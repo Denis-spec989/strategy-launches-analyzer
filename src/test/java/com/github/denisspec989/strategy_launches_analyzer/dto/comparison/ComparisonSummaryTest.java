@@ -56,6 +56,64 @@ class ComparisonSummaryTest {
         assertThat(json).doesNotContain("highestSeverity");
     }
 
+    @Test
+    void categoryBreakdownSumsToTotalDiffsIncludingCalculationContext() {
+        ComparisonSummary summary = ComparisonSummary.from(
+                "LGD_DIGITAL",
+                List.of(metricDiff(), modelDiff(), calculationContextDiff(), contractTechnicalDiff()),
+                List.of()
+        );
+
+        assertThat(summary.calculationContextDiffs()).isEqualTo(1);
+        assertThat(summary.metricDiffs()
+                + summary.modelDiffs()
+                + summary.calculationContextDiffs()
+                + summary.contractTechnicalDiffs())
+                .isEqualTo(summary.totalDiffs());
+    }
+
+    private static DiffEntry modelDiff() {
+        return new DiffEntry(
+                "D002",
+                "strategyResponse.lgdData.lgdModel",
+                DiffType.STRING_VALUE_CHANGED,
+                DiffCategory.MODEL,
+                null,
+                null,
+                null,
+                null,
+                "Model changed in shadow launch."
+        );
+    }
+
+    private static DiffEntry calculationContextDiff() {
+        return new DiffEntry(
+                "D003",
+                "strategyResponse.lgdData.scenario",
+                DiffType.STRING_VALUE_CHANGED,
+                DiffCategory.CALCULATION_CONTEXT,
+                null,
+                null,
+                null,
+                null,
+                "Calculation scenario changed in shadow launch."
+        );
+    }
+
+    private static DiffEntry contractTechnicalDiff() {
+        return new DiffEntry(
+                "D004",
+                "strategyResponse.extra",
+                DiffType.FIELD_ADDED_IN_SHADOW,
+                DiffCategory.CONTRACT_TECHNICAL,
+                null,
+                null,
+                null,
+                null,
+                "Undeclared field present only in shadow launch."
+        );
+    }
+
     private static DiffEntry metricDiff() {
         return new DiffEntry(
                 "D001",

@@ -112,9 +112,7 @@ class StrategyComparisonControllerTest {
         body.set("metadata", objectMapper.createObjectNode()
                 .put("requestId", "REQ-1")
                 .put("mainLaunchId", "MAIN-1")
-                .put("shadowLaunchId", "SHADOW-1")
-                .put("mainStrategyVersion", "2022")
-                .put("shadowStrategyVersion", "2023"));
+                .put("shadowLaunchId", "SHADOW-1"));
         return objectMapper.writeValueAsString(body);
     }
 

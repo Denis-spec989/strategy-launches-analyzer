@@ -4,6 +4,7 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.github.denisspec989.strategy_launches_analyzer.dto.agent.AgentAnalysisInput;
 import com.github.denisspec989.strategy_launches_analyzer.dto.agent.TokenUsage;
 import com.github.denisspec989.strategy_launches_analyzer.service.agent.AgentAnalyzer;
+import com.github.denisspec989.strategy_launches_analyzer.service.agent.AgentInputNormalizer;
 import com.github.denisspec989.strategy_launches_analyzer.dto.contract.ContractFieldContext;
 import com.github.denisspec989.strategy_launches_analyzer.dto.api.CompareStrategyRequest;
 import com.github.denisspec989.strategy_launches_analyzer.dto.api.CompareStrategyResponse;
@@ -15,39 +16,59 @@ import com.github.denisspec989.strategy_launches_analyzer.service.diff.StrategyD
 import com.github.denisspec989.strategy_launches_analyzer.dto.agent.AgentAnalysis;
 import com.github.denisspec989.strategy_launches_analyzer.dto.comparison.ComparisonSummary;
 import com.github.denisspec989.strategy_launches_analyzer.exceptions.AgentAnalysisException;
+import com.github.denisspec989.strategy_launches_analyzer.exceptions.AgentUnavailableException;
 import com.github.denisspec989.strategy_launches_analyzer.exceptions.BadRequestException;
 import com.github.denisspec989.strategy_launches_analyzer.utils.JsonNodePath;
-import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
+import java.time.Instant;
 import java.util.List;
+import java.util.concurrent.Semaphore;
 
 @Service
 @Slf4j
-@RequiredArgsConstructor
 public class CompareStrategyLaunchesUseCase {
     private final StrategyDiffEngine diffEngine;
     private final StrategyContractRegistry contractRegistry;
     private final AgentAnalyzer agentAnalyzer;
+    private final Semaphore agentBulkhead;
+    private final int maxLaunchNodes;
+    private final int maxLaunchDepth;
+
+    public CompareStrategyLaunchesUseCase(
+            StrategyDiffEngine diffEngine,
+            StrategyContractRegistry contractRegistry,
+            AgentAnalyzer agentAnalyzer,
+            @Value("${strategy-launches-analyzer.agent.max-concurrent-calls:20}") int maxConcurrentAgentCalls,
+            @Value("${strategy-launches-analyzer.request.max-launch-nodes:5000}") int maxLaunchNodes,
+            @Value("${strategy-launches-analyzer.request.max-launch-depth:20}") int maxLaunchDepth
+    ) {
+        this.diffEngine = diffEngine;
+        this.contractRegistry = contractRegistry;
+        this.agentAnalyzer = agentAnalyzer;
+        this.agentBulkhead = new Semaphore(maxConcurrentAgentCalls);
+        this.maxLaunchNodes = maxLaunchNodes;
+        this.maxLaunchDepth = maxLaunchDepth;
+    }
 
     public CompareStrategyResponse compare(CompareStrategyRequest request) {
         validateRequest(request);
         StrategyContract contract = contractRegistry.get(request.strategy());
         validateLaunchRoots(request, contract);
+        validateLaunchLimits(request.mainLaunch(), "mainLaunch");
+        validateLaunchLimits(request.shadowLaunch(), "shadowLaunch");
         LaunchMetadata metadata = request.metadata();
         String requestId = requestId(metadata);
         long startedAt = System.nanoTime();
         log.info(
                 "{} comparison request accepted: requestId={}, mainLaunchId={}, shadowLaunchId={}, "
-                        + "mainStrategyVersion={}, shadowStrategyVersion={}, launchTimestamp={}, "
-                        + "metadataAttributeCount={}, mainRootFieldCount={}, shadowRootFieldCount={}",
+                        + "launchTimestamp={}, metadataAttributeCount={}, mainRootFieldCount={}, shadowRootFieldCount={}",
                 contract.strategyName(),
                 requestId,
                 valueOrNotProvided(metadata == null ? null : metadata.mainLaunchId()),
                 valueOrNotProvided(metadata == null ? null : metadata.shadowLaunchId()),
-                valueOrNotProvided(metadata == null ? null : metadata.mainStrategyVersion()),
-                valueOrNotProvided(metadata == null ? null : metadata.shadowStrategyVersion()),
                 valueOrNotProvided(metadata == null ? null : metadata.launchTimestamp()),
                 metadataAttributeCount(metadata),
                 rootFieldCount(request.mainLaunch(), contract.rootPath()),
@@ -61,13 +82,14 @@ public class CompareStrategyLaunchesUseCase {
                 diffResult.contractValidation()
         );
         log.info("{} deterministic comparison completed: requestId={}, totalDiffs={}, metricDiffs={}, "
-                        + "modelDiffs={}, contractTechnicalDiffs={}, contractIssueCount={}, hasCriticalIssues={}, "
-                        + "deterministicSeverity={}",
+                        + "modelDiffs={}, calculationContextDiffs={}, contractTechnicalDiffs={}, contractIssueCount={}, "
+                        + "hasCriticalIssues={}, deterministicSeverity={}",
                 contract.strategyName(),
                 requestId,
                 summary.totalDiffs(),
                 summary.metricDiffs(),
                 summary.modelDiffs(),
+                summary.calculationContextDiffs(),
                 summary.contractTechnicalDiffs(),
                 summary.contractValidationIssues(),
                 summary.hasCriticalIssues(),
@@ -77,6 +99,8 @@ public class CompareStrategyLaunchesUseCase {
 
         CompareStrategyResponse response = new CompareStrategyResponse(
                 contract.strategyName(),
+                contract.version(),
+                Instant.now(),
                 summary,
                 diffResult.diffs(),
                 diffResult.contractValidation(),
@@ -113,11 +137,18 @@ public class CompareStrategyLaunchesUseCase {
         AgentAnalysisInput input = new AgentAnalysisInput(
                 contract.strategyName(),
                 summary,
-                diffResult.diffs(),
-                diffResult.contractValidation(),
+                AgentInputNormalizer.normalizeDiffs(diffResult.diffs()),
+                AgentInputNormalizer.normalizeIssues(diffResult.contractValidation()),
                 contractContext(contract, diffResult),
-                request.metadata()
+                AgentInputNormalizer.withoutAttributes(request.metadata())
         );
+        if (!agentBulkhead.tryAcquire()) {
+            log.warn("{} agent analysis rejected: requestId={}, reason=bulkhead-full, availablePermits={}",
+                    contract.strategyName(),
+                    requestId,
+                    agentBulkhead.availablePermits());
+            throw new AgentUnavailableException("Agent analysis capacity exceeded. Retry later.");
+        }
         try {
             AgentAnalysis analysis = agentAnalyzer.analyze(input);
             TokenUsage tokenUsage = analysis.tokenUsage() == null ? TokenUsage.zero() : analysis.tokenUsage();
@@ -140,6 +171,8 @@ public class CompareStrategyLaunchesUseCase {
             throw ex;
         } catch (RuntimeException ex) {
             throw new AgentAnalysisException("Agent analysis failed.", ex);
+        } finally {
+            agentBulkhead.release();
         }
     }
 
@@ -177,6 +210,22 @@ public class CompareStrategyLaunchesUseCase {
         JsonNode root = JsonNodePath.at(launch, rootPath);
         if (!JsonNodePath.isPresent(root) || !root.isObject()) {
             throw new BadRequestException(fieldName + "." + rootPath + " object is required.");
+        }
+    }
+
+    private void validateLaunchLimits(JsonNode launch, String fieldName) {
+        checkLaunchLimits(launch, 1, new int[]{0}, fieldName);
+    }
+
+    private void checkLaunchLimits(JsonNode node, int depth, int[] count, String fieldName) {
+        if (depth > maxLaunchDepth) {
+            throw new BadRequestException(fieldName + " nesting depth exceeds limit " + maxLaunchDepth + ".");
+        }
+        if (++count[0] > maxLaunchNodes) {
+            throw new BadRequestException(fieldName + " exceeds node limit " + maxLaunchNodes + ".");
+        }
+        for (JsonNode child : node) {
+            checkLaunchLimits(child, depth + 1, count, fieldName);
         }
     }
 

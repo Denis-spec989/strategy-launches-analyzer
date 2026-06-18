@@ -7,8 +7,6 @@ public record LaunchMetadata(
         String requestId,
         String mainLaunchId,
         String shadowLaunchId,
-        String mainStrategyVersion,
-        String shadowStrategyVersion,
         Instant launchTimestamp,
         Map<String, String> attributes
 ) {

@@ -27,6 +27,7 @@ import com.github.denisspec989.strategy_launches_analyzer.service.contract.Strat
 import com.github.denisspec989.strategy_launches_analyzer.service.diff.StrategyDiffEngine;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.springframework.ai.converter.BeanOutputConverter;
 
 import java.util.List;
 
@@ -87,6 +88,12 @@ class AgentAnalyzerTest {
         assertThat(systemPrompt).contains("serialization/mapping/integration mode regressions");
         assertThat(systemPrompt).contains("recommendations: Return concrete actionable follow-up actions");
         assertThat(systemPrompt).contains("blocking promotion for CRITICAL issues");
+        assertThat(systemPrompt).contains("Return at most 10 recommendations");
+        assertThat(systemPrompt).contains("Return exactly one diffExplanation for every NON-critical diff");
+        assertThat(systemPrompt).contains("copy its path verbatim");
+        assertThat(systemPrompt).contains("never return a duplicate diffId");
+        assertThat(systemPrompt).contains("You MAY omit hard-critical diffs");
+        assertThat(systemPrompt).contains("Write summary, businessImpact, technicalRisks");
     }
 
     @Test
@@ -160,6 +167,21 @@ class AgentAnalyzerTest {
     }
 
     @Test
+    void springAiMappingEscalatesOverallSeverityWhenModelMarksNonCriticalDiffCritical() {
+        AgentAnalysisInput input = inputForFixture("model-change");
+        assertThat(DeterministicSeverityCalculator.hasCriticalSignal(input.diffs(), input.contractValidation()))
+                .isFalse();
+        List<DiffExplanation> explanations = input.diffs().stream()
+                .map(diff -> new DiffExplanation(diff.id(), diff.path(), Severity.CRITICAL, "explanation for " + diff.id()))
+                .toList();
+        StructuredAgentAnalysis response = structuredResponse(input, Severity.WARNING, explanations);
+
+        AgentAnalysis analysis = SpringAiAgentAnalyzer.toDomain(response, input, TokenUsage.zero());
+
+        assertThat(analysis.overallSeverity()).isEqualTo(Severity.CRITICAL);
+    }
+
+    @Test
     void springAiMappingRejectsFabricatedDiffExplanation() {
         AgentAnalysisInput input = inputForFixture("model-change");
         StructuredAgentAnalysis response = new StructuredAgentAnalysis(
@@ -195,6 +217,34 @@ class AgentAnalyzerTest {
         assertThat(input.diffs()).anyMatch(DeterministicSeverityCalculator::isHardCriticalDiff);
         assertThat(analysis.diffExplanations()).anySatisfy(explanation ->
                 assertThat(explanation.severity()).isEqualTo(Severity.CRITICAL));
+    }
+
+    @Test
+    void springAiMappingFillsOmittedNonCriticalDiffWithNeutralStubInsteadOfFailing() {
+        AgentAnalysisInput input = inputForFixture("model-change");
+        assertThat(input.diffs()).hasSizeGreaterThan(1);
+        StructuredAgentAnalysis response = structuredResponse(
+                input,
+                Severity.WARNING,
+                List.of(explanation(input.diffs().get(0)))
+        );
+
+        AgentAnalysis analysis = SpringAiAgentAnalyzer.toDomain(response, input, TokenUsage.zero());
+
+        assertThat(analysis.diffExplanations())
+                .extracting(DiffExplanation::diffId)
+                .containsExactlyInAnyOrderElementsOf(input.diffs().stream().map(DiffEntry::id).toList());
+        assertThat(analysis.overallSeverity()).isEqualTo(Severity.WARNING);
+    }
+
+    @Test
+    void structuredAnalysisJsonSchemaMarksFieldsAsRequired() {
+        String schema = new BeanOutputConverter<>(StructuredAgentAnalysis.class).getJsonSchema();
+
+        assertThat(schema).contains("required");
+        assertThat(schema).contains("overallSeverity");
+        assertThat(schema).contains("summary");
+        assertThat(schema).contains("diffExplanations");
     }
 
     @Test
