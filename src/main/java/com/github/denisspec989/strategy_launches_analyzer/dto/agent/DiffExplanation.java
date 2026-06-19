@@ -13,8 +13,9 @@ public record DiffExplanation(
         @JsonPropertyDescription("Dotted path of the diff, copied verbatim from the payload diff.")
         String path,
 
+        // Без @JsonPropertyDescription: Severity — enum ($ref в JSON-схеме), а строгий structured output
+        // OpenAI запрещает ключевые слова рядом с $ref. Семантику задаёт SYSTEM_PROMPT и значения enum.
         @JsonProperty(required = true)
-        @JsonPropertyDescription("Severity of this specific diff: INFO, WARNING, or CRITICAL.")
         Severity severity,
 
         @JsonProperty(required = true)

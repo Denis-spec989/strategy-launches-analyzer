@@ -80,10 +80,12 @@ public class SpringAiAgentAnalyzer implements AgentAnalyzer {
                     ex.getMessage());
             throw ex;
         } catch (RuntimeException ex) {
-            log.error("LLM analysis request failed: requestId={}, configuredModel={}, errorType={}",
+            log.error("LLM analysis request failed: requestId={}, configuredModel={}, errorType={}, message={}",
                     requestId,
                     configuredModel,
-                    ex.getClass().getSimpleName());
+                    ex.getClass().getSimpleName(),
+                    ex.getMessage(),
+                    ex);
             throw new AgentAnalysisException("LLM analysis request failed.", ex);
         }
     }

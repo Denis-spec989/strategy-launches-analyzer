@@ -29,6 +29,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.ai.converter.BeanOutputConverter;
 
+import java.util.ArrayList;
 import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -245,6 +246,37 @@ class AgentAnalyzerTest {
         assertThat(schema).contains("overallSeverity");
         assertThat(schema).contains("summary");
         assertThat(schema).contains("diffExplanations");
+    }
+
+    @Test
+    void structuredAnalysisJsonSchemaKeepsRefsFreeOfSiblingKeywords() throws Exception {
+        // Регрессия: @JsonPropertyDescription на enum-поле (Severity) вешает description рядом с $ref.
+        // Строгий structured output OpenAI это запрещает ("$ref cannot have keywords") → 400 на каждом
+        // вызове LLM → 500. Severity ссылается из двух полей, поэтому выносится в $defs/$ref.
+        String schema = new BeanOutputConverter<>(StructuredAgentAnalysis.class).getJsonSchema();
+
+        // Не вакуумно: enum действительно вынесен в $ref (иначе инвариант проверять нечего).
+        assertThat(schema).contains("$ref");
+        assertNoRefHasSiblings(objectMapper.readTree(schema), "$");
+    }
+
+    private static void assertNoRefHasSiblings(JsonNode node, String path) {
+        if (node.isObject()) {
+            List<String> names = new ArrayList<>();
+            node.fieldNames().forEachRemaining(names::add);
+            if (names.contains("$ref")) {
+                assertThat(names)
+                        .as("schema node %s with $ref must not carry sibling keywords (OpenAI strict structured output)", path)
+                        .containsExactly("$ref");
+            }
+            for (String name : names) {
+                assertNoRefHasSiblings(node.get(name), path + "." + name);
+            }
+        } else if (node.isArray()) {
+            for (int i = 0; i < node.size(); i++) {
+                assertNoRefHasSiblings(node.get(i), path + "[" + i + "]");
+            }
+        }
     }
 
     @Test
