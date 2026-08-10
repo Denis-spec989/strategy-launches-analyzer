@@ -1,0 +1,10 @@
+id: required-missing-shadow
+tags: [critical, required-field, shadow]
+semantic:
+  requiredFacts:
+    - В shadow отсутствует обязательное поле LGD
+    - Нарушение required-контракта является критическим
+  forbiddenConclusions:
+    - Отсутствующее поле можно игнорировать
+  expectedActions:
+    - Восстановить обязательное поле до продвижения

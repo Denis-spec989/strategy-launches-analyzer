@@ -1,0 +1,10 @@
+id: model-null-transition
+tags: [model, nullable, warning]
+semantic:
+  requiredFacts:
+    - В shadow появилось допустимое значение модели вместо null
+    - Нарушения nullability нет
+  forbiddenConclusions:
+    - Переход от null всегда является критической ошибкой контракта
+  expectedActions:
+    - Проверить ожидаемость появления модели

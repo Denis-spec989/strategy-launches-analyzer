@@ -1,0 +1,10 @@
+id: identical-null-model
+tags: [identical, nullable, info]
+semantic:
+  requiredFacts:
+    - Обе стороны содержат допустимое null-значение модели
+    - Отличия отсутствуют
+  forbiddenConclusions:
+    - Null нарушает контракт
+  expectedActions:
+    - Продолжить штатный контроль

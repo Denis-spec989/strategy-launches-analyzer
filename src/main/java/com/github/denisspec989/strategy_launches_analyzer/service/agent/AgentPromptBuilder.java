@@ -38,21 +38,25 @@ public class AgentPromptBuilder {
             Write summary, businessImpact, technicalRisks, every recommendations entry, and every diffExplanations[*].explanation in Russian. Keep identifiers such as diffId, path, and diff type names unchanged.
             """;
 
+    public static final String USER_PROMPT_TEMPLATE = """
+            Analyze the normalized strategy comparison payload below.
+            The payload contains only deterministic diffs and contract validation issues.
+            contractContext contains only metadata for paths touched by diffs or contract validation issues.
+            Interpret touched fields according to their descriptions and summaryGuidance.
+            Return a structured response with summary, businessImpact, technicalRisks, recommendations, overallSeverity, and diffExplanations populated only from summary, diffs, contractValidation, contractContext, and metadata.
+            Apply the Severity contract when setting overallSeverity and diffExplanations[*].severity.
+            Provide exactly one diffExplanation for every non-critical diff in diffs[], keep recommendations to at most 10, and write all analysis text in Russian.
+
+            %s
+            """;
+
     private final ObjectMapper objectMapper;
 
     public String buildUserPrompt(AgentAnalysisInput input) {
         try {
-            return """
-                    Analyze the normalized strategy comparison payload below.
-                    The payload contains only deterministic diffs and contract validation issues.
-                    contractContext contains only metadata for paths touched by diffs or contract validation issues.
-                    Interpret touched fields according to their descriptions and summaryGuidance.
-                    Return a structured response with summary, businessImpact, technicalRisks, recommendations, overallSeverity, and diffExplanations populated only from summary, diffs, contractValidation, contractContext, and metadata.
-                    Apply the Severity contract when setting overallSeverity and diffExplanations[*].severity.
-                    Provide exactly one diffExplanation for every non-critical diff in diffs[], keep recommendations to at most 10, and write all analysis text in Russian.
-
-                    %s
-                    """.formatted(objectMapper.writerWithDefaultPrettyPrinter().writeValueAsString(input));
+            return USER_PROMPT_TEMPLATE.formatted(
+                    objectMapper.writerWithDefaultPrettyPrinter().writeValueAsString(input)
+            );
         } catch (JsonProcessingException ex) {
             throw new IllegalStateException("Failed to serialize agent analysis input.", ex);
         }

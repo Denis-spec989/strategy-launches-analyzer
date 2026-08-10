@@ -1,0 +1,10 @@
+id: unknown-object-array
+tags: [unknown-field, normalization, warning]
+semantic:
+  requiredFacts:
+    - В shadow добавлен незадекларированный объект debugInfo
+    - В модель передается компактное нормализованное представление объекта
+  forbiddenConclusions:
+    - Содержимое debugInfo доказывает причину изменения стратегии
+  expectedActions:
+    - Не раскрывать внутренний trace в бизнес-анализе

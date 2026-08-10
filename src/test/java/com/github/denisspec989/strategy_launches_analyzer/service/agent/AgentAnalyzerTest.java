@@ -6,7 +6,10 @@ import com.github.denisspec989.strategy_launches_analyzer.TestFixtures;
 import com.github.denisspec989.strategy_launches_analyzer.dto.agent.AgentAnalysis;
 import com.github.denisspec989.strategy_launches_analyzer.dto.agent.AgentAnalysisInput;
 import com.github.denisspec989.strategy_launches_analyzer.dto.agent.AgentAnalysisStatus;
+import com.github.denisspec989.strategy_launches_analyzer.dto.agent.AgentPostProcessingResult;
 import com.github.denisspec989.strategy_launches_analyzer.dto.agent.DiffExplanation;
+import com.github.denisspec989.strategy_launches_analyzer.dto.agent.GuardrailCorrection;
+import com.github.denisspec989.strategy_launches_analyzer.dto.agent.GuardrailCorrectionType;
 import com.github.denisspec989.strategy_launches_analyzer.dto.agent.StructuredAgentAnalysis;
 import com.github.denisspec989.strategy_launches_analyzer.dto.agent.TokenUsage;
 import com.github.denisspec989.strategy_launches_analyzer.dto.common.Severity;
@@ -37,6 +40,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 class AgentAnalyzerTest {
     private final ObjectMapper objectMapper = new ObjectMapper();
+    private final AgentAnalysisPostProcessor postProcessor = new DefaultAgentAnalysisPostProcessor();
     private StrategyContract contract;
     private StrategyDiffEngine diffEngine;
 
@@ -124,14 +128,18 @@ class AgentAnalyzerTest {
     void springAiMappingKeepsHardTechnicalDiffCriticalWhenModelDowngradesIt() {
         AgentAnalysisInput input = inputForFixture("mode-regression");
 
-        AgentAnalysis analysis = SpringAiAgentAnalyzer.toDomain(
+        AgentPostProcessingResult processed = postProcessor.process(
                 structuredResponse(input, Severity.WARNING),
                 input,
                 TokenUsage.zero()
         );
+        AgentAnalysis analysis = processed.analysis();
 
         assertThat(analysis.status()).isEqualTo(AgentAnalysisStatus.COMPLETED);
         assertThat(analysis.overallSeverity()).isEqualTo(Severity.CRITICAL);
+        assertThat(processed.corrections()).extracting(GuardrailCorrection::type)
+                .contains(GuardrailCorrectionType.DIFF_SEVERITY_ESCALATED,
+                        GuardrailCorrectionType.OVERALL_SEVERITY_CHANGED);
     }
 
     @Test
@@ -156,15 +164,19 @@ class AgentAnalyzerTest {
                 null
         );
 
-        AgentAnalysis analysis = SpringAiAgentAnalyzer.toDomain(
+        AgentPostProcessingResult processed = postProcessor.process(
                 structuredResponse(input, Severity.WARNING),
                 input,
                 TokenUsage.zero()
         );
+        AgentAnalysis analysis = processed.analysis();
 
         assertThat(analysis.overallSeverity()).isEqualTo(Severity.CRITICAL);
         assertThat(analysis.technicalRisks()).contains("\u043a\u0440\u0438\u0442\u0438\u0447\u0435\u0441\u043a\u0438\u0435 "
                 + "\u043d\u0430\u0440\u0443\u0448\u0435\u043d\u0438\u044f");
+        assertThat(processed.corrections()).extracting(GuardrailCorrection::type)
+                .contains(GuardrailCorrectionType.CRITICAL_CONTRACT_RISK_APPENDED,
+                        GuardrailCorrectionType.OVERALL_SEVERITY_CHANGED);
     }
 
     @Test
@@ -177,7 +189,8 @@ class AgentAnalyzerTest {
                 .toList();
         StructuredAgentAnalysis response = structuredResponse(input, Severity.WARNING, explanations);
 
-        AgentAnalysis analysis = SpringAiAgentAnalyzer.toDomain(response, input, TokenUsage.zero());
+        AgentPostProcessingResult processed = postProcessor.process(response, input, TokenUsage.zero());
+        AgentAnalysis analysis = processed.analysis();
 
         assertThat(analysis.overallSeverity()).isEqualTo(Severity.CRITICAL);
     }
@@ -199,7 +212,7 @@ class AgentAnalyzerTest {
                 ))
         );
 
-        assertThatThrownBy(() -> SpringAiAgentAnalyzer.toDomain(response, input, TokenUsage.zero()))
+        assertThatThrownBy(() -> postProcessor.process(response, input, TokenUsage.zero()))
                 .isInstanceOf(AgentAnalysisException.class)
                 .hasMessageContaining("diffId is not in deterministic diffs");
     }
@@ -213,11 +226,14 @@ class AgentAnalyzerTest {
                 .toList();
         StructuredAgentAnalysis response = structuredResponse(input, Severity.WARNING, modelExplanations);
 
-        AgentAnalysis analysis = SpringAiAgentAnalyzer.toDomain(response, input, TokenUsage.zero());
+        AgentPostProcessingResult processed = postProcessor.process(response, input, TokenUsage.zero());
+        AgentAnalysis analysis = processed.analysis();
 
         assertThat(input.diffs()).anyMatch(DeterministicSeverityCalculator::isHardCriticalDiff);
         assertThat(analysis.diffExplanations()).anySatisfy(explanation ->
                 assertThat(explanation.severity()).isEqualTo(Severity.CRITICAL));
+        assertThat(processed.corrections()).extracting(GuardrailCorrection::type)
+                .contains(GuardrailCorrectionType.HARD_CRITICAL_EXPLANATION_ADDED);
     }
 
     @Test
@@ -230,12 +246,15 @@ class AgentAnalyzerTest {
                 List.of(explanation(input.diffs().get(0)))
         );
 
-        AgentAnalysis analysis = SpringAiAgentAnalyzer.toDomain(response, input, TokenUsage.zero());
+        AgentPostProcessingResult processed = postProcessor.process(response, input, TokenUsage.zero());
+        AgentAnalysis analysis = processed.analysis();
 
         assertThat(analysis.diffExplanations())
                 .extracting(DiffExplanation::diffId)
                 .containsExactlyInAnyOrderElementsOf(input.diffs().stream().map(DiffEntry::id).toList());
         assertThat(analysis.overallSeverity()).isEqualTo(Severity.WARNING);
+        assertThat(processed.corrections()).extracting(GuardrailCorrection::type)
+                .contains(GuardrailCorrectionType.NON_CRITICAL_EXPLANATION_ADDED);
     }
 
     @Test
@@ -291,7 +310,7 @@ class AgentAnalyzerTest {
                 explanations(input)
         );
 
-        assertThatThrownBy(() -> SpringAiAgentAnalyzer.toDomain(response, input, TokenUsage.zero()))
+        assertThatThrownBy(() -> postProcessor.process(response, input, TokenUsage.zero()))
                 .isInstanceOf(AgentAnalysisException.class)
                 .hasMessageContaining("summary is blank");
     }

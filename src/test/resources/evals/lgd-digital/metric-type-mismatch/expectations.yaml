@@ -1,0 +1,10 @@
+id: metric-type-mismatch
+tags: [critical, type-mismatch, metric]
+semantic:
+  requiredFacts:
+    - Shadow передал LGD строкой вместо числа
+    - Нарушение типа является критическим
+  forbiddenConclusions:
+    - Строковое значение можно безопасно сравнить как число
+  expectedActions:
+    - Исправить сериализацию LGD до продвижения

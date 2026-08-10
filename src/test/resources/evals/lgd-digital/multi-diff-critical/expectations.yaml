@@ -1,0 +1,10 @@
+id: multi-diff-critical
+tags: [multi-diff, critical, contract]
+semantic:
+  requiredFacts:
+    - Одновременно обнаружены type mismatch и изменения mode и type
+    - Итоговая severity должна быть CRITICAL
+  forbiddenConclusions:
+    - Обычная проверка без блокировки достаточна
+  expectedActions:
+    - Заблокировать продвижение и исправить контрактные нарушения

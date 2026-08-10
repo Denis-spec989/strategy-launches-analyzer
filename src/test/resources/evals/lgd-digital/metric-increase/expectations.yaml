@@ -1,0 +1,10 @@
+id: metric-increase
+tags: [metric, warning]
+semantic:
+  requiredFacts:
+    - LGD и LGD downturn выросли с 18.1 до 20.4
+    - Направление дельты рассчитано как shadow минус main
+  forbiddenConclusions:
+    - Рост вызван сменой модели
+  expectedActions:
+    - Проверить приемлемость роста LGD

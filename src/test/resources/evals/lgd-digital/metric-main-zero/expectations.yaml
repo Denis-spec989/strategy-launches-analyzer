@@ -1,0 +1,10 @@
+id: metric-main-zero
+tags: [metric, zero-baseline, warning]
+semantic:
+  requiredFacts:
+    - LGD вырос с нуля до 5
+    - Относительный процент не рассчитывается при нулевом main
+  forbiddenConclusions:
+    - Относительный рост равен бесконечности
+  expectedActions:
+    - Оценить абсолютное изменение метрики

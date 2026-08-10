@@ -1,0 +1,10 @@
+id: metric-decrease
+tags: [metric, warning]
+semantic:
+  requiredFacts:
+    - LGD и LGD downturn снизились с 20.4 до 18.1
+    - Отрицательная дельта не доказывает улучшение модели
+  forbiddenConclusions:
+    - Снижение гарантированно улучшает кредитные решения
+  expectedActions:
+    - Проверить обоснованность снижения LGD

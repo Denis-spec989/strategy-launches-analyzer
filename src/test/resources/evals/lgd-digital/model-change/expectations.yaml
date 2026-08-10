@@ -1,0 +1,10 @@
+id: model-change
+tags: [model, metric, warning]
+semantic:
+  requiredFacts:
+    - Shadow использует другую модель расчета
+    - LGD и LGD downturn выросли
+  forbiddenConclusions:
+    - Смена модели доказанно стала причиной изменения метрик
+  expectedActions:
+    - Отдельно проверить смену модели и дельты метрик

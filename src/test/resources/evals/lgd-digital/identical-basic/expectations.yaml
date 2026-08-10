@@ -1,0 +1,9 @@
+id: identical-basic
+tags: [identical, info]
+semantic:
+  requiredFacts:
+    - Отличия между main и shadow отсутствуют
+  forbiddenConclusions:
+    - Обнаружена регрессия расчета
+  expectedActions:
+    - Продолжить штатный контроль

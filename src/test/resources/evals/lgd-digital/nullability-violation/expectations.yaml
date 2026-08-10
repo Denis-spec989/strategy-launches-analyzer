@@ -1,0 +1,10 @@
+id: nullability-violation
+tags: [critical, nullability, metric]
+semantic:
+  requiredFacts:
+    - Обязательная ненулевая метрика LGD стала null
+    - Нарушение nullability является критическим
+  forbiddenConclusions:
+    - Null является допустимым для LGD
+  expectedActions:
+    - Исправить формирование обязательной метрики

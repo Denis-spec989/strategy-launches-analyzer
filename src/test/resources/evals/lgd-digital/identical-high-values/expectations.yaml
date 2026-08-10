@@ -1,0 +1,10 @@
+id: identical-high-values
+tags: [identical, info]
+semantic:
+  requiredFacts:
+    - Высокие значения LGD одинаковы в обоих запусках
+    - Отличия отсутствуют
+  forbiddenConclusions:
+    - Высокое абсолютное значение само по себе является diff
+  expectedActions:
+    - Не блокировать shadow из-за отсутствующих отличий

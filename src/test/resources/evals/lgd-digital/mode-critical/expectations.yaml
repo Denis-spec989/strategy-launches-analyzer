@@ -1,0 +1,10 @@
+id: mode-critical
+tags: [critical, contract, mode]
+semantic:
+  requiredFacts:
+    - Изменился режим расчета с DEAL на недопустимое значение DEA
+    - Изменение mode является hard-critical
+  forbiddenConclusions:
+    - Shadow можно продвигать без проверки режима
+  expectedActions:
+    - Заблокировать продвижение до проверки маппинга режима

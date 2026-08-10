@@ -1,0 +1,10 @@
+id: calculation-context-change
+tags: [calculation-context, warning]
+semantic:
+  requiredFacts:
+    - Изменились сценарий расчета, использование default и причина default
+    - Значения LGD не изменились
+  forbiddenConclusions:
+    - Контекст не влияет на интерпретацию результата
+  expectedActions:
+    - Проверить корректность нового сценария и manual override

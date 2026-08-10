@@ -1,0 +1,10 @@
+id: multi-diff-warning
+tags: [multi-diff, metric, model, calculation-context, warning]
+semantic:
+  requiredFacts:
+    - Одновременно изменились метрики, модель и контекст расчета
+    - Hard-critical изменений mode или type нет
+  forbiddenConclusions:
+    - Смена модели доказанно вызвала все остальные изменения
+  expectedActions:
+    - Проверить каждую категорию изменений раздельно

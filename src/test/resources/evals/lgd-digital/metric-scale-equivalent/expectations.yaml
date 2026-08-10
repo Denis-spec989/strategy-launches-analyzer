@@ -1,0 +1,10 @@
+id: metric-scale-equivalent
+tags: [metric, numeric-equivalence, info]
+semantic:
+  requiredFacts:
+    - Числа с разным scale имеют одинаковое значение
+    - Метрики не изменились
+  forbiddenConclusions:
+    - Формат 18.10 и 18.1 является изменением метрики
+  expectedActions:
+    - Не создавать ложный diff

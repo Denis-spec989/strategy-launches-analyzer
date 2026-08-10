@@ -1,0 +1,10 @@
+id: type-critical
+tags: [critical, contract, type]
+semantic:
+  requiredFacts:
+    - Тип расчета изменился с ONLINE на BATCH
+    - Изменение type является hard-critical
+  forbiddenConclusions:
+    - Интеграционный режим остался прежним
+  expectedActions:
+    - Заблокировать продвижение до проверки интеграционного режима

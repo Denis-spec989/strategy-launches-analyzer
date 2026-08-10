@@ -1,0 +1,10 @@
+id: unknown-scalar
+tags: [unknown-field, warning]
+semantic:
+  requiredFacts:
+    - В shadow добавлено незадекларированное поле usingCollateral
+    - additionalProperties запрещает неизвестное поле
+  forbiddenConclusions:
+    - usingCollateral имеет известный бизнес-смысл из контракта
+  expectedActions:
+    - Согласовать контракт или удалить неизвестное поле
