@@ -1,10 +1,22 @@
 id: calculation-context-change
-tags: [calculation-context, warning]
+tags: [metric, calculation-context, critical]
 semantic:
   requiredFacts:
-    - Изменились сценарий расчета, использование default и причина default
-    - Значения LGD не изменились
+    - Обнаружено 5 отличий — 2 категории METRIC и 3 категории CALCULATION_CONTEXT
+    - LGD и LGD downturn выросли с 18.1 до 86.0 — на 67.9 п.п. и 375.1381% относительно main
+    - Сценарий расчета изменился с LGD_CALCULATION_FOR_FZHN на LGD_CALCULATION_DEFAULT
+    - Признак usedDefaultValue изменился с false на true
+    - Причина defaultValueReason изменилась с LGD_CALCULATION_FOR_FZHN на MANUAL_OVERRIDE
+    - Contract validation issues и признаки нарушения схемы, типов или nullability отсутствуют
+    - Совокупность резкого роста LGD и смены расчетного контекста имеет severity CRITICAL и несет высокий бизнес-риск
+    - Shadow выглядит как расчет по другому сценарию с автоматически присвоенным значением, а не как прежний расчет с небольшим числовым отклонением
   forbiddenConclusions:
-    - Контекст не влияет на интерпретацию результата
+    - Смена сценария или использование default доказанно стали причиной роста LGD
+    - В payload обнаружены нарушения контракта, схемы, типов или nullability
+    - Изменение расчетного контекста не влияет на интерпретацию и сопоставимость результатов
+    - Shadow можно продвигать без подтверждения корректности изменений
   expectedActions:
-    - Проверить корректность нового сценария и manual override
+    - Заблокировать продвижение shadow до подтверждения корректности роста LGD и смены расчетного сценария
+    - Проверить ожидаемость перехода с LGD_CALCULATION_FOR_FZHN на LGD_CALCULATION_DEFAULT
+    - Разобрать причину usedDefaultValue=true и источник MANUAL_OVERRIDE, включая настройки, флаги и входные параметры
+    - Вручную валидировать LGD=86.0 и LGD downturn=86.0 с владельцами риск-методологии или модели
