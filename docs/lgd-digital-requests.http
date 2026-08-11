@@ -18,7 +18,8 @@
 #   сохраняются как есть.
 # - Лимиты тела запроса: > 5000 узлов JSON или глубина вложенности > 20 → 400
 #   (BadRequest). Примеры с такими телами здесь не приводятся из-за объёма.
-# - Деградация LLM: до 2 попыток, таймаут 20s; при переполнении одновременных
+# - Вызов LLM: одна попытка с таймаутом 120s; HTTP-клиент ждёт ответ до 3 минут.
+#   При переполнении одновременных
 #   вызовов агента (> 20) запрос быстро отклоняется с 503.
 ###############################################################################
 
@@ -28,6 +29,7 @@
 # Ожидаемо в ответе: summary.deterministicSeverity = WARNING,
 # contractVersion = "v1", analyzedAt заполнен.
 # attributes присутствуют в запросе, но в промпт LLM не попадают.
+# @timeout 3 m
 POST {{baseUrl}}/api/v1/strategies/compare
 Content-Type: application/json
 
@@ -81,6 +83,7 @@ Content-Type: application/json
 # lgdData идентичны; меняются scenario, usedDefaultValue, defaultValueReason.
 # Ожидаемо: summary.calculationContextDiffs = 3, totalDiffs = 3,
 # deterministicSeverity = WARNING (hard-critical нет).
+# @timeout 3 m
 POST {{baseUrl}}/api/v1/strategies/compare
 Content-Type: application/json
 
@@ -130,6 +133,7 @@ Content-Type: application/json
 # usingCollateral нет в контракте (additionalProperties: false).
 # Ожидаемо: diff FIELD_ADDED_IN_SHADOW (CONTRACT_TECHNICAL) + UNKNOWN_FIELD
 # (WARNING) в contractValidation; deterministicSeverity = WARNING.
+# @timeout 3 m
 POST {{baseUrl}}/api/v1/strategies/compare
 Content-Type: application/json
 
@@ -182,6 +186,7 @@ Content-Type: application/json
 # только компактный дескриптор вида "object(size=2): {...}".
 # Ожидаемо: FIELD_ADDED_IN_SHADOW (CONTRACT_TECHNICAL) + UNKNOWN_FIELD (WARNING),
 # deterministicSeverity = WARNING.
+# @timeout 3 m
 POST {{baseUrl}}/api/v1/strategies/compare
 Content-Type: application/json
 
@@ -238,6 +243,7 @@ Content-Type: application/json
 # mode: DEAL -> PORTFOLIO. Путь оканчивается на .mode → hard-critical.
 # Ожидаемо: deterministicSeverity = CRITICAL и agentAnalysis.overallSeverity =
 # CRITICAL (LLM не может понизить); diff по .mode объяснён как CRITICAL.
+# @timeout 3 m
 POST {{baseUrl}}/api/v1/strategies/compare
 Content-Type: application/json
 
@@ -287,6 +293,7 @@ Content-Type: application/json
 # shadow присылает lgd строкой "20.4" вместо number. Ожидаемо: diff TYPE_MISMATCH
 # по lgd + CRITICAL contract issue (required-поле с неверным типом) →
 # deterministicSeverity = CRITICAL, overallSeverity = CRITICAL.
+# @timeout 3 m
 POST {{baseUrl}}/api/v1/strategies/compare
 Content-Type: application/json
 
@@ -335,6 +342,7 @@ Content-Type: application/json
 ### 7. Идентичные запуски — severity INFO
 # Диффов и contract issues нет. Ожидаемо: totalDiffs = 0,
 # deterministicSeverity = INFO. LLM всё равно вызывается (short-circuit не вводился).
+# @timeout 3 m
 POST {{baseUrl}}/api/v1/strategies/compare
 Content-Type: application/json
 

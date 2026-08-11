@@ -16,7 +16,7 @@ Maven wrapper (`.\mvnw.cmd` на Windows / `./mvnw` на POSIX). Требует�
 - Все тесты: `.\mvnw.cmd test`
 - Один тест-класс: `.\mvnw.cmd test -Dtest=StrategyDiffEngineTest`
 - Один тест-метод (экранируй `#` в PowerShell): `.\mvnw.cmd test "-Dtest=StrategyDiffEngineTest#detectsModelAndMetricChanges"`
-- Запуск приложения: `.\mvnw.cmd spring-boot:run` — **требует `OPENAI_API_KEY`** (профиль по умолчанию `openai`; без ключа старт падает). Опциональные переопределения: `OPENAI_CHAT_MODEL` (по умолчанию `gpt-5.4`), `OPENAI_CHAT_TEMPERATURE` (`0.1`), `OPENAI_CHAT_TIMEOUT` (`60s`).
+- Запуск приложения: `.\mvnw.cmd spring-boot:run` — **требует `OPENAI_API_KEY`** (профиль по умолчанию `openai`; без ключа старт падает). Опциональные переопределения: `OPENAI_CHAT_MODEL` (по умолчанию `gpt-5.5`), `OPENAI_TIMEOUT` / `OPENAI_CHAT_TIMEOUT` (по умолчанию `120s`), `OPENAI_MAX_RETRIES` / `OPENAI_CHAT_MAX_RETRIES` (`0`) и `OPENAI_RETRY_MAX_ATTEMPTS` (`1`).
 - Actuator: `/actuator/health` (liveness/readiness probes) и `/actuator/prometheus`.
 - Примеры запросов: `docs/lgd-digital-requests.http`.
 

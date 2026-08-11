@@ -12,8 +12,7 @@ record BenchmarkConfiguration(
         long shuffleSeed,
         Path resumeFrom
 ) {
-    private static final String DEFAULT_MODELS =
-            "gpt-5.4,gpt-5.6-luna,gpt-5.6-terra,gpt-5.6-sol";
+    private static final String DEFAULT_MODELS = "gpt-5.4,gpt-5.5";
 
     static BenchmarkConfiguration fromSystemProperties() {
         List<String> models = Arrays.stream(System.getProperty("benchmark.models", DEFAULT_MODELS).split(","))

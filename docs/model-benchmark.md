@@ -2,7 +2,7 @@
 
 Benchmark сравнивает LLM на одинаковых результатах детерминированного анализа LGD_DIGITAL. Он проверяет сырой structured output до Java-guardrails, итоговый `AgentAnalysis`, смысловое качество через отдельную judge-модель, задержку и расход токенов.
 
-Benchmark не запускается командой `mvn test` и никогда не должен добавляться в обычный unit-test lifecycle: полный прогон выполняет 252 вызова моделей-кандидатов, 252 judge-вызова и 6 калибровочных judge-вызовов.
+Benchmark не запускается командой `mvn test` и никогда не должен добавляться в обычный unit-test lifecycle: полный прогон выполняет 126 вызовов моделей-кандидатов, 126 judge-вызовов и 6 калибровочных judge-вызовов.
 
 ## Запуск
 
@@ -11,15 +11,15 @@ Benchmark не запускается командой `mvn test` и никог�
 ```powershell
 $env:OPENAI_API_KEY="..."
 .\mvnw.cmd verify -Pbenchmark `
-  "-Dbenchmark.models=gpt-5.4,gpt-5.6-luna,gpt-5.6-terra,gpt-5.6-sol" `
+  "-Dbenchmark.models=gpt-5.4,gpt-5.5" `
   "-Dbenchmark.repetitions=3"
 ```
 
-Для короткой технической проверки инфраструктуры можно сократить список и число повторений:
+Для короткой технической проверки инфраструктуры можно сократить число повторений:
 
 ```powershell
 .\mvnw.cmd verify -Pbenchmark `
-  "-Dbenchmark.models=gpt-5.4,gpt-5.6-terra" `
+  "-Dbenchmark.models=gpt-5.4,gpt-5.5" `
   "-Dbenchmark.repetitions=1"
 ```
 
@@ -27,7 +27,7 @@ $env:OPENAI_API_KEY="..."
 
 | Property | Default | Назначение |
 | --- | --- | --- |
-| `benchmark.models` | четыре модели из команды выше | Кандидаты, минимум две модели |
+| `benchmark.models` | `gpt-5.4,gpt-5.5` | Кандидаты, минимум две модели |
 | `benchmark.judge-model` | `gpt-5.6-sol` | Фиксированная semantic judge-модель |
 | `benchmark.repetitions` | `3` | Число повторений каждого сценария |
 | `benchmark.concurrency` | `1` | Последовательное выполнение; другие значения в v1 отклоняются |
@@ -67,7 +67,7 @@ failures/
 
 ```powershell
 .\mvnw.cmd verify -Pbenchmark `
-  "-Dbenchmark.models=gpt-5.4,gpt-5.6-luna,gpt-5.6-terra,gpt-5.6-sol" `
+  "-Dbenchmark.models=gpt-5.4,gpt-5.5" `
   "-Dbenchmark.repetitions=3" `
   "-Dbenchmark.resume-from=target/benchmark/20260810-120000-000"
 ```
