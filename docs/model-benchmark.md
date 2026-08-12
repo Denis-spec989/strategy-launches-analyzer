@@ -2,7 +2,7 @@
 
 Benchmark сравнивает LLM на одинаковых результатах детерминированного анализа LGD_DIGITAL. Он проверяет сырой structured output до Java-guardrails, итоговый `AgentAnalysis`, смысловое качество через отдельную judge-модель, задержку и расход токенов.
 
-Benchmark не запускается командой `mvn test` и никогда не должен добавляться в обычный unit-test lifecycle: полный прогон выполняет 126 вызовов моделей-кандидатов, 126 judge-вызовов и 6 калибровочных judge-вызовов.
+Benchmark не запускается командой `mvn test` и никогда не должен добавляться в обычный unit-test lifecycle: полный прогон выполняет 114 вызовов моделей-кандидатов, 114 judge-вызовов и 6 калибровочных judge-вызовов.
 
 ## Запуск
 
@@ -11,7 +11,7 @@ Benchmark не запускается командой `mvn test` и никог�
 ```powershell
 $env:OPENAI_API_KEY="..."
 .\mvnw.cmd verify -Pbenchmark `
-  "-Dbenchmark.models=gpt-5.4,gpt-5.5" `
+  "-Dbenchmark.models=gpt-4.1,gpt-5.5" `
   "-Dbenchmark.repetitions=3"
 ```
 
@@ -19,7 +19,7 @@ $env:OPENAI_API_KEY="..."
 
 ```powershell
 .\mvnw.cmd verify -Pbenchmark `
-  "-Dbenchmark.models=gpt-5.4,gpt-5.5" `
+  "-Dbenchmark.models=gpt-4.1,gpt-5.5" `
   "-Dbenchmark.repetitions=1"
 ```
 
@@ -27,7 +27,7 @@ $env:OPENAI_API_KEY="..."
 
 | Property | Default | Назначение |
 | --- | --- | --- |
-| `benchmark.models` | `gpt-5.4,gpt-5.5` | Кандидаты, минимум две модели |
+| `benchmark.models` | `gpt-4.1,gpt-5.5` | Кандидаты, минимум две модели |
 | `benchmark.judge-model` | `gpt-5.6-sol` | Фиксированная semantic judge-модель |
 | `benchmark.repetitions` | `3` | Число повторений каждого сценария |
 | `benchmark.concurrency` | `1` | Последовательное выполнение; другие значения в v1 отклоняются |
@@ -48,7 +48,7 @@ expectations.yaml
 
 `requiredFacts`, `forbiddenConclusions` и `expectedActions` используются только semantic judge. Ожидаемые diff'ы не дублируются: benchmark строит их тем же `StrategyDiffEngine`, что production-код, и передаёт всем кандидатам один и тот же `AgentAnalysisInput`.
 
-В наборе должно оставаться ровно 21 сценарий. При добавлении нового сценария осознанно замените старый либо измените ожидаемое количество в runner и тестах.
+В наборе должно оставаться ровно 19 сценариев. При добавлении нового сценария осознанно замените старый либо измените ожидаемое количество в runner и тестах.
 
 ## Результаты и resume
 
@@ -67,7 +67,7 @@ failures/
 
 ```powershell
 .\mvnw.cmd verify -Pbenchmark `
-  "-Dbenchmark.models=gpt-5.4,gpt-5.5" `
+  "-Dbenchmark.models=gpt-4.1,gpt-5.5" `
   "-Dbenchmark.repetitions=3" `
   "-Dbenchmark.resume-from=target/benchmark/20260810-120000-000"
 ```

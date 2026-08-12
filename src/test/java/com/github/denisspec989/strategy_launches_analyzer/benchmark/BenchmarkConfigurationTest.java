@@ -13,7 +13,7 @@ class BenchmarkConfigurationTest {
         try {
             BenchmarkConfiguration configuration = BenchmarkConfiguration.fromSystemProperties();
 
-            assertThat(configuration.models()).containsExactly("gpt-5.4", "gpt-5.5");
+            assertThat(configuration.models()).containsExactly("gpt-4.1", "gpt-5.5");
             assertThat(configuration.judgeModel()).isEqualTo("gpt-5.6-sol");
         } finally {
             restore("benchmark.models", previousModels);

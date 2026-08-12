@@ -70,8 +70,8 @@ class BenchmarkInfrastructureTest {
 
         assertThat(summary.winner()).isEqualTo("model-a");
         assertThat(summary.models()).hasSize(2).allMatch(ModelBenchmarkSummary::eligible);
-        assertThat(inputsByCase).hasSize(21);
-        assertThat(new BenchmarkCaseLoader(objectMapper).load(BenchmarkCaseLoader.DEFAULT_DATASET)).hasSize(21);
+        assertThat(inputsByCase).hasSize(19);
+        assertThat(new BenchmarkCaseLoader(objectMapper).load(BenchmarkCaseLoader.DEFAULT_DATASET)).hasSize(19);
     }
 
     @Test
@@ -139,7 +139,7 @@ class BenchmarkInfrastructureTest {
     private static BenchmarkManifest manifest(String promptHash, String datasetHash) {
         return new BenchmarkManifest(
                 "run", Instant.EPOCH, "commit", "v1", promptHash, datasetHash,
-                21, List.of("a", "b"), 1, 1, "judge", 42
+                19, List.of("a", "b"), 1, 1, "judge", 42
         );
     }
 

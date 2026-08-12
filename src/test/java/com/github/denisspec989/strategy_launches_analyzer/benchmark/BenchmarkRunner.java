@@ -17,7 +17,7 @@ import java.util.Map;
 import java.util.Random;
 
 final class BenchmarkRunner {
-    private static final int EXPECTED_CASE_COUNT = 21;
+    private static final int EXPECTED_CASE_COUNT = 19;
 
     private final ObjectMapper objectMapper;
     private final AgentModelClient modelClient;

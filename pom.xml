@@ -107,7 +107,7 @@
 		<profile>
 			<id>benchmark</id>
 			<properties>
-				<benchmark.models>gpt-5.4,gpt-5.5</benchmark.models>
+				<benchmark.models>gpt-4.1,gpt-5.5</benchmark.models>
 				<benchmark.judge-model>gpt-5.6-sol</benchmark.judge-model>
 				<benchmark.repetitions>3</benchmark.repetitions>
 				<benchmark.concurrency>1</benchmark.concurrency>
