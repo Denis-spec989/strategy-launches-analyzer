@@ -2,9 +2,25 @@ id: multi-diff-warning
 tags: [multi-diff, metric, model, calculation-context, warning]
 semantic:
   requiredFacts:
-    - Одновременно изменились метрики, модель и контекст расчета
-    - Hard-critical изменений mode или type нет
+    - Обнаружено 6 детерминированных отличий — 2 категории METRIC, 1 категории MODEL и 3 категории CALCULATION_CONTEXT
+    - LGD вырос с 18.1 до 24.7 — на 6.6 п.п. и 36.4641% относительно main
+    - LGD downturn вырос с 18.1 до 26.2 — на 8.1 п.п. и 44.7514% относительно main
+    - Модель расчета изменилась с «Корпоративные клиенты 2022» на «Корпоративные клиенты 2024»
+    - Сценарий изменился с LGD_CALCULATION_FOR_FZHN на LGD_CALCULATION_DEFAULT
+    - Признак usedDefaultValue изменился с true на false, а defaultValueReason — с LGD_CALCULATION_FOR_FZHN на MANUAL_OVERRIDE
+    - Итоговая severity должна быть WARNING, hard-critical изменений mode или type нет
+    - Contract technical diffs, contractValidation issues и нарушения схемы, типов или nullability отсутствуют
+    - Рост метрик, смена модели и изменение расчетного контекста влияют на бизнес-интерпретацию и сопоставимость результатов
+    - Сочетание usedDefaultValue=false и defaultValueReason=MANUAL_OVERRIDE требует проверки согласованности и объяснимости расчета
   forbiddenConclusions:
     - Смена модели доказанно вызвала все остальные изменения
+    - Смена сценария или default-контекста доказанно стала причиной роста LGD-метрик
+    - В payload обнаружены критические или контрактные нарушения
+    - Значение MANUAL_OVERRIDE само по себе доказывает ошибку расчета
+    - Отсутствие contractValidation issues позволяет продвигать shadow без проверки всех шести отличий
   expectedActions:
-    - Проверить каждую категорию изменений раздельно
+    - Бизнес-согласовать рост LGD на 6.6 п.п. и LGD downturn на 8.1 п.п.
+    - Подтвердить ожидаемость модели «Корпоративные клиенты 2024» в shadow
+    - Отдельно проверить переход сценария на LGD_CALCULATION_DEFAULT
+    - Проверить согласованность usedDefaultValue=false и defaultValueReason=MANUAL_OVERRIDE
+    - Не продвигать shadow без подтверждения владельцев модели и бизнеса, что все 6 отличий ожидаемы
