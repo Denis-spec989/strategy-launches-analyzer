@@ -58,6 +58,7 @@ LLM получает только нормализованный `AgentAnalysisI
 
 - Сравнивай значения `JsonNode`, а не сырые строки; навигация через `JsonNodePath`.
 - Числа через `BigDecimal.compareTo` (`18.10` равно `18.1`). Для числовых diff'ов: `absoluteDelta = shadow - main`, `relativeDeltaPercent = absolute / main * 100` (только когда main ≠ 0).
+- Если NUMBER-поле нарушает тип, но обе стороны являются JSON number либо строками с однозначным JSON-number после `trim`, сохраняй `TYPE_MISMATCH` и дополнительно создавай `NUMERIC_VALUE_CHANGED` с `comparisonBasis=COERCED_NUMERIC`. Coercion является только диагностикой и не делает строку контрактно валидной.
 - Leaf-поля сравниваются в порядке контракта (OpenAPI) для детерминированного вывода; object-контейнеры валидируются через свои задекларированные дочерние поля.
 - Незадекларированные поля, присутствующие только с одной стороны, становятся diff'ами `FIELD_ADDED_IN_*`.
 

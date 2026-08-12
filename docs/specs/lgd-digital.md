@@ -31,6 +31,8 @@ and pass `"strategy": "LGD_DIGITAL"` in the request body.
 - Compare declared leaf fields in OpenAPI contract order for deterministic output.
 - Compare numbers with `BigDecimal.compareTo`; for example, `18.10` equals `18.1`.
 - For `lgd` and `lgdDt`, calculate absolute delta as `shadow - main` and relative delta as `absolute / main * 100` when main is not zero.
+- For a numeric contract field with a type mismatch, also interpret JSON-number strings after trimming outer whitespace. If both sides are unambiguous numbers and differ, report a second `NUMERIC_VALUE_CHANGED` diff with `comparisonBasis: COERCED_NUMERIC`; the original `TYPE_MISMATCH` and CRITICAL severity remain unchanged.
+- Coerced numeric comparison accepts the JSON number grammar (including negative and exponent forms) and rejects locale or decorated formats such as decimal commas, percent signs, `NaN`, and `Infinity`.
 - Compare optional fields only when at least one launch provides them.
 - Report response shape changes when a field exists only in main or only in shadow.
 

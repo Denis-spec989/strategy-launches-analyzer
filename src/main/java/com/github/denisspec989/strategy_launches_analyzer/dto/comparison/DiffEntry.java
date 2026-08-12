@@ -15,6 +15,31 @@ public record DiffEntry(
         JsonNode shadowValue,
         BigDecimal absoluteDelta,
         BigDecimal relativeDeltaPercent,
+        ComparisonBasis comparisonBasis,
         String description
 ) {
+    public DiffEntry(
+            String id,
+            String path,
+            DiffType type,
+            DiffCategory category,
+            JsonNode mainValue,
+            JsonNode shadowValue,
+            BigDecimal absoluteDelta,
+            BigDecimal relativeDeltaPercent,
+            String description
+    ) {
+        this(
+                id,
+                path,
+                type,
+                category,
+                mainValue,
+                shadowValue,
+                absoluteDelta,
+                relativeDeltaPercent,
+                null,
+                description
+        );
+    }
 }

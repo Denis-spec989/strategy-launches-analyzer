@@ -55,6 +55,7 @@ public final class AgentInputNormalizer {
                 shadowValue,
                 diff.absoluteDelta(),
                 diff.relativeDeltaPercent(),
+                diff.comparisonBasis(),
                 diff.description()
         );
     }

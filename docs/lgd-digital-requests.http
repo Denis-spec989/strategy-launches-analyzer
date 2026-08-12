@@ -290,8 +290,10 @@ Content-Type: application/json
 
 
 ### 6. Несовпадение типа (TYPE_MISMATCH) — HARD-CRITICAL
-# shadow присылает lgd строкой "20.4" вместо number. Ожидаемо: diff TYPE_MISMATCH
-# по lgd + CRITICAL contract issue (required-поле с неверным типом) →
+# shadow присылает lgd строкой "20.4" вместо number. Ожидаемо: diff TYPE_MISMATCH,
+# диагностический NUMERIC_VALUE_CHANGED с comparisonBasis = COERCED_NUMERIC,
+# absoluteDelta = 2.3 и relativeDeltaPercent = 12.7072, а также CRITICAL
+# contract issue (required-поле с неверным типом) →
 # deterministicSeverity = CRITICAL, overallSeverity = CRITICAL.
 # @timeout 3 m
 POST {{baseUrl}}/api/v1/strategies/compare

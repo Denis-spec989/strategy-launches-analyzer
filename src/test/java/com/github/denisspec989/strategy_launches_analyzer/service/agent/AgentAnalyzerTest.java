@@ -14,9 +14,11 @@ import com.github.denisspec989.strategy_launches_analyzer.dto.agent.StructuredAg
 import com.github.denisspec989.strategy_launches_analyzer.dto.agent.TokenUsage;
 import com.github.denisspec989.strategy_launches_analyzer.dto.common.Severity;
 import com.github.denisspec989.strategy_launches_analyzer.dto.comparison.ComparisonSummary;
+import com.github.denisspec989.strategy_launches_analyzer.dto.comparison.ComparisonBasis;
 import com.github.denisspec989.strategy_launches_analyzer.dto.comparison.DeterministicSeverityCalculator;
 import com.github.denisspec989.strategy_launches_analyzer.dto.comparison.DiffEntry;
 import com.github.denisspec989.strategy_launches_analyzer.dto.comparison.DiffResult;
+import com.github.denisspec989.strategy_launches_analyzer.dto.comparison.DiffType;
 import com.github.denisspec989.strategy_launches_analyzer.dto.comparison.LaunchSide;
 import com.github.denisspec989.strategy_launches_analyzer.dto.contract.ContractFieldContext;
 import com.github.denisspec989.strategy_launches_analyzer.dto.contract.ContractIssue;
@@ -77,6 +79,22 @@ class AgentAnalyzerTest {
     }
 
     @Test
+    void promptCarriesTypeMismatchAndCoercedNumericChangeTogether() {
+        BenchmarkLikeLaunches launches = benchmarkLaunches("metric-type-mismatch");
+        DiffResult diffResult = diffEngine.compare(contract, launches.main(), launches.shadow());
+        AgentAnalysisInput input = input(diffResult);
+
+        assertThat(input.diffs()).extracting(DiffEntry::type)
+                .containsExactly(DiffType.TYPE_MISMATCH, DiffType.NUMERIC_VALUE_CHANGED);
+        assertThat(input.diffs().get(1).comparisonBasis()).isEqualTo(ComparisonBasis.COERCED_NUMERIC);
+
+        String prompt = new AgentPromptBuilder(objectMapper).buildUserPrompt(input);
+        assertThat(prompt).contains("\"comparisonBasis\" : \"COERCED_NUMERIC\"");
+        assertThat(prompt).contains("\"absoluteDelta\" : 2.3");
+        assertThat(prompt).contains("\"relativeDeltaPercent\" : 12.7072");
+    }
+
+    @Test
     void systemPromptDefinesAnalyticalOutputFieldContract() {
         String systemPrompt = AgentPromptBuilder.SYSTEM_PROMPT;
 
@@ -87,6 +105,9 @@ class AgentAnalyzerTest {
         assertThat(systemPrompt).contains("contractContext.description");
         assertThat(systemPrompt).contains("summaryGuidance");
         assertThat(systemPrompt).contains("shadow-minus-main direction");
+        assertThat(systemPrompt).contains("comparisonBasis=COERCED_NUMERIC");
+        assertThat(systemPrompt).contains("original string remains contract-invalid");
+        assertThat(systemPrompt).contains("never describe coercion as contract validation or automatic correction");
         assertThat(systemPrompt).contains("technicalRisks: Explain technical and contract risks");
         assertThat(systemPrompt).contains("contract/schema/type/nullability issues");
         assertThat(systemPrompt).contains("unknown fields");
@@ -323,6 +344,10 @@ class AgentAnalyzerTest {
         JsonNode main = TestFixtures.json(objectMapper, "fixtures/lgd-digital/%s/%s.json".formatted(fixtureName, mainLaunchName));
         JsonNode shadow = TestFixtures.json(objectMapper, "fixtures/lgd-digital/%s/%s.json".formatted(fixtureName, shadowLaunchName));
         DiffResult diffResult = diffEngine.compare(contract, main, shadow);
+        return input(diffResult);
+    }
+
+    private AgentAnalysisInput input(DiffResult diffResult) {
         ComparisonSummary summary = ComparisonSummary.from(
                 contract.strategyName(),
                 diffResult.diffs(),
@@ -336,6 +361,16 @@ class AgentAnalyzerTest {
                 contractContext(diffResult),
                 null
         );
+    }
+
+    private BenchmarkLikeLaunches benchmarkLaunches(String fixtureName) {
+        return new BenchmarkLikeLaunches(
+                TestFixtures.json(objectMapper, "evals/lgd-digital/%s/main.json".formatted(fixtureName)),
+                TestFixtures.json(objectMapper, "evals/lgd-digital/%s/shadow.json".formatted(fixtureName))
+        );
+    }
+
+    private record BenchmarkLikeLaunches(JsonNode main, JsonNode shadow) {
     }
 
     private StructuredAgentAnalysis structuredResponse(AgentAnalysisInput input, Severity severity) {

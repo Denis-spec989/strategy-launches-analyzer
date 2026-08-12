@@ -2,7 +2,12 @@ package com.github.denisspec989.strategy_launches_analyzer.service.diff;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.node.DecimalNode;
+import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.github.denisspec989.strategy_launches_analyzer.TestFixtures;
+import com.github.denisspec989.strategy_launches_analyzer.dto.common.Severity;
+import com.github.denisspec989.strategy_launches_analyzer.dto.comparison.ComparisonBasis;
+import com.github.denisspec989.strategy_launches_analyzer.dto.comparison.ComparisonSummary;
 import com.github.denisspec989.strategy_launches_analyzer.dto.strategy.StrategyName;
 import com.github.denisspec989.strategy_launches_analyzer.service.contract.ContractValidator;
 import com.github.denisspec989.strategy_launches_analyzer.service.contract.OpenApiStrategyContractLoader;
@@ -100,10 +105,143 @@ class StrategyDiffEngineTest {
         assertThat(result.contractValidation()).isEmpty();
     }
 
+    @Test
+    void reportsTypeMismatchAndCoercedNumericIncrease() throws Exception {
+        DiffResult result = compareLgd(number("18.1"), text("20.4"));
+
+        assertThat(result.diffs()).hasSize(2);
+        assertThat(result.diffs()).extracting(DiffEntry::type)
+                .containsExactly(DiffType.TYPE_MISMATCH, DiffType.NUMERIC_VALUE_CHANGED);
+        DiffEntry numericDiff = result.diffs().get(1);
+        assertThat(numericDiff.path()).isEqualTo("strategyResponse.lgdData.lgd");
+        assertThat(numericDiff.absoluteDelta()).isEqualByComparingTo("2.3");
+        assertThat(numericDiff.relativeDeltaPercent()).isEqualByComparingTo("12.7072");
+        assertThat(numericDiff.comparisonBasis()).isEqualTo(ComparisonBasis.COERCED_NUMERIC);
+        assertThat(numericDiff.mainValue().isNumber()).isTrue();
+        assertThat(numericDiff.shadowValue().isTextual()).isTrue();
+        assertThat(numericDiff.description()).contains("contract type remains invalid");
+
+        ComparisonSummary summary = ComparisonSummary.from(
+                contract.strategyName(),
+                result.diffs(),
+                result.contractValidation()
+        );
+        assertThat(summary.totalDiffs()).isEqualTo(2);
+        assertThat(summary.metricDiffs()).isEqualTo(2);
+        assertThat(summary.deterministicSeverity()).isEqualTo(Severity.CRITICAL);
+        assertThat(result.contractValidation()).singleElement()
+                .satisfies(issue -> assertThat(issue.side()).isEqualTo(LaunchSide.SHADOW));
+
+        String serialized = objectMapper.writeValueAsString(numericDiff);
+        assertThat(serialized).contains("\"comparisonBasis\":\"COERCED_NUMERIC\"");
+    }
+
+    @Test
+    void reportsCoercedNumericDecreaseWhenMainIsString() {
+        DiffResult result = compareLgd(text("20.4"), number("18.1"));
+
+        assertThat(result.diffs()).extracting(DiffEntry::type)
+                .containsExactly(DiffType.TYPE_MISMATCH, DiffType.NUMERIC_VALUE_CHANGED);
+        assertThat(result.diffs().get(1).absoluteDelta()).isEqualByComparingTo("-2.3");
+        assertThat(result.diffs().get(1).relativeDeltaPercent()).isEqualByComparingTo("-11.2745");
+        assertThat(result.diffs().get(1).comparisonBasis()).isEqualTo(ComparisonBasis.COERCED_NUMERIC);
+        assertThat(result.contractValidation()).singleElement()
+                .satisfies(issue -> assertThat(issue.side()).isEqualTo(LaunchSide.MAIN));
+    }
+
+    @Test
+    void comparesTwoContractInvalidNumericStrings() {
+        DiffResult result = compareLgd(text("18.1"), text("20.4"));
+
+        assertThat(result.diffs()).extracting(DiffEntry::type)
+                .containsExactly(DiffType.TYPE_MISMATCH, DiffType.NUMERIC_VALUE_CHANGED);
+        assertThat(result.diffs().get(1).absoluteDelta()).isEqualByComparingTo("2.3");
+        assertThat(result.diffs().get(1).comparisonBasis()).isEqualTo(ComparisonBasis.COERCED_NUMERIC);
+        assertThat(result.contractValidation()).hasSize(2);
+    }
+
+    @Test
+    void trimsNumericStringBeforeDiagnosticComparison() {
+        DiffResult result = compareLgd(number("18.1"), text(" 20.4 "));
+
+        assertThat(result.diffs()).extracting(DiffEntry::type)
+                .containsExactly(DiffType.TYPE_MISMATCH, DiffType.NUMERIC_VALUE_CHANGED);
+        assertThat(result.diffs().get(1).absoluteDelta()).isEqualByComparingTo("2.3");
+    }
+
+    @Test
+    void supportsNegativeAndExponentNumericStrings() {
+        DiffResult result = compareLgd(text(" -2e1 "), text("1E1"));
+
+        assertThat(result.diffs()).extracting(DiffEntry::type)
+                .containsExactly(DiffType.TYPE_MISMATCH, DiffType.NUMERIC_VALUE_CHANGED);
+        assertThat(result.diffs().get(1).absoluteDelta()).isEqualByComparingTo("30");
+        assertThat(result.diffs().get(1).comparisonBasis()).isEqualTo(ComparisonBasis.COERCED_NUMERIC);
+    }
+
+    @Test
+    void doesNotReportNumericChangeWhenCoercedValuesAreEqual() {
+        DiffResult result = compareLgd(number("18.1"), text("18.10"));
+
+        assertThat(result.diffs()).singleElement()
+                .satisfies(diff -> assertThat(diff.type()).isEqualTo(DiffType.TYPE_MISMATCH));
+    }
+
+    @Test
+    void rejectsAmbiguousOrNonNumericStringsForDiagnosticComparison() {
+        for (String invalid : List.of("abc", "20,4", "20.4%", "NaN", "Infinity", "+20", ".5", "")) {
+            DiffResult result = compareLgd(number("18.1"), text(invalid));
+
+            assertThat(result.diffs())
+                    .as("invalid numeric string %s", invalid)
+                    .singleElement()
+                    .satisfies(diff -> assertThat(diff.type()).isEqualTo(DiffType.TYPE_MISMATCH));
+        }
+    }
+
+    @Test
+    void omitsRelativeDeltaWhenCoercedMainValueIsZero() {
+        DiffResult result = compareLgd(number("0"), text("5"));
+
+        DiffEntry numericDiff = result.diffs().get(1);
+        assertThat(numericDiff.type()).isEqualTo(DiffType.NUMERIC_VALUE_CHANGED);
+        assertThat(numericDiff.absoluteDelta()).isEqualByComparingTo("5");
+        assertThat(numericDiff.relativeDeltaPercent()).isNull();
+        assertThat(numericDiff.comparisonBasis()).isEqualTo(ComparisonBasis.COERCED_NUMERIC);
+    }
+
+    @Test
+    void omitsComparisonBasisForContractValidNumbers() throws Exception {
+        DiffResult result = compareLgd(number("18.1"), number("20.4"));
+
+        assertThat(result.diffs()).singleElement().satisfies(diff -> {
+            assertThat(diff.type()).isEqualTo(DiffType.NUMERIC_VALUE_CHANGED);
+            assertThat(diff.comparisonBasis()).isNull();
+        });
+        assertThat(objectMapper.writeValueAsString(result.diffs().getFirst()))
+                .doesNotContain("comparisonBasis");
+    }
+
     private DiffResult compareFixture(String name) {
         JsonNode main = TestFixtures.json(objectMapper, "fixtures/lgd-digital/%s/main.json".formatted(name));
         JsonNode shadow = TestFixtures.json(objectMapper, "fixtures/lgd-digital/%s/shadow.json".formatted(name));
         return diffEngine.compare(contract, main, shadow);
+    }
+
+    private DiffResult compareLgd(JsonNode mainLgd, JsonNode shadowLgd) {
+        JsonNode main = TestFixtures.json(objectMapper, "fixtures/lgd-digital/model-change/main.json");
+        JsonNode shadow = main.deepCopy();
+        ((ObjectNode) main.at("/strategyResponse/lgdData")).set("lgd", mainLgd);
+        ((ObjectNode) shadow.at("/strategyResponse/lgdData")).set("lgd", shadowLgd);
+        return diffEngine.compare(contract, main, shadow);
+    }
+
+    private static JsonNode number(String value) {
+        return DecimalNode.valueOf(new BigDecimal(value));
+    }
+
+    private JsonNode text(String value) {
+        return objectMapper.getNodeFactory().textNode(value);
     }
 
     private void assertDiffsMatchExpected(List<DiffEntry> diffs, String fixtureName) {

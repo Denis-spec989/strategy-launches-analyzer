@@ -5,6 +5,7 @@ import com.github.denisspec989.strategy_launches_analyzer.dto.contract.ContractF
 import com.github.denisspec989.strategy_launches_analyzer.service.contract.ContractValidator;
 import com.github.denisspec989.strategy_launches_analyzer.dto.contract.ContractValueType;
 import com.github.denisspec989.strategy_launches_analyzer.service.contract.StrategyContract;
+import com.github.denisspec989.strategy_launches_analyzer.dto.comparison.ComparisonBasis;
 import com.github.denisspec989.strategy_launches_analyzer.dto.comparison.DiffCategory;
 import com.github.denisspec989.strategy_launches_analyzer.dto.comparison.DiffEntry;
 import com.github.denisspec989.strategy_launches_analyzer.dto.comparison.DiffResult;
@@ -20,13 +21,18 @@ import java.util.Iterator;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.regex.Pattern;
 
 @Component
 @RequiredArgsConstructor
 public class StrategyDiffEngine {
     private static final int RELATIVE_DELTA_SCALE = 6;
+    private static final Pattern JSON_NUMBER = Pattern.compile(
+            "-?(?:0|[1-9]\\d*)(?:\\.\\d+)?(?:[eE][+-]?\\d+)?"
+    );
 
     private final ContractValidator contractValidator;
 
@@ -121,6 +127,9 @@ public class StrategyDiffEngine {
                         "Field value or type differs and at least one launch violates the contract type."
                 ));
             }
+            if (field.valueType() == ContractValueType.NUMBER) {
+                addCoercedNumericDiff(mainValue, shadowValue, field, diffCounter, diffs);
+            }
             return;
         }
 
@@ -141,8 +150,53 @@ public class StrategyDiffEngine {
             AtomicInteger diffCounter,
             List<DiffEntry> diffs
     ) {
-        BigDecimal mainNumber = mainValue.decimalValue();
-        BigDecimal shadowNumber = shadowValue.decimalValue();
+        addNumericDiff(
+                mainValue,
+                shadowValue,
+                mainValue.decimalValue(),
+                shadowValue.decimalValue(),
+                field,
+                diffCounter,
+                diffs,
+                null
+        );
+    }
+
+    private void addCoercedNumericDiff(
+            JsonNode mainValue,
+            JsonNode shadowValue,
+            ContractField field,
+            AtomicInteger diffCounter,
+            List<DiffEntry> diffs
+    ) {
+        Optional<BigDecimal> mainNumber = numericInterpretation(mainValue);
+        Optional<BigDecimal> shadowNumber = numericInterpretation(shadowValue);
+        if (mainNumber.isEmpty() || shadowNumber.isEmpty()) {
+            return;
+        }
+
+        addNumericDiff(
+                mainValue,
+                shadowValue,
+                mainNumber.get(),
+                shadowNumber.get(),
+                field,
+                diffCounter,
+                diffs,
+                ComparisonBasis.COERCED_NUMERIC
+        );
+    }
+
+    private void addNumericDiff(
+            JsonNode mainValue,
+            JsonNode shadowValue,
+            BigDecimal mainNumber,
+            BigDecimal shadowNumber,
+            ContractField field,
+            AtomicInteger diffCounter,
+            List<DiffEntry> diffs,
+            ComparisonBasis comparisonBasis
+    ) {
         if (mainNumber.compareTo(shadowNumber) == 0) {
             return;
         }
@@ -165,8 +219,30 @@ public class StrategyDiffEngine {
                 shadowValue,
                 absoluteDelta,
                 relativeDeltaPercent,
-                "Numeric value changed in shadow launch."
+                comparisonBasis,
+                comparisonBasis == ComparisonBasis.COERCED_NUMERIC
+                        ? "Numeric value changed after unambiguous interpretation of a numeric string; contract type remains invalid."
+                        : "Numeric value changed in shadow launch."
         ));
+    }
+
+    private static Optional<BigDecimal> numericInterpretation(JsonNode value) {
+        if (value.isNumber()) {
+            return Optional.of(value.decimalValue());
+        }
+        if (!value.isTextual()) {
+            return Optional.empty();
+        }
+
+        String candidate = value.textValue().trim();
+        if (!JSON_NUMBER.matcher(candidate).matches()) {
+            return Optional.empty();
+        }
+        try {
+            return Optional.of(new BigDecimal(candidate));
+        } catch (NumberFormatException ex) {
+            return Optional.empty();
+        }
     }
 
     private void addTextDiff(
@@ -322,6 +398,32 @@ public class StrategyDiffEngine {
             BigDecimal relativeDeltaPercent,
             String description
     ) {
+        return diff(
+                diffCounter,
+                path,
+                type,
+                category,
+                mainValue,
+                shadowValue,
+                absoluteDelta,
+                relativeDeltaPercent,
+                null,
+                description
+        );
+    }
+
+    private static DiffEntry diff(
+            AtomicInteger diffCounter,
+            String path,
+            DiffType type,
+            DiffCategory category,
+            JsonNode mainValue,
+            JsonNode shadowValue,
+            BigDecimal absoluteDelta,
+            BigDecimal relativeDeltaPercent,
+            ComparisonBasis comparisonBasis,
+            String description
+    ) {
         return new DiffEntry(
                 "D%03d".formatted(diffCounter.getAndIncrement()),
                 path,
@@ -331,6 +433,7 @@ public class StrategyDiffEngine {
                 shadowValue,
                 absoluteDelta,
                 relativeDeltaPercent,
+                comparisonBasis,
                 description
         );
     }
