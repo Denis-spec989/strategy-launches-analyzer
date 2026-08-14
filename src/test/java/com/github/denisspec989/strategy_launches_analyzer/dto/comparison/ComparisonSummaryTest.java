@@ -82,6 +82,7 @@ class ComparisonSummaryTest {
                 null,
                 null,
                 null,
+                Severity.WARNING,
                 "Model changed in shadow launch."
         );
     }
@@ -96,6 +97,7 @@ class ComparisonSummaryTest {
                 null,
                 null,
                 null,
+                Severity.WARNING,
                 "Calculation scenario changed in shadow launch."
         );
     }
@@ -110,6 +112,7 @@ class ComparisonSummaryTest {
                 null,
                 null,
                 null,
+                Severity.WARNING,
                 "Undeclared field present only in shadow launch."
         );
     }
@@ -124,6 +127,7 @@ class ComparisonSummaryTest {
                 null,
                 null,
                 null,
+                Severity.WARNING,
                 "Numeric value changed in shadow launch."
         );
     }
@@ -138,6 +142,7 @@ class ComparisonSummaryTest {
                 null,
                 null,
                 null,
+                Severity.CRITICAL,
                 "Technical field changed in shadow launch."
         );
     }

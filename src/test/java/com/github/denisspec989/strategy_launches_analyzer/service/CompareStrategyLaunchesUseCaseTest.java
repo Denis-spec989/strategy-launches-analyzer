@@ -4,6 +4,7 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.github.denisspec989.strategy_launches_analyzer.TestFixtures;
 import com.github.denisspec989.strategy_launches_analyzer.dto.agent.AgentAnalysis;
+import com.github.denisspec989.strategy_launches_analyzer.dto.agent.AgentAnalysisInput;
 import com.github.denisspec989.strategy_launches_analyzer.dto.agent.AgentAnalysisStatus;
 import com.github.denisspec989.strategy_launches_analyzer.dto.agent.TokenUsage;
 import com.github.denisspec989.strategy_launches_analyzer.dto.api.CompareStrategyRequest;
@@ -25,12 +26,13 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicReference;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 class CompareStrategyLaunchesUseCaseTest {
-    private final ObjectMapper objectMapper = new ObjectMapper();
+    private final ObjectMapper objectMapper = new ObjectMapper().findAndRegisterModules();
     private final StrategyContractRegistry registry = new StrategyContractRegistry(new OpenApiStrategyContractLoader());
     private final StrategyDiffEngine diffEngine = new StrategyDiffEngine(new ContractValidator());
 
@@ -92,6 +94,32 @@ class CompareStrategyLaunchesUseCaseTest {
         assertThatThrownBy(() -> useCase.compare(request))
                 .isInstanceOf(BadRequestException.class)
                 .hasMessageContaining("node limit");
+    }
+
+    @Test
+    void publicResponseAndAgentInputExposeTheSameDeterministicSeverity() {
+        AtomicReference<AgentAnalysisInput> capturedInput = new AtomicReference<>();
+        CompareStrategyLaunchesUseCase useCase = new CompareStrategyLaunchesUseCase(
+                diffEngine,
+                registry,
+                input -> {
+                    capturedInput.set(input);
+                    return completedAnalysis();
+                },
+                20,
+                100_000,
+                100
+        );
+
+        CompareStrategyResponse response = useCase.compare(request("model-change"));
+        JsonNode responseJson = objectMapper.valueToTree(response);
+
+        assertThat(responseJson.path("diffs").isArray()).isTrue();
+        assertThat(responseJson.path("diffs"))
+                .allSatisfy(diff -> assertThat(diff.path("deterministicSeverity").asText()).isNotBlank());
+        assertThat(response.diffs()).allSatisfy(diff ->
+                assertThat(diff.deterministicSeverity()).isIn(Severity.WARNING, Severity.CRITICAL));
+        assertThat(capturedInput.get().diffs()).containsExactlyElementsOf(response.diffs());
     }
 
     private CompareStrategyRequest request(String fixture) {

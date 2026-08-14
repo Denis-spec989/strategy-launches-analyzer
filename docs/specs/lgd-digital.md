@@ -35,13 +35,31 @@ and pass `"strategy": "LGD_DIGITAL"` in the request body.
 - Coerced numeric comparison accepts the JSON number grammar (including negative and exponent forms) and rejects locale or decorated formats such as decimal commas, percent signs, `NaN`, and `Infinity`.
 - Compare optional fields only when at least one launch provides them.
 - Report response shape changes when a field exists only in main or only in shadow.
+- Every public `diffs[]` entry contains a mandatory `deterministicSeverity`. Its value is `CRITICAL` for a hard-critical type/path or when a `CRITICAL` contract issue has the exact same path; all other individual diffs use `WARNING`. `INFO` means that there are no diffs and is used only at summary level.
+- A missing required field is therefore `CRITICAL` on either side (`main` or `shadow`). A missing optional field remains `WARNING`.
+- `summary.deterministicSeverity` is the maximum severity across the already-resolved diff severities and contract validation issues.
+
+Example public diff:
+
+```json
+{
+  "id": "D001",
+  "path": "strategyResponse.lgdData.lgd",
+  "type": "FIELD_MISSING_IN_SHADOW",
+  "category": "METRIC",
+  "mainValue": 18.1,
+  "deterministicSeverity": "CRITICAL",
+  "description": "Field is present in main launch and absent in shadow launch."
+}
+```
 
 ## Agent Rules
 
-- The agent receives only normalized diffs, contract validation issues, touched field contract context, summary, and optional launch metadata.
+- The agent receives the same public `DiffEntry` objects after only large-value normalization, plus contract validation issues, touched field contract context, summary, and optional launch metadata. Normalization preserves `deterministicSeverity`.
 - The agent uses OpenAPI `description` plus `x-summary-guidance` to explain business meaning.
-- Java comparison owns deterministic facts and `summary.deterministicSeverity`; the agent owns final semantic severity in `agentAnalysis.overallSeverity`.
+- Java comparison owns deterministic facts, each `diffs[].deterministicSeverity`, and `summary.deterministicSeverity`; the agent owns final semantic severity in `agentAnalysis.overallSeverity`.
 - `summary.deterministicSeverity` is a preliminary guardrail, not the final business severity.
+- `agentAnalysis.diffExplanations[].severity` is the model/final explanation severity and guardrails never allow it below the corresponding public `diffs[].deterministicSeverity`.
 - The agent must not receive the full OpenAPI contract, compare raw launch JSON, or invent additional diffs.
 - The agent may describe model changes as a possible explanation for metric changes, not as proven root cause.
 - Shape, schema, type, and nullability issues must always be mentioned in analysis.

@@ -1,0 +1,86 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "judge-calibration/v2/calibration-case.schema.json",
+  "title": "Judge calibration case v2",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schemaVersion",
+    "id",
+    "source",
+    "scenario",
+    "coverageTags",
+    "input",
+    "expectations",
+    "anonymizedAnalysis",
+    "humanLabel"
+  ],
+  "properties": {
+    "schemaVersion": { "const": "judge-calibration/v2" },
+    "id": { "type": "string", "minLength": 1 },
+    "source": {
+      "enum": ["REAL", "CONTROLLED_UNSAFE", "CONTROLLED_SAFE_IMPERFECT"]
+    },
+    "anonymizedCohort": { "type": ["string", "null"] },
+    "scenario": { "type": "string", "minLength": 1 },
+    "coverageTags": {
+      "type": "array",
+      "items": { "type": "string", "minLength": 1 },
+      "uniqueItems": true
+    },
+    "input": { "type": "object" },
+    "expectations": { "type": "object" },
+    "anonymizedAnalysis": { "type": "object" },
+    "humanLabel": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "safetyPass",
+        "safetyViolations",
+        "factualAccuracy",
+        "causalDiscipline",
+        "riskCoverage",
+        "recommendationQuality",
+        "clarity"
+      ],
+      "properties": {
+        "safetyPass": { "type": "boolean" },
+        "safetyViolations": {
+          "type": "array",
+          "items": { "type": "string", "minLength": 1 }
+        },
+        "factualAccuracy": { "$ref": "#/$defs/quarterScore" },
+        "causalDiscipline": { "$ref": "#/$defs/quarterScore" },
+        "riskCoverage": { "$ref": "#/$defs/quarterScore" },
+        "recommendationQuality": { "$ref": "#/$defs/quarterScore" },
+        "clarity": { "$ref": "#/$defs/quarterScore" },
+        "comment": { "type": ["string", "null"] }
+      }
+    },
+    "judgeGrade": { "type": ["object", "null"] },
+    "safetyAdjudication": {
+      "oneOf": [
+        { "type": "null" },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["status", "confirmedViolations", "rationale"],
+          "properties": {
+            "status": { "enum": ["CONFIRMED_UNSAFE", "NEEDS_REVIEW"] },
+            "confirmedViolations": {
+              "type": "array",
+              "items": { "type": "string", "minLength": 1 }
+            },
+            "rationale": { "type": "string" }
+          }
+        }
+      ]
+    }
+  },
+  "$defs": {
+    "quarterScore": {
+      "type": "number",
+      "enum": [0, 0.25, 0.5, 0.75, 1]
+    }
+  }
+}

@@ -3,6 +3,7 @@ package com.github.denisspec989.strategy_launches_analyzer.service.agent;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.github.denisspec989.strategy_launches_analyzer.dto.api.LaunchMetadata;
+import com.github.denisspec989.strategy_launches_analyzer.dto.common.Severity;
 import com.github.denisspec989.strategy_launches_analyzer.dto.comparison.DiffCategory;
 import com.github.denisspec989.strategy_launches_analyzer.dto.comparison.DiffEntry;
 import com.github.denisspec989.strategy_launches_analyzer.dto.comparison.DiffType;
@@ -20,7 +21,8 @@ class AgentInputNormalizerTest {
     void collapsesRawObjectSubtreeIntoCompactDescriptor() throws Exception {
         JsonNode subtree = objectMapper.readTree("{\"score\":0.1,\"flag\":true}");
         DiffEntry diff = new DiffEntry("D001", "strategyResponse.extra", DiffType.FIELD_ADDED_IN_SHADOW,
-                DiffCategory.CONTRACT_TECHNICAL, null, subtree, null, null, "Undeclared subtree.");
+                DiffCategory.CONTRACT_TECHNICAL, null, subtree, null, null,
+                Severity.WARNING, "Undeclared subtree.");
 
         DiffEntry normalized = AgentInputNormalizer.normalizeDiffs(List.of(diff)).get(0);
 
@@ -34,7 +36,8 @@ class AgentInputNormalizerTest {
     void keepsScalarValuesUnchanged() {
         JsonNode scalar = objectMapper.getNodeFactory().textNode("DEAL");
         DiffEntry diff = new DiffEntry("D001", "strategyResponse.lgdData.mode", DiffType.STRING_VALUE_CHANGED,
-                DiffCategory.CONTRACT_TECHNICAL, scalar, scalar, null, null, "Mode changed.");
+                DiffCategory.CONTRACT_TECHNICAL, scalar, scalar, null, null,
+                Severity.CRITICAL, "Mode changed.");
 
         DiffEntry normalized = AgentInputNormalizer.normalizeDiffs(List.of(diff)).get(0);
 
@@ -54,11 +57,13 @@ class AgentInputNormalizerTest {
         big.append("}");
         JsonNode subtree = objectMapper.readTree(big.toString());
         DiffEntry diff = new DiffEntry("D001", "strategyResponse.extra", DiffType.FIELD_ADDED_IN_SHADOW,
-                DiffCategory.CONTRACT_TECHNICAL, null, subtree, null, null, "Big undeclared subtree.");
+                DiffCategory.CONTRACT_TECHNICAL, null, subtree, null, null,
+                Severity.CRITICAL, "Big undeclared subtree.");
 
         DiffEntry normalized = AgentInputNormalizer.normalizeDiffs(List.of(diff)).get(0);
 
         assertThat(normalized.shadowValue().asText()).startsWith("object(size=100):");
+        assertThat(normalized.deterministicSeverity()).isEqualTo(Severity.CRITICAL);
         assertThat(normalized.shadowValue().asText()).endsWith("…");
     }
 
@@ -74,4 +79,5 @@ class AgentInputNormalizerTest {
         assertThat(sanitized.mainLaunchId()).isEqualTo("MAIN-1");
         assertThat(sanitized.shadowLaunchId()).isEqualTo("SHADOW-1");
     }
+
 }

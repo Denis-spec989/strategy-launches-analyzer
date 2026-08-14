@@ -56,6 +56,7 @@ public final class AgentInputNormalizer {
                 diff.absoluteDelta(),
                 diff.relativeDeltaPercent(),
                 diff.comparisonBasis(),
+                diff.deterministicSeverity(),
                 diff.description()
         );
     }

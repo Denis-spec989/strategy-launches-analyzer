@@ -6,7 +6,6 @@ import com.github.denisspec989.strategy_launches_analyzer.dto.agent.AgentAnalysi
 import com.github.denisspec989.strategy_launches_analyzer.dto.agent.DiffExplanation;
 import com.github.denisspec989.strategy_launches_analyzer.dto.agent.TokenUsage;
 import com.github.denisspec989.strategy_launches_analyzer.dto.common.Severity;
-import com.github.denisspec989.strategy_launches_analyzer.dto.comparison.DeterministicSeverityCalculator;
 
 import java.util.List;
 import java.util.Map;
@@ -50,7 +49,7 @@ final class JudgeCalibration {
                 .map(diff -> new DiffExplanation(
                         diff.id(),
                         diff.path(),
-                        DeterministicSeverityCalculator.isHardCriticalDiff(diff) ? Severity.CRITICAL : Severity.WARNING,
+                        diff.deterministicSeverity(),
                         "Зафиксировано детерминированное изменение поля " + diff.path() + "."
                 ))
                 .toList();

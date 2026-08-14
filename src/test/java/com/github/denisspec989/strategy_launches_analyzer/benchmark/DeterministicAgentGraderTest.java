@@ -2,8 +2,11 @@ package com.github.denisspec989.strategy_launches_analyzer.benchmark;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.github.denisspec989.strategy_launches_analyzer.dto.agent.AgentAnalysisInput;
+import com.github.denisspec989.strategy_launches_analyzer.dto.agent.AgentAnalysis;
+import com.github.denisspec989.strategy_launches_analyzer.dto.agent.AgentAnalysisStatus;
 import com.github.denisspec989.strategy_launches_analyzer.dto.agent.DiffExplanation;
 import com.github.denisspec989.strategy_launches_analyzer.dto.agent.StructuredAgentAnalysis;
+import com.github.denisspec989.strategy_launches_analyzer.dto.agent.TokenUsage;
 import com.github.denisspec989.strategy_launches_analyzer.dto.common.Severity;
 import com.github.denisspec989.strategy_launches_analyzer.service.contract.ContractValidator;
 import com.github.denisspec989.strategy_launches_analyzer.service.contract.OpenApiStrategyContractLoader;
@@ -69,7 +72,8 @@ class DeterministicAgentGraderTest {
         assertThat(grade.violations()).anyMatch(value -> value.contains("path mismatch"));
         assertThat(grade.violations()).anyMatch(value -> value.contains("duplicated diffId"));
         assertThat(grade.violations()).anyMatch(value -> value.contains("fabricated diffId"));
-        assertThat(grade.violations()).anyMatch(value -> value.contains("Russian text ratio"));
+        assertThat(grade.languageCompliant()).isFalse();
+        assertThat(grade.languageViolations()).anyMatch(value -> value.contains("contains no Cyrillic"));
     }
 
     @Test
@@ -97,6 +101,56 @@ class DeterministicAgentGraderTest {
                 .anyMatch(value -> value.contains("missing diff explanations"));
         assertThat(grader.gradeRaw(severityRegression, criticalInput).violations())
                 .anyMatch(value -> value.contains("does not preserve deterministic CRITICAL"));
+    }
+
+    @Test
+    void technicalEnglishTermsDoNotFailRussianNarratives() {
+        AgentAnalysisInput input = input("metric-increase");
+        StructuredAgentAnalysis raw = russianAnalysis(input, "Проверить API path и promotion guardrail.");
+
+        DeterministicGrade grade = grader.gradeRaw(raw, input);
+
+        assertThat(grade.languageCompliant()).isTrue();
+        assertThat(grade.passed()).isTrue();
+    }
+
+    @Test
+    void englishNarrativeIsLanguageNonComplianceButNotFinalSafetyFailure() {
+        AgentAnalysisInput input = input("identical-basic");
+        AgentAnalysis analysis = new AgentAnalysis(
+                AgentAnalysisStatus.COMPLETED,
+                Severity.INFO,
+                "No differences.",
+                "No business impact.",
+                "No technical risks.",
+                List.of("Continue monitoring."),
+                List.of(),
+                TokenUsage.zero(),
+                null
+        );
+
+        DeterministicGrade grade = grader.gradeFinal(analysis, input);
+
+        assertThat(grade.passed()).isTrue();
+        assertThat(grade.languageCompliant()).isFalse();
+        assertThat(grade.violations()).isEmpty();
+        assertThat(grade.languageViolations()).isNotEmpty();
+    }
+
+    private static StructuredAgentAnalysis russianAnalysis(AgentAnalysisInput input, String recommendation) {
+        return new StructuredAgentAnalysis(
+                input.summary().deterministicSeverity(),
+                "Обнаружено изменение.",
+                "Нужно проверить влияние.",
+                "Технические риски контролируются.",
+                List.of(recommendation),
+                input.diffs().stream()
+                        .map(diff -> new DiffExplanation(
+                                diff.id(), diff.path(), diff.deterministicSeverity(),
+                                "Изменение требует предметной проверки."
+                        ))
+                        .toList()
+        );
     }
 
     private AgentAnalysisInput input(String id) {

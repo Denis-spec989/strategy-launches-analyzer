@@ -15,9 +15,8 @@ import com.github.denisspec989.strategy_launches_analyzer.dto.agent.TokenUsage;
 import com.github.denisspec989.strategy_launches_analyzer.dto.common.Severity;
 import com.github.denisspec989.strategy_launches_analyzer.dto.comparison.ComparisonSummary;
 import com.github.denisspec989.strategy_launches_analyzer.dto.comparison.ComparisonBasis;
-import com.github.denisspec989.strategy_launches_analyzer.dto.comparison.DeterministicSeverityCalculator;
-import com.github.denisspec989.strategy_launches_analyzer.dto.comparison.DiffEntry;
 import com.github.denisspec989.strategy_launches_analyzer.dto.comparison.DiffResult;
+import com.github.denisspec989.strategy_launches_analyzer.dto.comparison.DiffEntry;
 import com.github.denisspec989.strategy_launches_analyzer.dto.comparison.DiffType;
 import com.github.denisspec989.strategy_launches_analyzer.dto.comparison.LaunchSide;
 import com.github.denisspec989.strategy_launches_analyzer.dto.contract.ContractFieldContext;
@@ -115,10 +114,12 @@ class AgentAnalyzerTest {
         assertThat(systemPrompt).contains("recommendations: Return concrete actionable follow-up actions");
         assertThat(systemPrompt).contains("blocking promotion for CRITICAL issues");
         assertThat(systemPrompt).contains("Return at most 10 recommendations");
-        assertThat(systemPrompt).contains("Return exactly one diffExplanation for every NON-critical diff");
+        assertThat(systemPrompt).contains("Return exactly one diffExplanation for every diff");
         assertThat(systemPrompt).contains("copy its path verbatim");
         assertThat(systemPrompt).contains("never return a duplicate diffId");
-        assertThat(systemPrompt).contains("You MAY omit hard-critical diffs");
+        assertThat(systemPrompt).contains("without exceptions");
+        assertThat(systemPrompt).contains("deterministicSeverity");
+        assertThat(systemPrompt).doesNotContain("MAY omit hard-critical diffs");
         assertThat(systemPrompt).contains("Write summary, businessImpact, technicalRisks");
     }
 
@@ -201,10 +202,72 @@ class AgentAnalyzerTest {
     }
 
     @Test
+    void bothSidesMissingRequiredFieldHasNoDiffButPreservesCriticalRisk() {
+        JsonNode main = TestFixtures.json(objectMapper, "fixtures/lgd-digital/model-change/main.json").deepCopy();
+        JsonNode shadow = main.deepCopy();
+        ((com.fasterxml.jackson.databind.node.ObjectNode) main.at("/strategyResponse/lgdData")).remove("lgd");
+        ((com.fasterxml.jackson.databind.node.ObjectNode) shadow.at("/strategyResponse/lgdData")).remove("lgd");
+        AgentAnalysisInput input = input(diffEngine.compare(contract, main, shadow));
+
+        AgentPostProcessingResult processed = postProcessor.process(
+                structuredResponse(input, Severity.WARNING, List.of()), input, TokenUsage.zero()
+        );
+
+        assertThat(input.diffs()).isEmpty();
+        assertThat(input.contractValidation()).hasSize(2);
+        assertThat(processed.analysis().overallSeverity()).isEqualTo(Severity.CRITICAL);
+        assertThat(processed.analysis().technicalRisks())
+                .contains("критические нарушения: 2", "до promotion");
+    }
+
+    @Test
+    void missingRequiredFieldGetsCriticalContractFallbackWhenModelOmitsExplanation() {
+        AgentAnalysisInput input = inputForFixture("model-change", "main", "shadow");
+        DiffEntry source = input.diffs().getFirst();
+        ContractIssue issue = new ContractIssue(
+                "C777",
+                LaunchSide.SHADOW,
+                source.path(),
+                ContractIssueType.REQUIRED_FIELD_MISSING,
+                Severity.CRITICAL,
+                "number, required=true",
+                "missing",
+                null,
+                "Required field is missing."
+        );
+        DiffEntry criticalDiff = new DiffEntry(
+                source.id(), source.path(), source.type(), source.category(), source.mainValue(), source.shadowValue(),
+                source.absoluteDelta(), source.relativeDeltaPercent(), source.comparisonBasis(), Severity.CRITICAL,
+                source.description()
+        );
+        AgentAnalysisInput criticalInput = new AgentAnalysisInput(
+                input.strategyName(),
+                new ComparisonSummary(input.strategyName(), 1, 1, 0, 0, 0, 1, true, Severity.CRITICAL),
+                List.of(criticalDiff),
+                List.of(issue),
+                input.contractContext(),
+                input.metadata()
+        );
+
+        AgentPostProcessingResult processed = postProcessor.process(
+                structuredResponse(criticalInput, Severity.WARNING, List.of()), criticalInput, TokenUsage.zero()
+        );
+
+        assertThat(processed.analysis().diffExplanations()).singleElement().satisfies(explanation -> {
+            assertThat(explanation.severity()).isEqualTo(Severity.CRITICAL);
+            assertThat(explanation.explanation())
+                    .contains(source.path(), "SHADOW", "required=true", "блокировать promotion")
+                    .doesNotContain("Некритичное изменение");
+        });
+        assertThat(processed.corrections()).extracting(GuardrailCorrection::type)
+                .contains(GuardrailCorrectionType.CRITICAL_CONTRACT_EXPLANATION_ADDED);
+    }
+
+    @Test
     void springAiMappingEscalatesOverallSeverityWhenModelMarksNonCriticalDiffCritical() {
         AgentAnalysisInput input = inputForFixture("model-change");
-        assertThat(DeterministicSeverityCalculator.hasCriticalSignal(input.diffs(), input.contractValidation()))
-                .isFalse();
+        assertThat(input.summary().deterministicSeverity())
+                .isNotEqualTo(Severity.CRITICAL);
         List<DiffExplanation> explanations = input.diffs().stream()
                 .map(diff -> new DiffExplanation(diff.id(), diff.path(), Severity.CRITICAL, "explanation for " + diff.id()))
                 .toList();
@@ -242,7 +305,7 @@ class AgentAnalyzerTest {
     void springAiMappingAddsDeterministicExplanationForMissingHardCriticalDiff() {
         AgentAnalysisInput input = inputForFixture("mode-regression");
         List<DiffExplanation> modelExplanations = input.diffs().stream()
-                .filter(diff -> !DeterministicSeverityCalculator.isHardCriticalDiff(diff))
+                .filter(diff -> diff.deterministicSeverity() != Severity.CRITICAL)
                 .map(AgentAnalyzerTest::explanation)
                 .toList();
         StructuredAgentAnalysis response = structuredResponse(input, Severity.WARNING, modelExplanations);
@@ -250,7 +313,7 @@ class AgentAnalyzerTest {
         AgentPostProcessingResult processed = postProcessor.process(response, input, TokenUsage.zero());
         AgentAnalysis analysis = processed.analysis();
 
-        assertThat(input.diffs()).anyMatch(DeterministicSeverityCalculator::isHardCriticalDiff);
+        assertThat(input.diffs()).anyMatch(diff -> diff.deterministicSeverity() == Severity.CRITICAL);
         assertThat(analysis.diffExplanations()).anySatisfy(explanation ->
                 assertThat(explanation.severity()).isEqualTo(Severity.CRITICAL));
         assertThat(processed.corrections()).extracting(GuardrailCorrection::type)
@@ -356,7 +419,7 @@ class AgentAnalyzerTest {
         return new AgentAnalysisInput(
                 contract.strategyName(),
                 summary,
-                diffResult.diffs(),
+                AgentInputNormalizer.normalizeDiffs(diffResult.diffs()),
                 diffResult.contractValidation(),
                 contractContext(diffResult),
                 null

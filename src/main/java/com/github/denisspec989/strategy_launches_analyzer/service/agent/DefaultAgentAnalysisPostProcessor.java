@@ -10,8 +10,9 @@ import com.github.denisspec989.strategy_launches_analyzer.dto.agent.GuardrailCor
 import com.github.denisspec989.strategy_launches_analyzer.dto.agent.StructuredAgentAnalysis;
 import com.github.denisspec989.strategy_launches_analyzer.dto.agent.TokenUsage;
 import com.github.denisspec989.strategy_launches_analyzer.dto.common.Severity;
-import com.github.denisspec989.strategy_launches_analyzer.dto.comparison.DeterministicSeverityCalculator;
 import com.github.denisspec989.strategy_launches_analyzer.dto.comparison.DiffEntry;
+import com.github.denisspec989.strategy_launches_analyzer.dto.contract.ContractIssue;
+import com.github.denisspec989.strategy_launches_analyzer.dto.contract.ContractIssueType;
 import com.github.denisspec989.strategy_launches_analyzer.exceptions.AgentAnalysisException;
 import lombok.extern.slf4j.Slf4j;
 
@@ -39,8 +40,7 @@ public class DefaultAgentAnalysisPostProcessor implements AgentAnalysisPostProce
                 raw.diffExplanations() == null ? List.of() : raw.diffExplanations(),
                 corrections
         );
-        Severity guardedSeverity = applyHardCriticalGuardrail(input, raw.overallSeverity());
-        Severity overallSeverity = escalateToExplanationSeverity(guardedSeverity, explanations);
+        Severity overallSeverity = finalSeverity(input, raw.overallSeverity(), explanations);
         if (overallSeverity != raw.overallSeverity()) {
             corrections.add(new GuardrailCorrection(
                     GuardrailCorrectionType.OVERALL_SEVERITY_CHANGED,
@@ -151,60 +151,117 @@ public class DefaultAgentAnalysisPostProcessor implements AgentAnalysisPostProce
             List<GuardrailCorrection> corrections
     ) {
         Map<String, DiffExplanation> byDiffId = new LinkedHashMap<>();
-        Map<String, DiffEntry> hardCriticalDiffs = new LinkedHashMap<>();
-        input.diffs().stream()
-                .filter(DeterministicSeverityCalculator::isHardCriticalDiff)
-                .forEach(diff -> hardCriticalDiffs.put(diff.id(), diff));
+        Map<String, DiffEntry> diffsById = new LinkedHashMap<>();
+        input.diffs().forEach(diff -> diffsById.put(diff.id(), diff));
         modelExplanations.forEach(explanation -> {
-            if (hardCriticalDiffs.containsKey(explanation.diffId()) && explanation.severity() != Severity.CRITICAL) {
+            DiffEntry diff = diffsById.get(explanation.diffId());
+            if (diff != null && isBelow(explanation.severity(), diff.deterministicSeverity())) {
                 corrections.add(new GuardrailCorrection(
                         GuardrailCorrectionType.DIFF_SEVERITY_ESCALATED,
                         explanation.diffId(),
-                        "hard-critical diff explanation severity changed to CRITICAL"
+                        "diff explanation severity raised to deterministic floor " + diff.deterministicSeverity()
                 ));
-                byDiffId.put(explanation.diffId(), withCriticalSeverity(explanation));
+                byDiffId.put(explanation.diffId(), withSeverity(explanation, diff.deterministicSeverity()));
             } else {
                 byDiffId.put(explanation.diffId(), explanation);
             }
         });
-        input.diffs().stream()
-                .filter(DeterministicSeverityCalculator::isHardCriticalDiff)
-                .filter(diff -> !byDiffId.containsKey(diff.id()))
-                .forEach(diff -> {
-                    byDiffId.put(diff.id(), deterministicHardCriticalExplanation(diff));
-                    corrections.add(new GuardrailCorrection(
-                            GuardrailCorrectionType.HARD_CRITICAL_EXPLANATION_ADDED,
-                            diff.id(),
-                            "added deterministic hard-critical explanation"
-                    ));
-                });
 
-        List<DiffEntry> uncoveredNonCriticalDiffs = expectedNonCriticalDiffs(input).stream()
-                .filter(diff -> !byDiffId.containsKey(diff.id()))
-                .toList();
-        uncoveredNonCriticalDiffs.forEach(diff -> {
-            byDiffId.put(diff.id(), neutralNonCriticalExplanation(diff));
-            corrections.add(new GuardrailCorrection(
-                    GuardrailCorrectionType.NON_CRITICAL_EXPLANATION_ADDED,
-                    diff.id(),
-                    "added neutral explanation omitted by the model"
-            ));
-        });
-        if (!uncoveredNonCriticalDiffs.isEmpty()) {
-            log.warn("Filled {} non-critical diffExplanations omitted by the model with neutral stubs: diffIds={}",
-                    uncoveredNonCriticalDiffs.size(),
-                    uncoveredNonCriticalDiffs.stream().map(DiffEntry::id).limit(10).toList());
+        for (DiffEntry diff : input.diffs()) {
+            if (byDiffId.containsKey(diff.id())) {
+                continue;
+            }
+            List<ContractIssue> criticalIssues = criticalIssuesAtPath(input, diff.path());
+            if (!criticalIssues.isEmpty()) {
+                byDiffId.put(diff.id(), deterministicContractExplanation(diff, criticalIssues));
+                corrections.add(new GuardrailCorrection(
+                        GuardrailCorrectionType.CRITICAL_CONTRACT_EXPLANATION_ADDED,
+                        diff.id(),
+                        "added deterministic explanation for exact-path critical contract issue"
+                ));
+            } else if (diff.deterministicSeverity() == Severity.CRITICAL) {
+                byDiffId.put(diff.id(), deterministicHardCriticalExplanation(diff));
+                corrections.add(new GuardrailCorrection(
+                        GuardrailCorrectionType.HARD_CRITICAL_EXPLANATION_ADDED,
+                        diff.id(),
+                        "added deterministic hard-critical explanation"
+                ));
+            } else {
+                byDiffId.put(diff.id(), neutralWarningExplanation(diff));
+                corrections.add(new GuardrailCorrection(
+                        GuardrailCorrectionType.NON_CRITICAL_EXPLANATION_ADDED,
+                        diff.id(),
+                        "added warning explanation omitted by the model"
+                ));
+            }
         }
-        return List.copyOf(byDiffId.values());
+
+        List<DiffEntry> uncoveredWarningDiffs = input.diffs().stream()
+                .filter(diff -> diff.deterministicSeverity() == Severity.WARNING)
+                .filter(diff -> modelExplanations.stream().noneMatch(item -> item.diffId().equals(diff.id())))
+                .toList();
+        if (!uncoveredWarningDiffs.isEmpty()) {
+            log.warn("Filled {} warning diffExplanations omitted by the model: diffIds={}",
+                    uncoveredWarningDiffs.size(),
+                    uncoveredWarningDiffs.stream().map(DiffEntry::id).limit(10).toList());
+        }
+        return input.diffs().stream().map(diff -> byDiffId.get(diff.id())).toList();
     }
 
-    private static DiffExplanation withCriticalSeverity(DiffExplanation explanation) {
+    private static boolean isBelow(Severity actual, Severity floor) {
+        return actual == null || actual.ordinal() < floor.ordinal();
+    }
+
+    private static DiffExplanation withSeverity(DiffExplanation explanation, Severity severity) {
         return new DiffExplanation(
                 explanation.diffId(),
                 explanation.path(),
-                Severity.CRITICAL,
+                severity,
                 explanation.explanation()
         );
+    }
+
+    private static DiffExplanation deterministicContractExplanation(
+            DiffEntry diff,
+            List<ContractIssue> criticalIssues
+    ) {
+        List<ContractIssue> missingRequired = criticalIssues.stream()
+                .filter(issue -> issue.type() == ContractIssueType.REQUIRED_FIELD_MISSING)
+                .toList();
+        if (!missingRequired.isEmpty()) {
+            String sides = missingRequired.stream()
+                    .map(issue -> issue.side().name())
+                    .distinct()
+                    .collect(java.util.stream.Collectors.joining(", "));
+            String expected = missingRequired.stream()
+                    .map(ContractIssue::expected)
+                    .filter(value -> value != null && !value.isBlank())
+                    .distinct()
+                    .collect(java.util.stream.Collectors.joining("; "));
+            return new DiffExplanation(
+                    diff.id(),
+                    diff.path(),
+                    Severity.CRITICAL,
+                    "Обязательное поле %s отсутствует на стороне %s. Ожидаемый контракт: %s. "
+                            .formatted(diff.path(), sides, expected.isBlank() ? "required=true" : expected)
+                            + "Это критичное нарушение совместимости, которое должно блокировать promotion до восстановления поля."
+            );
+        }
+        return new DiffExplanation(
+                diff.id(),
+                diff.path(),
+                Severity.CRITICAL,
+                "Contract validation зафиксировала критичное нарушение для пути %s; promotion нужно блокировать "
+                        .formatted(diff.path())
+                        + "до восстановления совместимости с ожидаемым контрактом."
+        );
+    }
+
+    private static List<ContractIssue> criticalIssuesAtPath(AgentAnalysisInput input, String path) {
+        return input.contractValidation().stream()
+                .filter(issue -> issue.severity() == Severity.CRITICAL)
+                .filter(issue -> java.util.Objects.equals(issue.path(), path))
+                .toList();
     }
 
     private static DiffExplanation deterministicHardCriticalExplanation(DiffEntry diff) {
@@ -213,16 +270,16 @@ public class DefaultAgentAnalysisPostProcessor implements AgentAnalysisPostProce
                 diff.path(),
                 Severity.CRITICAL,
                 "Детерминированная проверка пометила изменение как критическое: изменился технический, "
-                        + "типовой или обязательный contract-level признак."
+                        + "типовой или обязательный contract-level признак; promotion нужно блокировать до проверки совместимости."
         );
     }
 
-    private static DiffExplanation neutralNonCriticalExplanation(DiffEntry diff) {
+    private static DiffExplanation neutralWarningExplanation(DiffEntry diff) {
         return new DiffExplanation(
                 diff.id(),
                 diff.path(),
                 Severity.WARNING,
-                "Некритичное изменение; модель не предоставила отдельное объяснение."
+                "Изменение требует проверки; модель не предоставила отдельное объяснение."
         );
     }
 
@@ -237,15 +294,15 @@ public class DefaultAgentAnalysisPostProcessor implements AgentAnalysisPostProce
                 + criticalIssueCount + ". Их нужно исправить или явно согласовать до promotion.";
     }
 
-    private static Severity applyHardCriticalGuardrail(AgentAnalysisInput input, Severity modelSeverity) {
-        if (DeterministicSeverityCalculator.hasCriticalSignal(input.diffs(), input.contractValidation())) {
-            return Severity.CRITICAL;
+    private static Severity finalSeverity(
+            AgentAnalysisInput input,
+            Severity modelSeverity,
+            List<DiffExplanation> explanations
+    ) {
+        Severity result = maxSeverity(modelSeverity, input.summary().deterministicSeverity());
+        for (ContractIssue issue : input.contractValidation()) {
+            result = maxSeverity(result, issue.severity());
         }
-        return modelSeverity;
-    }
-
-    private static Severity escalateToExplanationSeverity(Severity base, List<DiffExplanation> explanations) {
-        Severity result = base;
         for (DiffExplanation explanation : explanations) {
             if (explanation != null) {
                 result = maxSeverity(result, explanation.severity());
@@ -268,12 +325,6 @@ public class DefaultAgentAnalysisPostProcessor implements AgentAnalysisPostProce
         Map<String, String> expectedDiffs = new LinkedHashMap<>();
         input.diffs().forEach(diff -> expectedDiffs.put(diff.id(), diff.path()));
         return expectedDiffs;
-    }
-
-    private static List<DiffEntry> expectedNonCriticalDiffs(AgentAnalysisInput input) {
-        return input.diffs().stream()
-                .filter(diff -> !DeterministicSeverityCalculator.isHardCriticalDiff(diff))
-                .toList();
     }
 
     private static AgentAnalysisException invalidResponse(List<String> violations) {

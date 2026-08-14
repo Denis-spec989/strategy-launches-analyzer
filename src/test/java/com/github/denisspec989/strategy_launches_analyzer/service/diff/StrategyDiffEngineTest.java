@@ -8,12 +8,16 @@ import com.github.denisspec989.strategy_launches_analyzer.TestFixtures;
 import com.github.denisspec989.strategy_launches_analyzer.dto.common.Severity;
 import com.github.denisspec989.strategy_launches_analyzer.dto.comparison.ComparisonBasis;
 import com.github.denisspec989.strategy_launches_analyzer.dto.comparison.ComparisonSummary;
+import com.github.denisspec989.strategy_launches_analyzer.dto.comparison.DeterministicSeverityCalculator;
 import com.github.denisspec989.strategy_launches_analyzer.dto.strategy.StrategyName;
 import com.github.denisspec989.strategy_launches_analyzer.service.contract.ContractValidator;
 import com.github.denisspec989.strategy_launches_analyzer.service.contract.OpenApiStrategyContractLoader;
 import com.github.denisspec989.strategy_launches_analyzer.service.contract.StrategyContract;
 import com.github.denisspec989.strategy_launches_analyzer.service.contract.StrategyContractRegistry;
 import com.github.denisspec989.strategy_launches_analyzer.dto.contract.ContractIssueType;
+import com.github.denisspec989.strategy_launches_analyzer.dto.contract.ContractField;
+import com.github.denisspec989.strategy_launches_analyzer.dto.contract.ContractValueType;
+import com.github.denisspec989.strategy_launches_analyzer.dto.contract.StrategyContractDefinition;
 import com.github.denisspec989.strategy_launches_analyzer.dto.comparison.DiffCategory;
 import com.github.denisspec989.strategy_launches_analyzer.dto.comparison.DiffEntry;
 import com.github.denisspec989.strategy_launches_analyzer.dto.comparison.DiffResult;
@@ -61,6 +65,7 @@ class StrategyDiffEngineTest {
                     assertThat(diff.path()).isEqualTo("strategyResponse.calculationInfo.mode");
                     assertThat(diff.mainValue().asText()).isEqualTo("DEAL");
                     assertThat(diff.shadowValue().asText()).isEqualTo("DEA");
+                    assertThat(diff.deterministicSeverity()).isEqualTo(Severity.CRITICAL);
                 });
     }
 
@@ -103,6 +108,112 @@ class StrategyDiffEngineTest {
 
         assertThat(result.diffs()).isEmpty();
         assertThat(result.contractValidation()).isEmpty();
+    }
+
+    @Test
+    void requiredMissingIsCriticalForMainAndShadowAndProducesTwoIssuesWhenMissingOnBoth() {
+        ObjectNode base = (ObjectNode) TestFixtures.json(
+                objectMapper, "fixtures/lgd-digital/model-change/main.json"
+        );
+        for (LaunchSide missingSide : List.of(LaunchSide.MAIN, LaunchSide.SHADOW)) {
+            ObjectNode main = base.deepCopy();
+            ObjectNode shadow = base.deepCopy();
+            ObjectNode target = missingSide == LaunchSide.MAIN ? main : shadow;
+            ((ObjectNode) target.at("/strategyResponse/lgdData")).remove("lgd");
+
+            DiffResult result = diffEngine.compare(contract, main, shadow);
+
+            assertThat(result.diffs()).singleElement().satisfies(diff -> {
+                DiffType expectedType = missingSide == LaunchSide.MAIN
+                        ? DiffType.FIELD_ADDED_IN_SHADOW
+                        : DiffType.FIELD_MISSING_IN_SHADOW;
+                assertThat(diff.type()).isEqualTo(expectedType);
+                assertThat(diff.deterministicSeverity()).isEqualTo(Severity.CRITICAL);
+            });
+            assertThat(result.contractValidation()).singleElement()
+                    .satisfies(issue -> {
+                        assertThat(issue.side()).isEqualTo(missingSide);
+                        assertThat(issue.severity()).isEqualTo(Severity.CRITICAL);
+                    });
+        }
+
+        ObjectNode mainMissing = base.deepCopy();
+        ObjectNode shadowMissing = base.deepCopy();
+        ((ObjectNode) mainMissing.at("/strategyResponse/lgdData")).remove("lgd");
+        ((ObjectNode) shadowMissing.at("/strategyResponse/lgdData")).remove("lgd");
+        DiffResult bothMissing = diffEngine.compare(contract, mainMissing, shadowMissing);
+
+        assertThat(bothMissing.diffs()).isEmpty();
+        assertThat(bothMissing.contractValidation()).hasSize(2)
+                .allSatisfy(issue -> {
+                    assertThat(issue.type()).isEqualTo(ContractIssueType.REQUIRED_FIELD_MISSING);
+                    assertThat(issue.severity()).isEqualTo(Severity.CRITICAL);
+                });
+    }
+
+    @Test
+    void optionalMissingRemainsWarning() {
+        StrategyContract optionalContract = new StrategyContract(
+                StrategyName.LGD_DIGITAL,
+                new StrategyContractDefinition(
+                        StrategyName.LGD_DIGITAL.name(),
+                        "test",
+                        "strategyResponse",
+                        List.of(new ContractField(
+                                "strategyResponse.optionalField",
+                                ContractValueType.STRING,
+                                null,
+                                "0..1",
+                                false,
+                                DiffCategory.MODEL,
+                                "Optional test field.",
+                                null,
+                                null
+                        ))
+                )
+        );
+        JsonNode main = objectMapper.createObjectNode().set(
+                "strategyResponse",
+                objectMapper.createObjectNode().put("optionalField", "present")
+        );
+        JsonNode shadow = objectMapper.createObjectNode().set(
+                "strategyResponse",
+                objectMapper.createObjectNode()
+        );
+
+        DiffResult result = diffEngine.compare(optionalContract, main, shadow);
+
+        assertThat(result.contractValidation()).isEmpty();
+        assertThat(result.diffs()).singleElement().satisfies(diff -> {
+            assertThat(diff.type()).isEqualTo(DiffType.FIELD_MISSING_IN_SHADOW);
+            assertThat(diff.deterministicSeverity()).isEqualTo(Severity.WARNING);
+        });
+    }
+
+    @Test
+    void criticalContractIssueEscalatesOnlyAnExactPathMatch() {
+        var criticalIssue = new com.github.denisspec989.strategy_launches_analyzer.dto.contract.ContractIssue(
+                "C001",
+                LaunchSide.SHADOW,
+                "strategyResponse.optionalField.child",
+                ContractIssueType.TYPE_MISMATCH,
+                Severity.CRITICAL,
+                "string",
+                "number",
+                null,
+                "Different path."
+        );
+
+        assertThat(DeterministicSeverityCalculator.resolveDiffSeverity(
+                DiffType.FIELD_MISSING_IN_SHADOW,
+                "strategyResponse.optionalField",
+                List.of(criticalIssue)
+        )).isEqualTo(Severity.WARNING);
+        assertThat(DeterministicSeverityCalculator.resolveDiffSeverity(
+                DiffType.FIELD_MISSING_IN_SHADOW,
+                criticalIssue.path(),
+                List.of(criticalIssue)
+        )).isEqualTo(Severity.CRITICAL);
     }
 
     @Test
@@ -256,6 +367,7 @@ class StrategyDiffEngineTest {
             assertThat(actual.path()).isEqualTo(expected.get("path").asText());
             assertThat(actual.type()).isEqualTo(DiffType.valueOf(expected.get("type").asText()));
             assertThat(actual.category()).isEqualTo(DiffCategory.valueOf(expected.get("category").asText()));
+            assertThat(actual.deterministicSeverity()).isIn(Severity.WARNING, Severity.CRITICAL);
         }
     }
 }

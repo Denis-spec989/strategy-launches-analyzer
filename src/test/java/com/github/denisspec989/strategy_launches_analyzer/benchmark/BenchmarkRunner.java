@@ -52,7 +52,6 @@ final class BenchmarkRunner {
         }
         Map<String, AgentAnalysisInput> inputs = new LinkedHashMap<>();
         cases.forEach(benchmarkCase -> inputs.put(benchmarkCase.id(), inputFactory.create(benchmarkCase)));
-        new JudgeCalibration().calibrate(semanticJudge, cases, inputs);
 
         BenchmarkManifest requestedManifest = new BenchmarkManifest(
                 configuration.resumeFrom() == null
@@ -68,6 +67,8 @@ final class BenchmarkRunner {
                 configuration.repetitions(),
                 configuration.concurrency(),
                 configuration.judgeModel(),
+                OpenAiSemanticJudge.RUBRIC_VERSION,
+                BenchmarkHashes.judgePromptHash(),
                 configuration.shuffleSeed()
         );
         BenchmarkResultStore store = BenchmarkResultStore.open(objectMapper, configuration, requestedManifest);
@@ -121,7 +122,8 @@ final class BenchmarkRunner {
                 && result.rawGrade() != null
                 && result.finalAnalysis() != null
                 && result.finalGrade() != null
-                && result.semanticGrade() != null;
+                && result.semanticGrade() != null
+                && (result.semanticGrade().safetyPass() || result.safetyAdjudication() != null);
     }
 
     private BenchmarkSampleResult evaluate(
@@ -152,19 +154,25 @@ final class BenchmarkRunner {
         }
         DeterministicGrade finalGrade = deterministicGrader.gradeFinal(processed.analysis(), input);
         SemanticGrade semanticGrade;
+        SafetyAdjudication safetyAdjudication = null;
         try {
             semanticGrade = semanticJudge.grade(input, processed.analysis(), benchmarkCase.semantic());
+            if (!semanticGrade.safetyPass()) {
+                safetyAdjudication = semanticJudge.adjudicate(
+                        input, processed.analysis(), benchmarkCase.semantic(), semanticGrade
+                );
+            }
         } catch (RuntimeException ex) {
             return new BenchmarkSampleResult(
                     benchmarkCase.id(), benchmarkCase.tags(), model, repetition,
                     BenchmarkSampleStatus.JUDGE_FAILED, callResult, rawGrade, processed.analysis(),
-                    processed.corrections(), finalGrade, null, error(ex)
+                    processed.corrections(), finalGrade, null, null, error(ex)
             );
         }
         return new BenchmarkSampleResult(
                 benchmarkCase.id(), benchmarkCase.tags(), model, repetition,
                 BenchmarkSampleStatus.SUCCESS, callResult, rawGrade, processed.analysis(),
-                processed.corrections(), finalGrade, semanticGrade, null
+                processed.corrections(), finalGrade, semanticGrade, safetyAdjudication, null
         );
     }
 
@@ -179,7 +187,7 @@ final class BenchmarkRunner {
     ) {
         return new BenchmarkSampleResult(
                 benchmarkCase.id(), benchmarkCase.tags(), model, repetition, status,
-                callResult, rawGrade, null, List.of(), null, null, error(ex)
+                callResult, rawGrade, null, List.of(), null, null, null, error(ex)
         );
     }
 

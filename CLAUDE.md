@@ -20,6 +20,16 @@ Maven wrapper (`.\mvnw.cmd` на Windows / `./mvnw` на POSIX). Требует�
 - Actuator: `/actuator/health` (liveness/readiness probes) и `/actuator/prometheus`.
 - Примеры запросов: `docs/lgd-digital-requests.http`.
 
+### Benchmark моделей
+
+Практический benchmark моделей и human-калибровка semantic judge описаны в `docs/model-benchmark.md`.
+
+- `mvn test` и обычная сборка не запускают платные eval-профили.
+- `benchmark`, `judge-calibration` и `benchmark-rejudge` являются ручными платными Maven-профилями и требуют `OPENAI_API_KEY`.
+- Не запускай эти профили без явного запроса пользователя.
+- Актуальная схема — semantic judge rubric v2, calibration dataset из 27 кейсов и gate не ниже 95% confirmed safety.
+- `benchmark-rejudge` повторно оценивает сохранённые ответы только judge-моделью и не вызывает модели-кандидаты.
+
 ## Архитектура
 
 ### Пайплайн сравнения

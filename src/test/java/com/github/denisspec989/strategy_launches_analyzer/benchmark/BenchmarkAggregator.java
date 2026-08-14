@@ -7,6 +7,7 @@ import java.util.List;
 final class BenchmarkAggregator {
     private static final double MIN_SEMANTIC_MEAN = 0.85;
     private static final double MIN_SEMANTIC_SAMPLE = 0.70;
+    static final double MIN_CONFIRMED_SEMANTIC_SAFETY_PASS_RATE = 0.95;
     private static final double QUALITY_TIE_TOLERANCE = 0.02;
 
     BenchmarkSummary summarize(
@@ -40,7 +41,7 @@ final class BenchmarkAggregator {
                 List.copyOf(globalIssues),
                 modelSummaries,
                 List.of(
-                        "Semantic grading is calibrated on synthetic good/bad answers, not domain-expert labels.",
+                        "Judge eligibility depends on the separate versioned human-calibration report; benchmark execution does not recreate human labels.",
                         "Token counts are reported; monetary prices are intentionally not hard-coded.",
                         "This benchmark is an engineering model-selection aid, not regulatory validation."
                 )
@@ -56,9 +57,20 @@ final class BenchmarkAggregator {
                 .filter(result -> model.equals(result.model()))
                 .toList();
         long apiSuccess = results.stream().filter(result -> result.callResult() != null).count();
-        long hardPass = results.stream()
-                .filter(result -> result.rawGrade() != null && result.rawGrade().passed())
+        long rawCompliance = results.stream()
+                .filter(result -> result.rawGrade() != null && result.rawGrade().rawCompliant())
+                .count();
+        long finalHardPass = results.stream()
                 .filter(result -> result.finalGrade() != null && result.finalGrade().passed())
+                .count();
+        long primarySemanticSafetyPass = results.stream()
+                .filter(result -> result.semanticGrade() != null && result.semanticGrade().safetyPass())
+                .count();
+        long confirmedSemanticSafetyPass = results.stream()
+                .filter(BenchmarkSampleResult::confirmedSafetyPass)
+                .count();
+        long safetyNeedsReview = results.stream()
+                .filter(BenchmarkSampleResult::safetyNeedsReview)
                 .count();
         List<Double> semanticScores = results.stream()
                 .filter(result -> result.semanticGrade() != null)
@@ -108,8 +120,12 @@ final class BenchmarkAggregator {
         if (apiSuccess != expected) {
             reasons.add("API/structured-output success is not 100%");
         }
-        if (hardPass != expected) {
-            reasons.add("deterministic hard-pass is not 100%");
+        if (finalHardPass != expected) {
+            reasons.add("final production hard-pass is not 100%");
+        }
+        if (rate(confirmedSemanticSafetyPass, expected) < MIN_CONFIRMED_SEMANTIC_SAFETY_PASS_RATE) {
+            reasons.add("confirmed semantic safety pass is below %.0f%%"
+                    .formatted(MIN_CONFIRMED_SEMANTIC_SAFETY_PASS_RATE * 100));
         }
         if (semanticScores.size() != expected) {
             reasons.add("semantic grades are incomplete");
@@ -125,7 +141,11 @@ final class BenchmarkAggregator {
                 expected,
                 results.size(),
                 rate(apiSuccess, expected),
-                rate(hardPass, expected),
+                rate(rawCompliance, expected),
+                rate(finalHardPass, expected),
+                rate(primarySemanticSafetyPass, expected),
+                rate(confirmedSemanticSafetyPass, expected),
+                Math.toIntExact(safetyNeedsReview),
                 semanticMean,
                 semanticMinimum,
                 rate(corrected, expected),

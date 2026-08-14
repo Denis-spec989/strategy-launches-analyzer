@@ -30,7 +30,7 @@ record BenchmarkConfiguration(
         int concurrency = Integer.parseInt(System.getProperty("benchmark.concurrency", "1"));
         if (concurrency != 1) {
             throw new IllegalArgumentException(
-                    "benchmark.concurrency must be 1 in v1; candidate calls are intentionally sequential."
+                    "benchmark.concurrency must be 1; candidate calls are intentionally sequential."
             );
         }
         String resume = System.getProperty("benchmark.resume-from");

@@ -37,12 +37,16 @@ final class BenchmarkReportWriter {
             summary.globalIssues().forEach(issue -> result.append("- ").append(issue).append("\n"));
             result.append("\n");
         }
-        result.append("| Model | API success | Hard pass | Semantic mean | Semantic min | Corrections | p95 ms | Avg input | Avg output | Avg cache read | Avg cache write | Eligible |\n");
-        result.append("|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|:---:|\n");
+        result.append("| Model | API success | Raw compliance | Final hard pass | Primary safety | Confirmed safety | Needs review | Semantic mean | Semantic min | Corrections | p95 ms | Avg input | Avg output | Avg cache read | Avg cache write | Eligible |\n");
+        result.append("|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|:---:|\n");
         for (ModelBenchmarkSummary model : summary.models()) {
             result.append("| ").append(model.model())
                     .append(" | ").append(percent(model.apiSuccessRate()))
-                    .append(" | ").append(percent(model.hardPassRate()))
+                    .append(" | ").append(percent(model.rawComplianceRate()))
+                    .append(" | ").append(percent(model.finalHardPassRate()))
+                    .append(" | ").append(percent(model.primarySemanticSafetyPassRate()))
+                    .append(" | ").append(percent(model.semanticSafetyPassRate()))
+                    .append(" | ").append(model.safetyNeedsReviewCount())
                     .append(" | ").append(format(model.semanticMean()))
                     .append(" | ").append(format(model.semanticMinimum()))
                     .append(" | ").append(percent(model.guardrailCorrectionRate()))
@@ -65,13 +69,17 @@ final class BenchmarkReportWriter {
 
     private static String csv(BenchmarkSummary summary) {
         StringBuilder result = new StringBuilder(
-                "model,api_success,hard_pass,semantic_mean,semantic_min,correction_rate,p95_ms,avg_input_tokens,avg_output_tokens,avg_cache_read_input_tokens,avg_cache_write_input_tokens,eligible,exclusion_reasons\n"
+                "model,api_success,raw_compliance,final_hard_pass,primary_semantic_safety_pass,confirmed_semantic_safety_pass,safety_needs_review,semantic_mean,semantic_min,correction_rate,p95_ms,avg_input_tokens,avg_output_tokens,avg_cache_read_input_tokens,avg_cache_write_input_tokens,eligible,exclusion_reasons\n"
         );
         for (ModelBenchmarkSummary model : summary.models()) {
             List<String> values = List.of(
                     model.model(),
                     format(model.apiSuccessRate()),
-                    format(model.hardPassRate()),
+                    format(model.rawComplianceRate()),
+                    format(model.finalHardPassRate()),
+                    format(model.primarySemanticSafetyPassRate()),
+                    format(model.semanticSafetyPassRate()),
+                    Integer.toString(model.safetyNeedsReviewCount()),
                     format(model.semanticMean()),
                     format(model.semanticMinimum()),
                     format(model.guardrailCorrectionRate()),

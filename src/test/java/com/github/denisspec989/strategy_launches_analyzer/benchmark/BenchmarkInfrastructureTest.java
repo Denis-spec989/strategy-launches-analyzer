@@ -7,7 +7,6 @@ import com.github.denisspec989.strategy_launches_analyzer.dto.agent.DiffExplanat
 import com.github.denisspec989.strategy_launches_analyzer.dto.agent.StructuredAgentAnalysis;
 import com.github.denisspec989.strategy_launches_analyzer.dto.agent.TokenUsage;
 import com.github.denisspec989.strategy_launches_analyzer.dto.common.Severity;
-import com.github.denisspec989.strategy_launches_analyzer.dto.comparison.DeterministicSeverityCalculator;
 import com.github.denisspec989.strategy_launches_analyzer.service.agent.AgentModelClient;
 import com.github.denisspec989.strategy_launches_analyzer.service.agent.DefaultAgentAnalysisPostProcessor;
 import com.github.denisspec989.strategy_launches_analyzer.service.contract.ContractValidator;
@@ -53,7 +52,7 @@ class BenchmarkInfrastructureTest {
             boolean deliberatelyBad = analysis.recommendations().stream()
                     .anyMatch(value -> value.contains("Ничего не проверять"));
             double score = deliberatelyBad ? 0.20 : 0.90;
-            return new SemanticGrade(score, score, score, score, score, score, List.of())
+            return new SemanticGrade(score, score, score, score, score, true, List.of(), score, List.of())
                     .validatedAndReweighted();
         };
         BenchmarkRunner runner = new BenchmarkRunner(
@@ -112,9 +111,9 @@ class BenchmarkInfrastructureTest {
         );
         BenchmarkSampleResult success = new BenchmarkSampleResult(
                 "case-success", List.of(), "a", 1, BenchmarkSampleStatus.SUCCESS,
-                call, new DeterministicGrade(true, List.of(), 0, 0, 1.0),
+                call, new DeterministicGrade(true, true, List.of(), List.of(), 0, 0),
                 null, List.of(), null,
-                new SemanticGrade(0.9, 0.9, 0.9, 0.9, 0.9, 0.9, List.of()), null
+                new SemanticGrade(0.9, 0.9, 0.9, 0.9, 0.9, true, List.of(), 0.9, List.of()), null
         );
 
         store.append(success);
@@ -148,9 +147,7 @@ class BenchmarkInfrastructureTest {
                 .map(diff -> new DiffExplanation(
                         diff.id(),
                         diff.path(),
-                        DeterministicSeverityCalculator.isHardCriticalDiff(diff)
-                                ? Severity.CRITICAL
-                                : Severity.WARNING,
+                        diff.deterministicSeverity(),
                         "Обнаружено изменение; требуется предметная проверка."
                 ))
                 .toList();

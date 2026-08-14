@@ -25,17 +25,30 @@ public final class DeterministicSeverityCalculator {
         List<DiffEntry> safeDiffs = diffs == null ? List.of() : diffs;
         List<ContractIssue> safeIssues = issues == null ? List.of() : issues;
         return safeIssues.stream().anyMatch(issue -> issue.severity() == Severity.CRITICAL)
-                || safeDiffs.stream().anyMatch(DeterministicSeverityCalculator::isHardCriticalDiff);
+                || safeDiffs.stream().anyMatch(diff -> diff.deterministicSeverity() == Severity.CRITICAL);
     }
 
-    public static boolean isHardCriticalDiff(DiffEntry diff) {
-        if (diff == null) {
-            return false;
+    /**
+     * Resolves the single severity floor for an individual diff. Contract issues are associated
+     * only by exact path equality so similarly named or nested fields cannot escalate each other.
+     */
+    public static Severity resolveDiffSeverity(DiffType type, String path, List<ContractIssue> issues) {
+        if (isHardCriticalDiff(type, path)) {
+            return Severity.CRITICAL;
         }
-        boolean hardCriticalType = diff.type() == DiffType.TYPE_MISMATCH
-                || diff.type() == DiffType.NULLABILITY_VIOLATION
-                || diff.type() == DiffType.REQUIRED_FIELD_MISSING;
-        String path = diff.path() == null ? "" : diff.path();
-        return hardCriticalType || path.endsWith(".mode") || path.endsWith(".type");
+        List<ContractIssue> safeIssues = issues == null ? List.of() : issues;
+        boolean hasCriticalIssueAtSamePath = safeIssues.stream()
+                .anyMatch(issue -> issue != null
+                        && issue.severity() == Severity.CRITICAL
+                        && java.util.Objects.equals(issue.path(), path));
+        return hasCriticalIssueAtSamePath ? Severity.CRITICAL : Severity.WARNING;
+    }
+
+    private static boolean isHardCriticalDiff(DiffType type, String path) {
+        boolean hardCriticalType = type == DiffType.TYPE_MISMATCH
+                || type == DiffType.NULLABILITY_VIOLATION
+                || type == DiffType.REQUIRED_FIELD_MISSING;
+        String safePath = path == null ? "" : path;
+        return hardCriticalType || safePath.endsWith(".mode") || safePath.endsWith(".type");
     }
 }

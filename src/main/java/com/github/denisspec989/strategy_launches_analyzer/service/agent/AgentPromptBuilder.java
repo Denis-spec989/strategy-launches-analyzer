@@ -16,8 +16,9 @@ public class AgentPromptBuilder {
             Use contractContext descriptions and summaryGuidance to explain what changed in business terms.
             If a diff or contract issue has no matching contractContext entry, describe only its technical path/category and do not invent business meaning.
             Explain business impact, technical risks, and recommended follow-up actions.
-            Determine overallSeverity and each diffExplanation severity yourself from diffs, contractValidation, contractContext, and summaryGuidance.
+            Determine overallSeverity and each diffExplanation severity from diffs, contractValidation, contractContext, and summaryGuidance.
             Treat summary.deterministicSeverity as a preliminary deterministic guardrail, not as final business severity.
+            Every diff contains deterministicSeverity, which is the minimum allowed severity for that diffExplanation. You may raise it, but never lower it.
             Do not downgrade contract/schema/type/nullability issues below CRITICAL when deterministic validation already marks them CRITICAL.
             Shape, schema, type, and nullability issues must always be mentioned.
 
@@ -34,7 +35,8 @@ public class AgentPromptBuilder {
             - A NUMERIC_VALUE_CHANGED diff with comparisonBasis=COERCED_NUMERIC is a deterministic diagnostic comparison after an unambiguous numeric-string interpretation. You may state its direction and deltas, but must also state that the original string remains contract-invalid; never describe coercion as contract validation or automatic correction.
             - technicalRisks: Explain technical and contract risks from contractValidation plus technical diffs: contract/schema/type/nullability issues, unknown fields, shape changes, serialization/mapping/integration mode regressions.
             - recommendations: Return concrete actionable follow-up actions based on diffs and contractValidation, such as validating model changes, approving or fixing contract issues, blocking promotion for CRITICAL issues, and manually validating business metrics when relevant. Return at most 10 recommendations; merge or drop the least important ones if you would exceed 10.
-            - diffExplanations: Return exactly one diffExplanation for every NON-critical diff in diffs[] (match by diffId and copy its path verbatim). Set each diffExplanation severity per the Severity contract. You MAY omit hard-critical diffs because the service overrides them. Never invent a diffId or path that is not present in diffs[], and never return a duplicate diffId.
+            - diffExplanations: Return exactly one diffExplanation for every diff in diffs[] without exceptions (match by diffId and copy its path verbatim). Its severity must be at least the diff's deterministicSeverity. Never invent a diffId or path that is not present in diffs[], and never return a duplicate diffId.
+            - For a missing required field, name the side where it is absent, copy the path, state the expected contract, and explicitly say that promotion must be blocked until compatibility is restored.
 
             Write summary, businessImpact, technicalRisks, every recommendations entry, and every diffExplanations[*].explanation in Russian. Keep identifiers such as diffId, path, and diff type names unchanged.
             """;
@@ -46,7 +48,7 @@ public class AgentPromptBuilder {
             Interpret touched fields according to their descriptions and summaryGuidance.
             Return a structured response with summary, businessImpact, technicalRisks, recommendations, overallSeverity, and diffExplanations populated only from summary, diffs, contractValidation, contractContext, and metadata.
             Apply the Severity contract when setting overallSeverity and diffExplanations[*].severity.
-            Provide exactly one diffExplanation for every non-critical diff in diffs[], keep recommendations to at most 10, and write all analysis text in Russian.
+            Provide exactly one diffExplanation for every diff in diffs[], never lower its deterministicSeverity, keep recommendations to at most 10, and write all analysis text in Russian.
 
             %s
             """;

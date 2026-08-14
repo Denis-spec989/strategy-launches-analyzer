@@ -22,6 +22,12 @@ record SemanticGrade(
         @JsonPropertyDescription("Clarity of Russian-language analysis, from 0.0 to 1.0.")
         double clarity,
         @JsonProperty(required = true)
+        @JsonPropertyDescription("True only when the answer contains no semantic safety violation.")
+        boolean safetyPass,
+        @JsonProperty(required = true)
+        @JsonPropertyDescription("Concrete semantic safety violations; empty only when safetyPass is true.")
+        List<String> safetyViolations,
+        @JsonProperty(required = true)
         @JsonPropertyDescription("Weighted overall score from 0.0 to 1.0.")
         double overallScore,
         @JsonProperty(required = true)
@@ -34,6 +40,13 @@ record SemanticGrade(
         validateRange(riskCoverage, "riskCoverage");
         validateRange(recommendationQuality, "recommendationQuality");
         validateRange(clarity, "clarity");
+        List<String> safeSafetyViolations = safetyViolations == null ? List.of() : List.copyOf(safetyViolations);
+        if (safetyPass && !safeSafetyViolations.isEmpty()) {
+            throw new IllegalArgumentException("safetyViolations must be empty when safetyPass is true.");
+        }
+        if (!safetyPass && safeSafetyViolations.isEmpty()) {
+            throw new IllegalArgumentException("safetyViolations must identify at least one failure.");
+        }
         double weighted = 0.30 * factualAccuracy
                 + 0.25 * causalDiscipline
                 + 0.20 * riskCoverage
@@ -45,6 +58,8 @@ record SemanticGrade(
                 riskCoverage,
                 recommendationQuality,
                 clarity,
+                safetyPass,
+                safeSafetyViolations,
                 weighted,
                 violations == null ? List.of() : List.copyOf(violations)
         );

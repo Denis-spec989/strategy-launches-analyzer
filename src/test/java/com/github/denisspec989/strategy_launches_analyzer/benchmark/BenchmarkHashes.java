@@ -19,6 +19,12 @@ final class BenchmarkHashes {
                 .getBytes(StandardCharsets.UTF_8));
     }
 
+    static String judgePromptHash() {
+        return sha256((OpenAiSemanticJudge.RUBRIC_VERSION + "\n"
+                + OpenAiSemanticJudge.SYSTEM_PROMPT + "\n"
+                + OpenAiSemanticJudge.ADJUDICATION_PROMPT).getBytes(StandardCharsets.UTF_8));
+    }
+
     static String datasetHash(Path root) {
         MessageDigest digest = digest();
         try (var paths = Files.walk(root)) {
@@ -38,6 +44,14 @@ final class BenchmarkHashes {
             throw new IllegalStateException("Failed to traverse benchmark dataset.", ex);
         }
         return HexFormat.of().formatHex(digest.digest());
+    }
+
+    static String fileHash(Path path) {
+        try {
+            return sha256(Files.readAllBytes(path));
+        } catch (IOException ex) {
+            throw new IllegalStateException("Failed to hash file " + path.toAbsolutePath(), ex);
+        }
     }
 
     static String gitCommit() {

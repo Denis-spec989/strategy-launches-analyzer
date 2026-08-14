@@ -11,6 +11,8 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.test.context.ActiveProfiles;
 
+import java.nio.file.Path;
+
 import static org.assertj.core.api.Assertions.assertThat;
 
 @SpringBootTest(
@@ -45,6 +47,18 @@ class AgentBenchmarkIT {
             );
         }
         BenchmarkConfiguration configuration = BenchmarkConfiguration.fromSystemProperties();
+        JudgeCalibrationGate.requireAccepted(
+                objectMapper,
+                Path.of(System.getProperty(
+                        "benchmark.judge-calibration-report",
+                        "target/judge-calibration/v2/report.json"
+                )),
+                Path.of(System.getProperty(
+                        "benchmark.judge-calibration-dataset",
+                        "src/test/resources/evals/judge-calibration/v2/calibration-cases.jsonl"
+                )),
+                configuration.judgeModel()
+        );
         SemanticJudge judge = new OpenAiSemanticJudge(
                 chatClientBuilder.build(), objectMapper, configuration.judgeModel()
         );

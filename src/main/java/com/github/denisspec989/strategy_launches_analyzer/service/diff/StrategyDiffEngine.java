@@ -1,7 +1,10 @@
 package com.github.denisspec989.strategy_launches_analyzer.service.diff;
 
 import com.fasterxml.jackson.databind.JsonNode;
+import com.github.denisspec989.strategy_launches_analyzer.dto.common.Severity;
+import com.github.denisspec989.strategy_launches_analyzer.dto.comparison.DeterministicSeverityCalculator;
 import com.github.denisspec989.strategy_launches_analyzer.dto.contract.ContractField;
+import com.github.denisspec989.strategy_launches_analyzer.dto.contract.ContractIssue;
 import com.github.denisspec989.strategy_launches_analyzer.service.contract.ContractValidator;
 import com.github.denisspec989.strategy_launches_analyzer.dto.contract.ContractValueType;
 import com.github.denisspec989.strategy_launches_analyzer.service.contract.StrategyContract;
@@ -38,17 +41,20 @@ public class StrategyDiffEngine {
 
     public DiffResult compare(StrategyContract contract, JsonNode mainLaunch, JsonNode shadowLaunch) {
         AtomicInteger diffCounter = new AtomicInteger(1);
-        List<DiffEntry> diffs = new ArrayList<>();
+        List<DiffDraft> diffs = new ArrayList<>();
 
         for (ContractField field : contract.leafFields()) {
             addKnownFieldDiff(mainLaunch, shadowLaunch, field, diffCounter, diffs);
         }
         addUnknownShapeDiffs(contract, mainLaunch, shadowLaunch, diffCounter, diffs);
 
-        return new DiffResult(
-                List.copyOf(diffs),
-                contractValidator.validateBoth(contract, mainLaunch, shadowLaunch)
-        );
+        List<ContractIssue> issues = contractValidator.validateBoth(contract, mainLaunch, shadowLaunch);
+        List<DiffEntry> resolvedDiffs = diffs.stream()
+                .map(diff -> diff.toEntry(DeterministicSeverityCalculator.resolveDiffSeverity(
+                        diff.type(), diff.path(), issues
+                )))
+                .toList();
+        return new DiffResult(resolvedDiffs, issues);
     }
 
     private void addKnownFieldDiff(
@@ -56,7 +62,7 @@ public class StrategyDiffEngine {
             JsonNode shadowLaunch,
             ContractField field,
             AtomicInteger diffCounter,
-            List<DiffEntry> diffs
+            List<DiffDraft> diffs
     ) {
         JsonNode mainValue = JsonNodePath.at(mainLaunch, field.path());
         JsonNode shadowValue = JsonNodePath.at(shadowLaunch, field.path());
@@ -148,7 +154,7 @@ public class StrategyDiffEngine {
             JsonNode shadowValue,
             ContractField field,
             AtomicInteger diffCounter,
-            List<DiffEntry> diffs
+            List<DiffDraft> diffs
     ) {
         addNumericDiff(
                 mainValue,
@@ -167,7 +173,7 @@ public class StrategyDiffEngine {
             JsonNode shadowValue,
             ContractField field,
             AtomicInteger diffCounter,
-            List<DiffEntry> diffs
+            List<DiffDraft> diffs
     ) {
         Optional<BigDecimal> mainNumber = numericInterpretation(mainValue);
         Optional<BigDecimal> shadowNumber = numericInterpretation(shadowValue);
@@ -194,7 +200,7 @@ public class StrategyDiffEngine {
             BigDecimal shadowNumber,
             ContractField field,
             AtomicInteger diffCounter,
-            List<DiffEntry> diffs,
+            List<DiffDraft> diffs,
             ComparisonBasis comparisonBasis
     ) {
         if (mainNumber.compareTo(shadowNumber) == 0) {
@@ -250,7 +256,7 @@ public class StrategyDiffEngine {
             JsonNode shadowValue,
             ContractField field,
             AtomicInteger diffCounter,
-            List<DiffEntry> diffs
+            List<DiffDraft> diffs
     ) {
         if (mainValue.asText().equals(shadowValue.asText())) {
             return;
@@ -274,7 +280,7 @@ public class StrategyDiffEngine {
             JsonNode shadowValue,
             ContractField field,
             AtomicInteger diffCounter,
-            List<DiffEntry> diffs
+            List<DiffDraft> diffs
     ) {
         if (mainValue.asBoolean() == shadowValue.asBoolean()) {
             return;
@@ -298,7 +304,7 @@ public class StrategyDiffEngine {
             JsonNode mainLaunch,
             JsonNode shadowLaunch,
             AtomicInteger diffCounter,
-            List<DiffEntry> diffs
+            List<DiffDraft> diffs
     ) {
         Set<String> mainUnknownPaths = collectUnknownRootPaths(contract, mainLaunch);
         Set<String> shadowUnknownPaths = collectUnknownRootPaths(contract, shadowLaunch);
@@ -387,7 +393,7 @@ public class StrategyDiffEngine {
         };
     }
 
-    private static DiffEntry diff(
+    private static DiffDraft diff(
             AtomicInteger diffCounter,
             String path,
             DiffType type,
@@ -412,7 +418,7 @@ public class StrategyDiffEngine {
         );
     }
 
-    private static DiffEntry diff(
+    private static DiffDraft diff(
             AtomicInteger diffCounter,
             String path,
             DiffType type,
@@ -424,7 +430,7 @@ public class StrategyDiffEngine {
             ComparisonBasis comparisonBasis,
             String description
     ) {
-        return new DiffEntry(
+        return new DiffDraft(
                 "D%03d".formatted(diffCounter.getAndIncrement()),
                 path,
                 type,
@@ -436,5 +442,34 @@ public class StrategyDiffEngine {
                 comparisonBasis,
                 description
         );
+    }
+
+    private record DiffDraft(
+            String id,
+            String path,
+            DiffType type,
+            DiffCategory category,
+            JsonNode mainValue,
+            JsonNode shadowValue,
+            BigDecimal absoluteDelta,
+            BigDecimal relativeDeltaPercent,
+            ComparisonBasis comparisonBasis,
+            String description
+    ) {
+        private DiffEntry toEntry(Severity deterministicSeverity) {
+            return new DiffEntry(
+                    id,
+                    path,
+                    type,
+                    category,
+                    mainValue,
+                    shadowValue,
+                    absoluteDelta,
+                    relativeDeltaPercent,
+                    comparisonBasis,
+                    deterministicSeverity,
+                    description
+            );
+        }
     }
 }

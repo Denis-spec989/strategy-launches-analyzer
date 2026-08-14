@@ -26,7 +26,8 @@
 
 ### 1. Изменения модели и метрик (lgdModel 2022 -> 2023)
 # Детерминированно: 2 METRIC (lgd, lgdDt) + 1 MODEL (lgdModel), hard-critical нет.
-# Ожидаемо в ответе: summary.deterministicSeverity = WARNING,
+# Ожидаемо в ответе: каждый diffs[].deterministicSeverity = WARNING,
+# summary.deterministicSeverity = WARNING,
 # contractVersion = "v1", analyzedAt заполнен.
 # attributes присутствуют в запросе, но в промпт LLM не попадают.
 # @timeout 3 m
@@ -294,7 +295,9 @@ Content-Type: application/json
 # диагностический NUMERIC_VALUE_CHANGED с comparisonBasis = COERCED_NUMERIC,
 # absoluteDelta = 2.3 и relativeDeltaPercent = 12.7072, а также CRITICAL
 # contract issue (required-поле с неверным типом) →
-# deterministicSeverity = CRITICAL, overallSeverity = CRITICAL.
+# TYPE_MISMATCH и NUMERIC_VALUE_CHANGED получают diffs[].deterministicSeverity = CRITICAL
+# по exact-path связи с CRITICAL contract issue; summary.deterministicSeverity = CRITICAL,
+# overallSeverity = CRITICAL.
 # @timeout 3 m
 POST {{baseUrl}}/api/v1/strategies/compare
 Content-Type: application/json
