@@ -24,7 +24,7 @@ record JudgeCalibrationReport(
             boolean accepted,
             String reviewerLimitation
     ) {
-        this(schemaVersion, sampleCount, judgeModel, OpenAiSemanticJudge.RUBRIC_VERSION,
+        this(schemaVersion, sampleCount, judgeModel, GigaChatSemanticJudge.RUBRIC_VERSION,
                 BenchmarkHashes.judgePromptHash(), datasetHash, confusionMatrix, passFailAgreement,
                 meanAbsoluteError, accepted, reviewerLimitation);
     }

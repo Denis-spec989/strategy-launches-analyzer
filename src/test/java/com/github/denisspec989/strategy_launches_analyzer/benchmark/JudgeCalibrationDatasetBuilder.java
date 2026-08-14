@@ -30,16 +30,20 @@ public final class JudgeCalibrationDatasetBuilder {
     static final Path DEFAULT_OUTPUT = Path.of(
             "src", "test", "resources", "evals", "judge-calibration", "v2", "calibration-cases.jsonl"
     );
-    private static final String DEFAULT_MODEL = "gpt-5.5";
     private static final int DEFAULT_REPETITION = 1;
 
     private JudgeCalibrationDatasetBuilder() {
     }
 
     public static void main(String[] args) throws IOException {
+        if (args.length < 3) {
+            throw new IllegalArgumentException(
+                    "Usage: JudgeCalibrationDatasetBuilder <benchmark-results> <output> <model>"
+            );
+        }
         Path benchmarkResults = args.length >= 1 ? Path.of(args[0]) : DEFAULT_BENCHMARK_RESULTS;
         Path output = args.length >= 2 ? Path.of(args[1]) : DEFAULT_OUTPUT;
-        String model = args.length >= 3 ? args[2] : DEFAULT_MODEL;
+        String model = args[2];
         ObjectMapper objectMapper = new ObjectMapper().findAndRegisterModules();
         List<JudgeCalibrationCase> cases = build(objectMapper, benchmarkResults, model, DEFAULT_REPETITION);
         write(objectMapper, output, cases);

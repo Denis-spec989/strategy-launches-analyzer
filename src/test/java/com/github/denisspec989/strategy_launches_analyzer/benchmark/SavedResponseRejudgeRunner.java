@@ -80,7 +80,7 @@ final class SavedResponseRejudgeRunner {
                 BenchmarkHashes.fileHash(sourceResults),
                 BenchmarkHashes.datasetHash(BenchmarkCaseLoader.DEFAULT_DATASET),
                 judgeModel,
-                OpenAiSemanticJudge.RUBRIC_VERSION,
+                GigaChatSemanticJudge.RUBRIC_VERSION,
                 rubricHash
         );
         initialize(output, requested);

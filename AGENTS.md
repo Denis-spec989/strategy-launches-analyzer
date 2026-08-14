@@ -11,8 +11,8 @@ Use the checked-in Maven wrapper (Windows examples below; substitute `./mvnw` on
 - `.\mvnw.cmd test` runs the regular unit and Spring integration tests without paid model evaluations.
 - `.\mvnw.cmd test -Dtest=StrategyDiffEngineTest` runs one test class.
 - `.\mvnw.cmd clean package` compiles, tests, and creates the application artifact.
-- `.\mvnw.cmd spring-boot:run` starts the service and requires `OPENAI_API_KEY` because the default profile is `openai`.
-- `.\mvnw.cmd verify -Pbenchmark` runs the paid model benchmark. Read `docs/model-benchmark.md` first; benchmark, judge-calibration, and rejudge profiles require an API key.
+- `.\mvnw.cmd spring-boot:run` starts the service and requires the GigaChat environment variables described in `docs/gigachat-configuration.md`.
+- `.\mvnw.cmd verify -Pbenchmark` runs the paid model benchmark. Read `docs/model-benchmark.md` first; benchmark, judge-calibration, and rejudge profiles require a configured GigaChat connection.
 
 ## Coding Style & Naming Conventions
 

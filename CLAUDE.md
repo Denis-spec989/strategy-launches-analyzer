@@ -6,7 +6,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Обзор
 
-REST-сервис, который сравнивает два запуска ("main" и "shadow") риск-стратегии и возвращает детерминированный diff плюс бизнес-анализ, сгенерированный LLM. Детерминированный движок (Java) владеет фактами; LLM (OpenAI через Spring AI) владеет семантическим описанием и финальной severity — под guardrail'ами, которые навязывает Java. Единственный эндпоинт — `POST /api/v1/strategies/compare` (поле `strategy` в теле выбирает контракт).
+REST-сервис, который сравнивает два запуска ("main" и "shadow") риск-стратегии и возвращает детерминированный diff плюс бизнес-анализ, сгенерированный LLM. Детерминированный движок (Java) владеет фактами; GigaChat через `gigachat-java` владеет семантическим описанием и финальной severity — под guardrail'ами, которые навязывает Java. Единственный эндпоинт — `POST /api/v1/strategies/compare` (поле `strategy` в теле выбирает контракт).
 
 ## Команды
 
@@ -16,7 +16,7 @@ Maven wrapper (`.\mvnw.cmd` на Windows / `./mvnw` на POSIX). Требует�
 - Все тесты: `.\mvnw.cmd test`
 - Один тест-класс: `.\mvnw.cmd test -Dtest=StrategyDiffEngineTest`
 - Один тест-метод (экранируй `#` в PowerShell): `.\mvnw.cmd test "-Dtest=StrategyDiffEngineTest#detectsModelAndMetricChanges"`
-- Запуск приложения: `.\mvnw.cmd spring-boot:run` — **требует `OPENAI_API_KEY`** (профиль по умолчанию `openai`; без ключа старт падает). Опциональные переопределения: `OPENAI_CHAT_MODEL` (по умолчанию `gpt-5.5`), `OPENAI_TIMEOUT` / `OPENAI_CHAT_TIMEOUT` (по умолчанию `120s`), `OPENAI_MAX_RETRIES` / `OPENAI_CHAT_MAX_RETRIES` (`0`) и `OPENAI_RETRY_MAX_ATTEMPTS` (`1`).
+- Запуск приложения: `.\mvnw.cmd spring-boot:run` — требует обязательные `GIGACHAT_AUTH_MODE`, `GIGACHAT_MODEL` и параметры выбранной ветки аутентификации из `docs/gigachat-configuration.md`.
 - Actuator: `/actuator/health` (liveness/readiness probes) и `/actuator/prometheus`.
 - Примеры запросов: `docs/lgd-digital-requests.http`.
 
@@ -25,7 +25,7 @@ Maven wrapper (`.\mvnw.cmd` на Windows / `./mvnw` на POSIX). Требует�
 Практический benchmark моделей и human-калибровка semantic judge описаны в `docs/model-benchmark.md`.
 
 - `mvn test` и обычная сборка не запускают платные eval-профили.
-- `benchmark`, `judge-calibration` и `benchmark-rejudge` являются ручными платными Maven-профилями и требуют `OPENAI_API_KEY`.
+- `benchmark`, `judge-calibration` и `benchmark-rejudge` являются ручными платными Maven-профилями и требуют настроенное GigaChat-подключение.
 - Не запускай эти профили без явного запроса пользователя.
 - Актуальная схема — semantic judge rubric v2, calibration dataset из 27 кейсов и gate не ниже 95% confirmed safety.
 - `benchmark-rejudge` повторно оценивает сохранённые ответы только judge-моделью и не вызывает модели-кандидаты.
@@ -56,13 +56,13 @@ Maven wrapper (`.\mvnw.cmd` на Windows / `./mvnw` на POSIX). Требует�
 - `summary.deterministicSeverity` — вычисляется `DeterministicSeverityCalculator`, предварительный guardrail.
 - `agentAnalysis.overallSeverity` — финальная бизнес-severity от LLM.
 
-`DeterministicSeverityCalculator.isHardCriticalDiff` задаёт неоспоримые CRITICAL-сигналы: `TYPE_MISMATCH`, `NULLABILITY_VIOLATION`, `REQUIRED_FIELD_MISSING`, любой путь, оканчивающийся на `.mode` или `.type`, либо любой CRITICAL `ContractIssue`. `SpringAiAgentAnalyzer.toDomain` навязывает это поверх вывода LLM: форсит `overallSeverity` в CRITICAL при любом hard-critical сигнале, вставляет детерминированные объяснения для пропущенных моделью hard-critical diff'ов, поднимает объяснения этих diff'ов до CRITICAL и добавляет примечание при наличии критичных contract issues. LLM может *повысить* severity, но **никогда не понизить** детерминированный CRITICAL.
+`DeterministicSeverityCalculator.isHardCriticalDiff` задаёт неоспоримые CRITICAL-сигналы: `TYPE_MISMATCH`, `NULLABILITY_VIOLATION`, `REQUIRED_FIELD_MISSING`, любой путь, оканчивающийся на `.mode` или `.type`, либо любой CRITICAL `ContractIssue`. `DefaultAgentAnalysisPostProcessor` навязывает это поверх вывода LLM: форсит `overallSeverity` в CRITICAL при любом hard-critical сигнале, вставляет детерминированные объяснения для пропущенных моделью hard-critical diff'ов, поднимает объяснения этих diff'ов до CRITICAL и добавляет примечание при наличии критичных contract issues. LLM может *повысить* severity, но **никогда не понизить** детерминированный CRITICAL.
 
-`SpringAiAgentAnalyzer.validate` строго валидирует структурированный ответ LLM: обязательные текстовые поля не должны быть пустыми, каждый не-критичный diff должен быть объяснён, а `diffId`/`path` каждого объяснения должны соответствовать реальному детерминированному diff'у (выдуманных diff'ов нет). Нарушение бросает `AgentAnalysisException` → 500.
+`DefaultAgentAnalysisPostProcessor` строго валидирует структурированный ответ LLM: обязательные текстовые поля не должны быть пустыми, каждый не-критичный diff должен быть объяснён, а `diffId`/`path` каждого объяснения должны соответствовать реальному детерминированному diff'у (выдуманных diff'ов нет). Нарушение бросает `AgentAnalysisException` → 500.
 
 ### Изоляция агента
 
-LLM получает только нормализованный `AgentAnalysisInput` (summary, diff'ы, contract issues, контекст контракта *только для затронутых путей*, опциональные метаданные) — **никогда не сырой JSON запусков и не полный контракт**. Сборка промпта — в `AgentPromptBuilder` (`SYSTEM_PROMPT` держит контракт severity + выходных полей). `SpringAiAgentAnalyzer` использует structured output из Spring AI (`.responseEntity(StructuredAgentAnalysis.class)`) для биндинга ответа.
+LLM получает только нормализованный `AgentAnalysisInput` (summary, diff'ы, contract issues, контекст контракта *только для затронутых путей*, опциональные метаданные) — **никогда не сырой JSON запусков и не полный контракт**. Сборка промпта — в `AgentPromptBuilder` (`SYSTEM_PROMPT` держит контракт severity + выходных полей). `GigaChatStructuredCompletionClient` генерирует JSON Schema через provider-neutral `BeanOutputConverter`, отправляет отдельные `SYSTEM`/`USER` сообщения со strict `response_format=json_schema` и разбирает JSON из `choices[0].message.content`.
 
 ### Правила сравнения (в `StrategyDiffEngine`)
 
@@ -74,18 +74,18 @@ LLM получает только нормализованный `AgentAnalysisI
 
 ## Конвенции
 
-- **Стек:** Spring Boot 4.0.6, Spring AI 2.0.0-M8 (milestone — сверяй API с установленной версией через Context7), Lombok. Используются имена стартеров Boot 4 `spring-boot-starter-webmvc` / `spring-boot-starter-webmvc-test` (учти перемещённые тестовые импорты, напр. `org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc`).
+- **Стек:** Spring Boot 4.0.6, GigaChat Java SDK 0.1.22, provider-neutral Spring AI model 2.0.0-M8 только для `BeanOutputConverter`, Lombok. Используются имена стартеров Boot 4 `spring-boot-starter-webmvc` / `spring-boot-starter-webmvc-test`.
 - **Корень пакета:** `com.github.denisspec989.strategy_launches_analyzer` (подчёркивание — дефисное имя артефакта не является валидным пакетом; см. `HELP.md`).
 - **DTO — это Java records** в `dto/` (сгруппированы `agent`/`api`/`comparison`/`contract`/`common`/`strategy`); логика — в `service/`.
-- **Язык:** весь user-facing текст анализа (`summary`, `businessImpact`, `technicalRisks`, `recommendations`, объяснения diff'ов) пишется на **русском** — навязывается `SYSTEM_PROMPT` и захардкоженными русскими строками в `SpringAiAgentAnalyzer`. Идентификаторы кода остаются на английском.
+- **Язык:** весь user-facing текст анализа (`summary`, `businessImpact`, `technicalRisks`, `recommendations`, объяснения diff'ов) пишется на **русском** — навязывается `SYSTEM_PROMPT` и детерминированными русскими строками post-processing. Идентификаторы кода остаются на английском.
 - **Ошибки:** `ApiExceptionHandler` мапит `BadRequestException` и некорректный/невалидный JSON → 400, `AgentAnalysisException` → 500 (фиксированное сообщение), в `ErrorResponse(timestamp, status, error, message)`.
 - **Логирование:** структурированное, с requestId, `log.info`/`log.error` на каждом этапе пайплайна.
 
 ### Связывание бина агента и тесты
 
-- `AgentConfiguration` регистрирует `SpringAiAgentAnalyzer` только когда `strategy-launches-analyzer.agent.provider=openai` (`@ConditionalOnProperty`); профиль `openai` задаёт это свойство в `application-openai.properties`.
+- `GigaChatClientConfiguration` по `strategy-launches-analyzer.agent.gigachat.auth-mode` регистрирует ровно один `GigaChatClient`: `certificateGigaChatClient` или `userPasswordGigaChatClient`. `AgentConfiguration` всегда собирает `GigaChatStructuredCompletionClient`, `GigaChatAgentClient` и `DefaultAgentAnalyzer` поверх выбранного SDK-клиента.
 - Паттерны тестов:
   - Чистые unit-тесты (`StrategyDiffEngineTest`, `ContractValidationTest`, `ComparisonSummaryTest` и т.д.) создают компоненты через `new` — без Spring-контекста.
-  - Тесты загрузки контекста используют `@ActiveProfiles("openai")` + `@SpringBootTest(properties = "OPENAI_API_KEY=dummy-test-key")`, чтобы проверить, что реальный анализатор поднимается.
-  - Web/интеграционные тесты (`StrategyComparisonControllerTest`) задают `strategy-launches-analyzer.agent.provider=test`, чтобы отключить реальный бин и подставить `@Primary` mock `AgentAnalyzer`.
+  - Тесты загрузки контекста передают фиктивные user/password-настройки через `@SpringBootTest(properties = ...)`; сетевой вызов при поднятии контекста не выполняется.
+  - Web/интеграционные тесты (`StrategyComparisonControllerTest`) передают фиктивные GigaChat-настройки и подставляют `@Primary` mock `AgentAnalyzer`; сетевого вызова нет.
 - Тестовые фикстуры: `src/test/resources/fixtures/<strategy>/<scenario>/` с `main.json`, `shadow.json`, `expected-diff.json`, `expected-analysis.json`; загружаются через `TestFixtures.json(...)`.

@@ -4,24 +4,31 @@ import com.github.denisspec989.strategy_launches_analyzer.service.agent.AgentAna
 import com.github.denisspec989.strategy_launches_analyzer.service.agent.AgentAnalysisPostProcessor;
 import com.github.denisspec989.strategy_launches_analyzer.service.agent.AgentModelClient;
 import com.github.denisspec989.strategy_launches_analyzer.service.agent.AgentPromptBuilder;
+import com.github.denisspec989.strategy_launches_analyzer.service.agent.DefaultAgentAnalyzer;
 import com.github.denisspec989.strategy_launches_analyzer.service.agent.DefaultAgentAnalysisPostProcessor;
-import com.github.denisspec989.strategy_launches_analyzer.service.agent.SpringAiAgentClient;
-import com.github.denisspec989.strategy_launches_analyzer.service.agent.SpringAiAgentAnalyzer;
-import org.springframework.ai.chat.client.ChatClient;
-import org.springframework.beans.factory.annotation.Value;
-import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
+import com.github.denisspec989.strategy_launches_analyzer.service.agent.GigaChatAgentClient;
+import com.github.denisspec989.strategy_launches_analyzer.service.agent.GigaChatStructuredCompletionClient;
+import chat.giga.client.GigaChatClient;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
 @Configuration
 public class AgentConfiguration {
     @Bean
-    @ConditionalOnProperty(name = "strategy-launches-analyzer.agent.provider", havingValue = "openai")
-    public AgentModelClient springAiAgentClient(
-            ChatClient.Builder chatClientBuilder,
+    public GigaChatStructuredCompletionClient gigaChatStructuredCompletionClient(
+            GigaChatClient gigaChatClient,
+            ObjectMapper objectMapper
+    ) {
+        return new GigaChatStructuredCompletionClient(gigaChatClient, objectMapper);
+    }
+
+    @Bean
+    public AgentModelClient gigaChatAgentClient(
+            GigaChatStructuredCompletionClient completionClient,
             AgentPromptBuilder promptBuilder
     ) {
-        return new SpringAiAgentClient(chatClientBuilder.build(), promptBuilder);
+        return new GigaChatAgentClient(completionClient, promptBuilder);
     }
 
     @Bean
@@ -30,12 +37,11 @@ public class AgentConfiguration {
     }
 
     @Bean
-    @ConditionalOnProperty(name = "strategy-launches-analyzer.agent.provider", havingValue = "openai")
-    public AgentAnalyzer springAiAgentAnalyzer(
+    public AgentAnalyzer defaultAgentAnalyzer(
             AgentModelClient modelClient,
             AgentAnalysisPostProcessor postProcessor,
-            @Value("${spring.ai.openai.chat.model:not-configured}") String configuredModel
+            GigaChatProperties properties
     ) {
-        return new SpringAiAgentAnalyzer(modelClient, postProcessor, configuredModel);
+        return new DefaultAgentAnalyzer(modelClient, postProcessor, properties.model());
     }
 }

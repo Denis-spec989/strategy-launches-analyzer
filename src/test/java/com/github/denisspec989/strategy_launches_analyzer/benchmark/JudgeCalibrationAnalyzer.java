@@ -61,7 +61,7 @@ final class JudgeCalibrationAnalyzer {
                 "judge-calibration-report/v2",
                 validated.size(),
                 judgeModel,
-                OpenAiSemanticJudge.RUBRIC_VERSION,
+                GigaChatSemanticJudge.RUBRIC_VERSION,
                 BenchmarkHashes.judgePromptHash(),
                 datasetHash,
                 matrix,

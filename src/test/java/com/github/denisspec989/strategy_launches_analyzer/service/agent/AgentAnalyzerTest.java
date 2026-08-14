@@ -147,7 +147,7 @@ class AgentAnalyzerTest {
     }
 
     @Test
-    void springAiMappingKeepsHardTechnicalDiffCriticalWhenModelDowngradesIt() {
+    void structuredMappingKeepsHardTechnicalDiffCriticalWhenModelDowngradesIt() {
         AgentAnalysisInput input = inputForFixture("mode-regression");
 
         AgentPostProcessingResult processed = postProcessor.process(
@@ -165,7 +165,7 @@ class AgentAnalyzerTest {
     }
 
     @Test
-    void springAiMappingKeepsCriticalContractIssueCriticalWhenModelDowngradesIt() {
+    void structuredMappingKeepsCriticalContractIssueCriticalWhenModelDowngradesIt() {
         ContractIssue issue = new ContractIssue(
                 "C001",
                 LaunchSide.SHADOW,
@@ -223,7 +223,7 @@ class AgentAnalyzerTest {
     @Test
     void missingRequiredFieldGetsCriticalContractFallbackWhenModelOmitsExplanation() {
         AgentAnalysisInput input = inputForFixture("model-change", "main", "shadow");
-        DiffEntry source = input.diffs().getFirst();
+        DiffEntry source = input.diffs().get(0);
         ContractIssue issue = new ContractIssue(
                 "C777",
                 LaunchSide.SHADOW,
@@ -264,7 +264,7 @@ class AgentAnalyzerTest {
     }
 
     @Test
-    void springAiMappingEscalatesOverallSeverityWhenModelMarksNonCriticalDiffCritical() {
+    void structuredMappingEscalatesOverallSeverityWhenModelMarksNonCriticalDiffCritical() {
         AgentAnalysisInput input = inputForFixture("model-change");
         assertThat(input.summary().deterministicSeverity())
                 .isNotEqualTo(Severity.CRITICAL);
@@ -280,7 +280,7 @@ class AgentAnalyzerTest {
     }
 
     @Test
-    void springAiMappingRejectsFabricatedDiffExplanation() {
+    void structuredMappingRejectsFabricatedDiffExplanation() {
         AgentAnalysisInput input = inputForFixture("model-change");
         StructuredAgentAnalysis response = new StructuredAgentAnalysis(
                 Severity.WARNING,
@@ -302,7 +302,7 @@ class AgentAnalyzerTest {
     }
 
     @Test
-    void springAiMappingAddsDeterministicExplanationForMissingHardCriticalDiff() {
+    void structuredMappingAddsDeterministicExplanationForMissingHardCriticalDiff() {
         AgentAnalysisInput input = inputForFixture("mode-regression");
         List<DiffExplanation> modelExplanations = input.diffs().stream()
                 .filter(diff -> diff.deterministicSeverity() != Severity.CRITICAL)
@@ -321,7 +321,7 @@ class AgentAnalyzerTest {
     }
 
     @Test
-    void springAiMappingFillsOmittedNonCriticalDiffWithNeutralStubInsteadOfFailing() {
+    void structuredMappingFillsOmittedNonCriticalDiffWithNeutralStubInsteadOfFailing() {
         AgentAnalysisInput input = inputForFixture("model-change");
         assertThat(input.diffs()).hasSizeGreaterThan(1);
         StructuredAgentAnalysis response = structuredResponse(
@@ -354,7 +354,7 @@ class AgentAnalyzerTest {
     @Test
     void structuredAnalysisJsonSchemaKeepsRefsFreeOfSiblingKeywords() throws Exception {
         // Регрессия: @JsonPropertyDescription на enum-поле (Severity) вешает description рядом с $ref.
-        // Строгий structured output OpenAI это запрещает ("$ref cannot have keywords") → 400 на каждом
+        // Строгий structured output это запрещает ("$ref cannot have keywords") → ошибка на каждом
         // вызове LLM → 500. Severity ссылается из двух полей, поэтому выносится в $defs/$ref.
         String schema = new BeanOutputConverter<>(StructuredAgentAnalysis.class).getJsonSchema();
 
@@ -369,7 +369,7 @@ class AgentAnalyzerTest {
             node.fieldNames().forEachRemaining(names::add);
             if (names.contains("$ref")) {
                 assertThat(names)
-                        .as("schema node %s with $ref must not carry sibling keywords (OpenAI strict structured output)", path)
+                        .as("schema node %s with $ref must not carry sibling keywords (strict structured output)", path)
                         .containsExactly("$ref");
             }
             for (String name : names) {
@@ -383,7 +383,7 @@ class AgentAnalyzerTest {
     }
 
     @Test
-    void springAiMappingRejectsBlankRequiredText() {
+    void structuredMappingRejectsBlankRequiredText() {
         AgentAnalysisInput input = inputForFixture("model-change");
         StructuredAgentAnalysis response = new StructuredAgentAnalysis(
                 Severity.WARNING,

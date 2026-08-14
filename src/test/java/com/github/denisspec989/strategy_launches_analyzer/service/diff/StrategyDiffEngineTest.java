@@ -329,7 +329,7 @@ class StrategyDiffEngineTest {
             assertThat(diff.type()).isEqualTo(DiffType.NUMERIC_VALUE_CHANGED);
             assertThat(diff.comparisonBasis()).isNull();
         });
-        assertThat(objectMapper.writeValueAsString(result.diffs().getFirst()))
+        assertThat(objectMapper.writeValueAsString(result.diffs().get(0)))
                 .doesNotContain("comparisonBasis");
     }
 

@@ -10,7 +10,6 @@ import com.github.denisspec989.strategy_launches_analyzer.dto.common.Severity;
 import com.github.denisspec989.strategy_launches_analyzer.dto.comparison.ComparisonSummary;
 import org.junit.jupiter.api.Test;
 
-import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.List;
 
@@ -43,7 +42,6 @@ class JudgeCalibrationDatasetTest {
         assertThat(cases).allMatch(item -> item.judgeGrade() == null);
         assertThat(cases).allMatch(item -> item.input().metadata() == null);
         assertThat(cases).allMatch(item -> item.anonymizedAnalysis().tokenUsage() == null);
-        assertThat(Files.readString(dataset)).doesNotContainIgnoringCase("gpt-");
     }
 
     @Test

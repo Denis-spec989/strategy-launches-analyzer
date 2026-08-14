@@ -14,7 +14,7 @@ import java.util.concurrent.atomic.AtomicReference;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-class SpringAiAgentAnalyzerTest {
+class DefaultAgentAnalyzerTest {
     @Test
     void productionAnalyzerPassesConfiguredModelToClient() {
         AtomicReference<AgentCallOptions> captured = new AtomicReference<>();
@@ -43,7 +43,7 @@ class SpringAiAgentAnalyzerTest {
                 List.of(),
                 null
         );
-        SpringAiAgentAnalyzer analyzer = new SpringAiAgentAnalyzer(
+        DefaultAgentAnalyzer analyzer = new DefaultAgentAnalyzer(
                 client,
                 new DefaultAgentAnalysisPostProcessor(),
                 "configured-model"

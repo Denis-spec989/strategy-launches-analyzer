@@ -40,7 +40,7 @@ final class JudgeCalibrationGate {
                 throw new IllegalStateException("Benchmark judge model " + judgeModel
                         + " differs from calibrated model " + calibration.judgeModel() + ".");
             }
-            if (!OpenAiSemanticJudge.RUBRIC_VERSION.equals(calibration.judgeRubricVersion())
+            if (!GigaChatSemanticJudge.RUBRIC_VERSION.equals(calibration.judgeRubricVersion())
                     || !BenchmarkHashes.judgePromptHash().equals(calibration.judgePromptHash())) {
                 throw new IllegalStateException(
                         "Semantic judge rubric or prompt changed after calibration. Recalibrate first."

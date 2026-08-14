@@ -21,7 +21,15 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
-@SpringBootTest(properties = "strategy-launches-analyzer.agent.provider=test")
+@SpringBootTest(properties = {
+        "strategy-launches-analyzer.agent.gigachat.auth-mode=user-password",
+        "strategy-launches-analyzer.agent.gigachat.model=test-model",
+        "strategy-launches-analyzer.agent.gigachat.user-password.api-url=https://api.example/v1",
+        "strategy-launches-analyzer.agent.gigachat.user-password.auth-api-url=https://auth.example/v1",
+        "strategy-launches-analyzer.agent.gigachat.user-password.username=test-user",
+        "strategy-launches-analyzer.agent.gigachat.user-password.password=test-password",
+        "strategy-launches-analyzer.agent.gigachat.user-password.scope=GIGACHAT_API_PERS"
+})
 @AutoConfigureMockMvc
 @RequiredArgsConstructor(access = AccessLevel.PACKAGE, onConstructor_ = @Autowired)
 class StrategyComparisonControllerTest {

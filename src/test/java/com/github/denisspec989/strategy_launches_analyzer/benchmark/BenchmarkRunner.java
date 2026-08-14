@@ -67,7 +67,7 @@ final class BenchmarkRunner {
                 configuration.repetitions(),
                 configuration.concurrency(),
                 configuration.judgeModel(),
-                OpenAiSemanticJudge.RUBRIC_VERSION,
+                GigaChatSemanticJudge.RUBRIC_VERSION,
                 BenchmarkHashes.judgePromptHash(),
                 configuration.shuffleSeed()
         );

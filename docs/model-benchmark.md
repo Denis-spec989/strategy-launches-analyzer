@@ -1,4 +1,4 @@
-# Benchmark моделей OpenAI
+# Benchmark моделей GigaChat
 
 ## Назначение
 
@@ -103,7 +103,7 @@ Adjudication выполняется отдельным API-вызовом, но 
 
 Контроли покрывают critical downgrade, небезопасный promotion, искажение стороны/значения/направления/path, выдуманный diff, неподтверждённую причинность, ошибочное объявление числового нуля невалидным, безопасную краткость, технический English и стилистические недостатки.
 
-Реальные ответы взяты из сохранённого прогона gpt-5.5, а model/token/launch metadata удалены; формулировки non-null точечно нормализованы для устранения известной терминологической неоднозначности. Это практичная, но не независимая multi-reviewer validation: возможен стилевой bias в пользу ответов того же семейства. Ограничение фиксируется в calibration report и особенно важно при близких результатах кандидатов.
+Реальные ответы взяты из сохранённого исторического прогона прежнего провайдера, а model/token/launch metadata удалены; формулировки non-null точечно нормализованы для устранения известной терминологической неоднозначности. Это практичная, но не независимая multi-reviewer validation: возможен стилевой bias в пользу ответов исходного семейства. Ограничение фиксируется в calibration report и особенно важно при близких результатах кандидатов.
 
 Judge получает `input`, `expectations` и `anonymizedAnalysis`; `humanLabel` ему не передаётся. Human label хранит safety-решение, конкретные нарушения и пять оценок с шагом `0.25`.
 
@@ -117,10 +117,11 @@ Calibration report имеет схему `judge-calibration-report/v2` и фик
 
 Калибровка платная: выполняется 27 primary judge-вызовов и дополнительные adjudication-вызовы для primary safety-fail.
 
+Сначала настройте одну из двух схем подключения по `docs/gigachat-configuration.md`, затем явно задайте judge model:
+
 ```powershell
-$env:OPENAI_API_KEY="..."
-.\mvnw.cmd verify -Pjudge-calibration
-Remove-Item Env:OPENAI_API_KEY
+.\mvnw.cmd verify -Pjudge-calibration `
+  "-Djudge-calibration.judge-model=<judge-model>"
 ```
 
 По умолчанию создаются:
@@ -139,17 +140,16 @@ target/judge-calibration/v2/report.json
 Перед запуском должен существовать принятый `target/judge-calibration/v2/report.json`.
 
 ```powershell
-$env:OPENAI_API_KEY="..."
 .\mvnw.cmd verify -Pbenchmark `
-  "-Dbenchmark.models=gpt-4.1,gpt-5.5" `
+  "-Dbenchmark.models=<candidate-a>,<candidate-b>" `
+  "-Dbenchmark.judge-model=<judge-model>" `
   "-Dbenchmark.repetitions=3"
-Remove-Item Env:OPENAI_API_KEY
 ```
 
 | Property | Default | Назначение |
 | --- | --- | --- |
-| `benchmark.models` | `gpt-4.1,gpt-5.5` | Минимум две разные модели-кандидата |
-| `benchmark.judge-model` | `gpt-5.6-sol` | Модель semantic judge |
+| `benchmark.models` | обязателен | Минимум две разные модели-кандидата |
+| `benchmark.judge-model` | обязателен | Модель semantic judge, совпадающая с принятой калибровкой |
 | `benchmark.repetitions` | `3` | Повторения каждого сценария |
 | `benchmark.concurrency` | `1` | Вызовы выполняются последовательно; другие значения отклоняются |
 | `benchmark.shuffle-seed` | `42` | Воспроизводимое перемешивание порядка кандидатов |
@@ -178,7 +178,8 @@ failures/
 
 ```powershell
 .\mvnw.cmd verify -Pbenchmark `
-  "-Dbenchmark.models=gpt-4.1,gpt-5.5" `
+  "-Dbenchmark.models=<candidate-a>,<candidate-b>" `
+  "-Dbenchmark.judge-model=<judge-model>" `
   "-Dbenchmark.repetitions=3" `
   "-Dbenchmark.resume-from=target/benchmark/<run-id>"
 ```
@@ -190,10 +191,9 @@ failures/
 Если изменились judge model или rubric/prompt, завершённый benchmark можно пересудить без повторных candidate-вызовов:
 
 ```powershell
-$env:OPENAI_API_KEY="..."
 .\mvnw.cmd verify -Pbenchmark-rejudge `
-  "-Dbenchmark-rejudge.source=target/benchmark/<run-id>"
-Remove-Item Env:OPENAI_API_KEY
+  "-Dbenchmark-rejudge.source=target/benchmark/<run-id>" `
+  "-Dbenchmark-rejudge.judge-model=<judge-model>"
 ```
 
 Rejudge требует полный исходный прогон, вызывает только primary judge/adjudication и создаёт `target/benchmark-rejudge/<source-run>-<rubric-hash>/`. Candidate latency, token usage, raw/final grades и ответы берутся из исходного `results.jsonl`.
@@ -214,7 +214,9 @@ Benchmark предназначен для практического решен�
 
 При существенном изменении production prompt, guardrails, контракта или задач агента необходимо обновить сценарии и провести новый benchmark. При добавлении новых моделей достаточно нового benchmark на неизменном dataset и с актуальной калибровкой judge.
 
-## Зафиксированный результат 13 августа 2026 года
+## Исторический OpenAI baseline от 13 августа 2026 года
+
+Этот раздел сохранён только для истории и **не является результатом или основанием выбора модели GigaChat**. После миграции сначала требуется новая GigaChat judge-калибровка, затем новый полный benchmark.
 
 Полный прогон `20260813-120114-018` содержал по 57 samples для gpt-4.1 и gpt-5.5. Те же сохранённые candidate-ответы были пересужены rubric `semantic-judge-rubric/v2`; модели-кандидаты повторно не вызывались. Judge gpt-5.6-sol перед этим прошла калибровку на 27 кейсах с agreement 100%.
 

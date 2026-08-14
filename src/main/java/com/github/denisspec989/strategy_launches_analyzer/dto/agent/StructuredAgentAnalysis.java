@@ -10,7 +10,7 @@ import java.util.List;
 @JsonClassDescription("Structured business analysis of deterministic strategy launch diffs. All textual fields must be written in Russian.")
 public record StructuredAgentAnalysis(
         // Без @JsonPropertyDescription: Severity — enum, в JSON-схеме выносится в $defs/$ref,
-        // а строгий structured output OpenAI запрещает любые ключевые слова (в т.ч. description) рядом с $ref.
+        // а используемый строгий structured output не допускает sibling-ключевые слова рядом с $ref.
         // Семантику severity задаёт SYSTEM_PROMPT (раздел Severity contract) и значения самого enum.
         @JsonProperty(required = true)
         Severity overallSeverity,

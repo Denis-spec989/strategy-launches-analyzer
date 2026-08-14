@@ -11,7 +11,7 @@ import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-class OpenAiSemanticJudgeTest {
+class GigaChatSemanticJudgeTest {
     @Test
     void candidateIdentityAndTokenMetadataAreNotIncludedInJudgePrompt() {
         AgentAnalysis analysis = new AgentAnalysis(
@@ -25,7 +25,7 @@ class OpenAiSemanticJudgeTest {
                 new TokenUsage(100, 20, 120, 10L, 0L, "secret-candidate-model"),
                 null
         );
-        OpenAiSemanticJudge judge = new OpenAiSemanticJudge(
+        GigaChatSemanticJudge judge = new GigaChatSemanticJudge(
                 null, new ObjectMapper().findAndRegisterModules(), "fixed-judge-model"
         );
 

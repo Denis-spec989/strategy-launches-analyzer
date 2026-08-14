@@ -20,9 +20,9 @@ final class BenchmarkHashes {
     }
 
     static String judgePromptHash() {
-        return sha256((OpenAiSemanticJudge.RUBRIC_VERSION + "\n"
-                + OpenAiSemanticJudge.SYSTEM_PROMPT + "\n"
-                + OpenAiSemanticJudge.ADJUDICATION_PROMPT).getBytes(StandardCharsets.UTF_8));
+        return sha256((GigaChatSemanticJudge.RUBRIC_VERSION + "\n"
+                + GigaChatSemanticJudge.SYSTEM_PROMPT + "\n"
+                + GigaChatSemanticJudge.ADJUDICATION_PROMPT).getBytes(StandardCharsets.UTF_8));
     }
 
     static String datasetHash(Path root) {

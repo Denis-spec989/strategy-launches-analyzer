@@ -1,0 +1,52 @@
+spring:
+  application:
+    name: strategy-launches-analyzer
+  http:
+    converters:
+      preferred-json-mapper: jackson2
+    codecs:
+      preferred-json-mapper: jackson2
+  lifecycle:
+    timeout-per-shutdown-phase: 70s
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,prometheus
+  endpoint:
+    health:
+      probes:
+        enabled: true
+      group:
+        liveness:
+          include: livenessState
+        readiness:
+          include: readinessState
+      show-details: never
+
+server:
+  shutdown: graceful
+
+strategy-launches-analyzer:
+  agent:
+    max-concurrent-calls: 20
+    gigachat:
+      auth-mode: ${GIGACHAT_AUTH_MODE}
+      model: ${GIGACHAT_MODEL}
+      connect-timeout: ${GIGACHAT_CONNECT_TIMEOUT:15s}
+      read-timeout: ${GIGACHAT_READ_TIMEOUT:120s}
+      verify-ssl-certs: ${GIGACHAT_VERIFY_SSL_CERTS:true}
+      max-retries-on-auth-error: ${GIGACHAT_AUTH_RETRIES:1}
+      certificate:
+        api-url: ${GIGACHAT_CERTIFICATE_API_URL:}
+        key-store-path: ${GIGACHAT_KEY_STORE_PATH:}
+        key-store-password: ${GIGACHAT_KEY_STORE_PASSWORD:}
+        trust-store-path: ${GIGACHAT_TRUST_STORE_PATH:}
+        trust-store-password: ${GIGACHAT_TRUST_STORE_PASSWORD:}
+      user-password:
+        api-url: ${GIGACHAT_USER_PASSWORD_API_URL:}
+        auth-api-url: ${GIGACHAT_AUTH_API_URL:}
+        username: ${GIGACHAT_USERNAME:}
+        password: ${GIGACHAT_PASSWORD:}
+        scope: ${GIGACHAT_SCOPE:}

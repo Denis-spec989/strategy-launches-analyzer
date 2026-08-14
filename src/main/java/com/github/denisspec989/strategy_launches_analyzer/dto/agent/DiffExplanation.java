@@ -14,7 +14,8 @@ public record DiffExplanation(
         String path,
 
         // Без @JsonPropertyDescription: Severity — enum ($ref в JSON-схеме), а строгий structured output
-        // OpenAI запрещает ключевые слова рядом с $ref. Семантику задаёт SYSTEM_PROMPT и значения enum.
+        // Формат провайдера не допускает sibling-ключевые слова рядом с $ref.
+        // Семантику задаёт SYSTEM_PROMPT и значения enum.
         @JsonProperty(required = true)
         Severity severity,
 

@@ -34,7 +34,7 @@ record BenchmarkManifest(
             long shuffleSeed
     ) {
         this(runId, createdAt, gitCommit, contractVersion, promptHash, datasetHash, caseCount, models,
-                repetitions, concurrency, judgeModel, OpenAiSemanticJudge.RUBRIC_VERSION,
+                repetitions, concurrency, judgeModel, GigaChatSemanticJudge.RUBRIC_VERSION,
                 BenchmarkHashes.judgePromptHash(), shuffleSeed);
     }
 

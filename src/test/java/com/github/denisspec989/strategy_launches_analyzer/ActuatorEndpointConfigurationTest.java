@@ -3,7 +3,6 @@ package com.github.denisspec989.strategy_launches_analyzer;
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.web.server.LocalServerPort;
-import org.springframework.test.context.ActiveProfiles;
 
 import java.net.URI;
 import java.net.http.HttpClient;
@@ -14,9 +13,16 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 
 @SpringBootTest(
         webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT,
-        properties = "OPENAI_API_KEY=dummy-test-key"
+        properties = {
+                "strategy-launches-analyzer.agent.gigachat.auth-mode=user-password",
+                "strategy-launches-analyzer.agent.gigachat.model=test-model",
+                "strategy-launches-analyzer.agent.gigachat.user-password.api-url=https://api.example/v1",
+                "strategy-launches-analyzer.agent.gigachat.user-password.auth-api-url=https://auth.example/v1",
+                "strategy-launches-analyzer.agent.gigachat.user-password.username=test-user",
+                "strategy-launches-analyzer.agent.gigachat.user-password.password=test-password",
+                "strategy-launches-analyzer.agent.gigachat.user-password.scope=GIGACHAT_API_PERS"
+        }
 )
-@ActiveProfiles("openai")
 class ActuatorEndpointConfigurationTest {
     private final HttpClient httpClient = HttpClient.newHttpClient();
 

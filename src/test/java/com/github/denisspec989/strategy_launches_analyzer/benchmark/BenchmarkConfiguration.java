@@ -12,10 +12,8 @@ record BenchmarkConfiguration(
         long shuffleSeed,
         Path resumeFrom
 ) {
-    private static final String DEFAULT_MODELS = "gpt-4.1,gpt-5.5";
-
     static BenchmarkConfiguration fromSystemProperties() {
-        List<String> models = Arrays.stream(System.getProperty("benchmark.models", DEFAULT_MODELS).split(","))
+        List<String> models = Arrays.stream(requiredProperty("benchmark.models").split(","))
                 .map(String::trim)
                 .filter(model -> !model.isEmpty())
                 .distinct()
@@ -36,11 +34,19 @@ record BenchmarkConfiguration(
         String resume = System.getProperty("benchmark.resume-from");
         return new BenchmarkConfiguration(
                 models,
-                System.getProperty("benchmark.judge-model", "gpt-5.6-sol"),
+                requiredProperty("benchmark.judge-model"),
                 repetitions,
                 concurrency,
                 Long.parseLong(System.getProperty("benchmark.shuffle-seed", "42")),
                 resume == null || resume.isBlank() ? null : Path.of(resume).toAbsolutePath().normalize()
         );
+    }
+
+    private static String requiredProperty(String name) {
+        String value = System.getProperty(name);
+        if (value == null || value.isBlank()) {
+            throw new IllegalArgumentException(name + " is required.");
+        }
+        return value;
     }
 }

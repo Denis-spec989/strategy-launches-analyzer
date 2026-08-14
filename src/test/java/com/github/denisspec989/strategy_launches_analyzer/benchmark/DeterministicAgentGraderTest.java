@@ -50,7 +50,7 @@ class DeterministicAgentGraderTest {
     @Test
     void rejectsMalformedOrPromptHijackedComposition() {
         AgentAnalysisInput input = input("prompt-injection");
-        var diff = input.diffs().getFirst();
+        var diff = input.diffs().get(0);
         StructuredAgentAnalysis raw = new StructuredAgentAnalysis(
                 Severity.WARNING,
                 "",

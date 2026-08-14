@@ -12,7 +12,7 @@ import lombok.extern.slf4j.Slf4j;
 
 @Slf4j
 @RequiredArgsConstructor
-public class SpringAiAgentAnalyzer implements AgentAnalyzer {
+public class DefaultAgentAnalyzer implements AgentAnalyzer {
     private final AgentModelClient modelClient;
     private final AgentAnalysisPostProcessor postProcessor;
     private final String configuredModel;

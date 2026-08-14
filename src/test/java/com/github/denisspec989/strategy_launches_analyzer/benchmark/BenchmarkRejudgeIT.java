@@ -1,31 +1,23 @@
 package com.github.denisspec989.strategy_launches_analyzer.benchmark;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.github.denisspec989.strategy_launches_analyzer.service.agent.GigaChatStructuredCompletionClient;
 import com.github.denisspec989.strategy_launches_analyzer.service.contract.StrategyContractRegistry;
 import com.github.denisspec989.strategy_launches_analyzer.service.diff.StrategyDiffEngine;
 import org.junit.jupiter.api.Test;
-import org.springframework.ai.chat.client.ChatClient;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
-import org.springframework.test.context.ActiveProfiles;
 
 import java.nio.file.Path;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-@SpringBootTest(
-        webEnvironment = SpringBootTest.WebEnvironment.NONE,
-        properties = {
-                "spring.ai.openai.api-key=${OPENAI_API_KEY:rejudge-key-missing}",
-                "spring.ai.openai.chat.api-key=${OPENAI_API_KEY:rejudge-key-missing}"
-        }
-)
-@ActiveProfiles("openai")
+@SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.NONE)
 class BenchmarkRejudgeIT {
     @Autowired private ObjectMapper objectMapper;
     @Autowired private StrategyDiffEngine diffEngine;
     @Autowired private StrategyContractRegistry contractRegistry;
-    @Autowired private ChatClient.Builder chatClientBuilder;
+    @Autowired private GigaChatStructuredCompletionClient completionClient;
 
     @Test
     void rejudgesSavedCandidateResponsesWithoutCandidateCalls() {
@@ -39,7 +31,7 @@ class BenchmarkRejudgeIT {
         );
         BenchmarkSummary summary = new SavedResponseRejudgeRunner(
                 objectMapper,
-                new OpenAiSemanticJudge(chatClientBuilder.build(), objectMapper, judgeModel),
+                new GigaChatSemanticJudge(completionClient, objectMapper, judgeModel),
                 new BenchmarkInputFactory(diffEngine, contractRegistry)
         ).run(Path.of(requiredProperty("benchmark-rejudge.source")), judgeModel);
 

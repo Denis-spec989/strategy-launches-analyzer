@@ -1,11 +1,10 @@
 package com.github.denisspec989.strategy_launches_analyzer.benchmark;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.github.denisspec989.strategy_launches_analyzer.service.agent.GigaChatStructuredCompletionClient;
 import org.junit.jupiter.api.Test;
-import org.springframework.ai.chat.client.ChatClient;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
-import org.springframework.test.context.ActiveProfiles;
 
 import java.nio.file.Path;
 import java.util.ArrayList;
@@ -15,19 +14,12 @@ import java.util.Map;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-@SpringBootTest(
-        webEnvironment = SpringBootTest.WebEnvironment.NONE,
-        properties = {
-                "spring.ai.openai.api-key=${OPENAI_API_KEY:calibration-key-missing}",
-                "spring.ai.openai.chat.api-key=${OPENAI_API_KEY:calibration-key-missing}"
-        }
-)
-@ActiveProfiles("openai")
+@SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.NONE)
 class JudgeCalibrationIT {
     @Autowired
     private ObjectMapper objectMapper;
     @Autowired
-    private ChatClient.Builder chatClientBuilder;
+    private GigaChatStructuredCompletionClient completionClient;
 
     @Test
     void gradesHumanLabeledCasesWithIncrementalResume() {
@@ -44,7 +36,7 @@ class JudgeCalibrationIT {
                 .validate(JudgeCalibrationStore.readDataset(objectMapper, dataset));
         JudgeCalibrationStore store = new JudgeCalibrationStore(objectMapper, results);
         Map<String, JudgeCalibrationCase> latest = new LinkedHashMap<>(store.readLatest());
-        SemanticJudge judge = new OpenAiSemanticJudge(chatClientBuilder.build(), objectMapper, judgeModel);
+        SemanticJudge judge = new GigaChatSemanticJudge(completionClient, objectMapper, judgeModel);
 
         for (JudgeCalibrationCase item : cases) {
             JudgeCalibrationCase previous = latest.get(item.id());

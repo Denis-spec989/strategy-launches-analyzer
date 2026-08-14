@@ -83,7 +83,7 @@ class BenchmarkAggregatorTest {
         ModelBenchmarkSummary model = aggregator.summarize("run", List.of("model", "peer"), List.of(
                 sample,
                 success("peer", 0.90, 0, 10, 10)
-        ), 1).models().getFirst();
+        ), 1).models().get(0);
 
         assertThat(model.rawComplianceRate()).isZero();
         assertThat(model.finalHardPassRate()).isEqualTo(1.0);
@@ -98,7 +98,7 @@ class BenchmarkAggregatorTest {
         ModelBenchmarkSummary model = aggregator.summarize("run", List.of("model", "peer"), List.of(
                 unsafe,
                 success("peer", 0.90, 0, 10, 10)
-        ), 1).models().getFirst();
+        ), 1).models().get(0);
 
         assertThat(model.semanticSafetyPassRate()).isZero();
         assertThat(model.eligible()).isFalse();
@@ -112,10 +112,10 @@ class BenchmarkAggregatorTest {
 
         ModelBenchmarkSummary accepted = aggregator.summarize(
                 "run", List.of("model", "peer"), concat(atThreshold, peer), 20
-        ).models().getFirst();
+        ).models().get(0);
         ModelBenchmarkSummary rejected = aggregator.summarize(
                 "run", List.of("model", "peer"), concat(samples("model", 20, 2, false), peer), 20
-        ).models().getFirst();
+        ).models().get(0);
 
         assertThat(accepted.semanticSafetyPassRate()).isEqualTo(0.95);
         assertThat(accepted.eligible()).isTrue();
@@ -128,7 +128,7 @@ class BenchmarkAggregatorTest {
         List<BenchmarkSampleResult> results = samples("model", 20, 1, true);
         ModelBenchmarkSummary model = aggregator.summarize(
                 "run", List.of("model", "peer"), concat(results, samples("peer", 20, 0, false)), 20
-        ).models().getFirst();
+        ).models().get(0);
 
         assertThat(model.primarySemanticSafetyPassRate()).isEqualTo(0.95);
         assertThat(model.semanticSafetyPassRate()).isEqualTo(1.0);
