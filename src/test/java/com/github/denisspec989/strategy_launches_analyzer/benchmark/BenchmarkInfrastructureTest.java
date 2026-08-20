@@ -19,6 +19,7 @@ import org.junit.jupiter.api.io.TempDir;
 import java.nio.file.Path;
 import java.time.Instant;
 import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -135,10 +136,66 @@ class BenchmarkInfrastructureTest {
         assertThat(directory.resolve("summary.md")).isRegularFile();
     }
 
+    @Test
+    void explicitRunDirectoryCreatesAndResumesCompatibleStore(@TempDir Path directory) {
+        Path runDirectory = directory.resolve("fixed-run");
+        BenchmarkManifest manifest = manifest("prompt", "dataset");
+        BenchmarkConfiguration configuration = new BenchmarkConfiguration(
+                List.of("a", "b"), "judge", 1, 1, 42, null
+        );
+
+        BenchmarkResultStore first = BenchmarkResultStore.open(
+                objectMapper, configuration, manifest, runDirectory
+        );
+        BenchmarkResultStore resumed = BenchmarkResultStore.open(
+                objectMapper, configuration, manifest("prompt", "dataset"), runDirectory
+        );
+
+        assertThat(first.runDirectory()).isEqualTo(runDirectory.toAbsolutePath().normalize());
+        assertThat(resumed.runDirectory()).isEqualTo(first.runDirectory());
+        assertThat(runDirectory.resolve("manifest.json")).isRegularFile();
+    }
+
+    @Test
+    void reusesEveryReceivedCandidateCallDuringResume() {
+        AgentModelCallResult call = new AgentModelCallResult(
+                null, null, "model", "model", 10
+        );
+        BenchmarkSampleResult judgeFailed = sample(BenchmarkSampleStatus.JUDGE_FAILED, call);
+        BenchmarkSampleResult postProcessingFailed = sample(BenchmarkSampleStatus.POST_PROCESSING_FAILED, call);
+
+        assertThat(BenchmarkRunner.reusableCall(judgeFailed)).isSameAs(call);
+        assertThat(BenchmarkRunner.reusableCall(postProcessingFailed)).isSameAs(call);
+        assertThat(BenchmarkRunner.reusableCall(null)).isNull();
+    }
+
+    @Test
+    void resultStoreKeepsFirstPostProcessingFailureTerminal() {
+        Map<String, BenchmarkSampleResult> latest = new LinkedHashMap<>();
+        AgentModelCallResult call = new AgentModelCallResult(null, null, "model", "model", 10);
+        BenchmarkSampleResult failure = sample(BenchmarkSampleStatus.POST_PROCESSING_FAILED, call);
+        BenchmarkSampleResult laterSuccess = sample(BenchmarkSampleStatus.SUCCESS, call);
+
+        BenchmarkResultStore.putLatest(latest, failure);
+        BenchmarkResultStore.putLatest(latest, laterSuccess);
+
+        assertThat(latest.get(failure.key())).isSameAs(failure);
+    }
+
     private static BenchmarkManifest manifest(String promptHash, String datasetHash) {
         return new BenchmarkManifest(
                 "run", Instant.EPOCH, "commit", "v1", promptHash, datasetHash,
                 19, List.of("a", "b"), 1, 1, "judge", 42
+        );
+    }
+
+    private static BenchmarkSampleResult sample(
+            BenchmarkSampleStatus status,
+            AgentModelCallResult call
+    ) {
+        return new BenchmarkSampleResult(
+                "case", List.of(), "model", 1, status, call, null,
+                null, List.of(), null, null, null, "failure"
         );
     }
 

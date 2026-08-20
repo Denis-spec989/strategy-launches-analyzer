@@ -115,6 +115,74 @@
 
 	<profiles>
 		<profile>
+			<id>judge-selection</id>
+			<properties>
+				<model-selection.judge-models>GigaChat-3-Ultra,GigaChat-3.5-432B-A28B</model-selection.judge-models>
+				<model-selection.calibration-dataset>src/test/resources/evals/judge-calibration/v2/calibration-cases.jsonl</model-selection.calibration-dataset>
+				<model-selection.judge-output>target/model-selection/judges</model-selection.judge-output>
+			</properties>
+			<build>
+				<plugins>
+					<plugin>
+						<groupId>org.apache.maven.plugins</groupId>
+						<artifactId>maven-failsafe-plugin</artifactId>
+						<version>3.5.5</version>
+						<configuration>
+							<includes><include>**/JudgeSelectionIT.java</include></includes>
+							<systemPropertyVariables>
+								<model-selection.judge-models>${model-selection.judge-models}</model-selection.judge-models>
+								<model-selection.calibration-dataset>${model-selection.calibration-dataset}</model-selection.calibration-dataset>
+								<model-selection.judge-output>${model-selection.judge-output}</model-selection.judge-output>
+							</systemPropertyVariables>
+						</configuration>
+						<executions>
+							<execution><goals><goal>integration-test</goal><goal>verify</goal></goals></execution>
+						</executions>
+					</plugin>
+				</plugins>
+			</build>
+		</profile>
+		<profile>
+			<id>model-selection</id>
+			<properties>
+				<model-selection.candidate-models>GigaChat-2-Max,GigaChat-3-Lightning,GigaChat-3-Pro,GigaChat-3-Ultra,GigaChat-3.5-432B-A28B</model-selection.candidate-models>
+				<model-selection.judge-selection-report>target/model-selection/judges/selection.json</model-selection.judge-selection-report>
+				<model-selection.output-base>target/model-selection/runs</model-selection.output-base>
+				<model-selection.resume-from></model-selection.resume-from>
+				<model-selection.pilot-repetitions>1</model-selection.pilot-repetitions>
+				<model-selection.full-repetitions>3</model-selection.full-repetitions>
+				<model-selection.finalists>3</model-selection.finalists>
+				<model-selection.shuffle-seed>42</model-selection.shuffle-seed>
+				<model-selection.minimum-semantic-gap>0.02</model-selection.minimum-semantic-gap>
+			</properties>
+			<build>
+				<plugins>
+					<plugin>
+						<groupId>org.apache.maven.plugins</groupId>
+						<artifactId>maven-failsafe-plugin</artifactId>
+						<version>3.5.5</version>
+						<configuration>
+							<includes><include>**/AutomatedModelSelectionIT.java</include></includes>
+							<systemPropertyVariables>
+								<model-selection.candidate-models>${model-selection.candidate-models}</model-selection.candidate-models>
+								<model-selection.judge-selection-report>${model-selection.judge-selection-report}</model-selection.judge-selection-report>
+								<model-selection.output-base>${model-selection.output-base}</model-selection.output-base>
+								<model-selection.resume-from>${model-selection.resume-from}</model-selection.resume-from>
+								<model-selection.pilot-repetitions>${model-selection.pilot-repetitions}</model-selection.pilot-repetitions>
+								<model-selection.full-repetitions>${model-selection.full-repetitions}</model-selection.full-repetitions>
+								<model-selection.finalists>${model-selection.finalists}</model-selection.finalists>
+								<model-selection.shuffle-seed>${model-selection.shuffle-seed}</model-selection.shuffle-seed>
+								<model-selection.minimum-semantic-gap>${model-selection.minimum-semantic-gap}</model-selection.minimum-semantic-gap>
+							</systemPropertyVariables>
+						</configuration>
+						<executions>
+							<execution><goals><goal>integration-test</goal><goal>verify</goal></goals></execution>
+						</executions>
+					</plugin>
+				</plugins>
+			</build>
+		</profile>
+		<profile>
 			<id>benchmark</id>
 			<properties>
 				<benchmark.models></benchmark.models>

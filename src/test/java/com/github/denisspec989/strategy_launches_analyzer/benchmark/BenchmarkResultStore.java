@@ -33,19 +33,25 @@ final class BenchmarkResultStore {
             BenchmarkConfiguration configuration,
             BenchmarkManifest requestedManifest
     ) {
+        return open(objectMapper, configuration, requestedManifest, null);
+    }
+
+    static BenchmarkResultStore open(
+            ObjectMapper objectMapper,
+            BenchmarkConfiguration configuration,
+            BenchmarkManifest requestedManifest,
+            Path requestedRunDirectory
+    ) {
         try {
             if (configuration.resumeFrom() != null) {
-                Path directory = configuration.resumeFrom();
-                BenchmarkResultStore store = new BenchmarkResultStore(objectMapper, directory);
-                BenchmarkManifest existing = objectMapper.readValue(
-                        directory.resolve("manifest.json").toFile(), BenchmarkManifest.class
-                );
-                existing.requireCompatible(requestedManifest);
-                Files.createDirectories(directory.resolve("failures"));
-                return store;
+                return resume(objectMapper, configuration.resumeFrom(), requestedManifest);
             }
-            Path directory = Path.of("target", "benchmark", requestedManifest.runId())
-                    .toAbsolutePath().normalize();
+            Path directory = requestedRunDirectory == null
+                    ? Path.of("target", "benchmark", requestedManifest.runId()).toAbsolutePath().normalize()
+                    : requestedRunDirectory.toAbsolutePath().normalize();
+            if (Files.isRegularFile(directory.resolve("manifest.json"))) {
+                return resume(objectMapper, directory, requestedManifest);
+            }
             Files.createDirectories(directory.resolve("failures"));
             BenchmarkResultStore store = new BenchmarkResultStore(objectMapper, directory);
             objectMapper.writerWithDefaultPrettyPrinter()
@@ -54,6 +60,20 @@ final class BenchmarkResultStore {
         } catch (IOException ex) {
             throw new IllegalStateException("Failed to initialize benchmark result store.", ex);
         }
+    }
+
+    private static BenchmarkResultStore resume(
+            ObjectMapper objectMapper,
+            Path directory,
+            BenchmarkManifest requestedManifest
+    ) throws IOException {
+        BenchmarkResultStore store = new BenchmarkResultStore(objectMapper, directory);
+        BenchmarkManifest existing = objectMapper.readValue(
+                directory.resolve("manifest.json").toFile(), BenchmarkManifest.class
+        );
+        existing.requireCompatible(requestedManifest);
+        Files.createDirectories(directory.resolve("failures"));
+        return store;
     }
 
     static String newRunId() {
@@ -69,7 +89,7 @@ final class BenchmarkResultStore {
             for (String line : Files.readAllLines(resultsPath, StandardCharsets.UTF_8)) {
                 if (!line.isBlank()) {
                     BenchmarkSampleResult result = objectMapper.readValue(line, BenchmarkSampleResult.class);
-                    results.put(result.key(), result);
+                    putLatest(results, result);
                 }
             }
             return results;
@@ -104,6 +124,14 @@ final class BenchmarkResultStore {
 
     Path runDirectory() {
         return runDirectory;
+    }
+
+    static void putLatest(Map<String, BenchmarkSampleResult> results, BenchmarkSampleResult result) {
+        BenchmarkSampleResult previous = results.get(result.key());
+        if (previous != null && previous.status() == BenchmarkSampleStatus.POST_PROCESSING_FAILED) {
+            return;
+        }
+        results.put(result.key(), result);
     }
 
     private static String safeFileName(String value) {

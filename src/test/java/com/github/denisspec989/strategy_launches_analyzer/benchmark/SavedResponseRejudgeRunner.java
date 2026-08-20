@@ -33,6 +33,10 @@ final class SavedResponseRejudgeRunner {
     }
 
     BenchmarkSummary run(Path sourceRun, String judgeModel) {
+        return run(sourceRun, judgeModel, null);
+    }
+
+    BenchmarkSummary run(Path sourceRun, String judgeModel, Path requestedOutput) {
         Path source = sourceRun.toAbsolutePath().normalize();
         Path sourceManifest = source.resolve("manifest.json");
         Path sourceResults = source.resolve("results.jsonl");
@@ -58,20 +62,18 @@ final class SavedResponseRejudgeRunner {
             inputsById.put(item.id(), inputFactory.create(item));
         });
 
-        List<BenchmarkSampleResult> sourceRows = readSourceResults(sourceResults);
+        List<BenchmarkSampleResult> sourceRows = List.copyOf(readLatest(sourceResults).values());
         int expected = cases.size() * models.size() * repetitions;
         if (sourceRows.size() != expected) {
             throw new IllegalStateException("Saved-response rejudge requires a complete source run: found "
                     + sourceRows.size() + " of " + expected + " samples.");
         }
-        if (sourceRows.stream().anyMatch(item -> item.finalAnalysis() == null || item.callResult() == null)) {
-            throw new IllegalStateException("Saved-response rejudge requires completed candidate responses.");
-        }
-
         String rubricHash = BenchmarkHashes.judgePromptHash();
-        Path output = Path.of("target", "benchmark-rejudge",
-                        source.getFileName() + "-" + rubricHash.substring(0, 12))
-                .toAbsolutePath().normalize();
+        Path output = requestedOutput == null
+                ? Path.of("target", "benchmark-rejudge",
+                        source.getFileName() + "-" + safeFileName(judgeModel)
+                                + "-" + rubricHash.substring(0, 12)).toAbsolutePath().normalize()
+                : requestedOutput.toAbsolutePath().normalize();
         BenchmarkRejudgeManifest requested = new BenchmarkRejudgeManifest(
                 SCHEMA_VERSION,
                 Instant.now(),
@@ -89,6 +91,13 @@ final class SavedResponseRejudgeRunner {
 
         for (BenchmarkSampleResult sourceRow : sourceRows) {
             BenchmarkSampleResult previous = latest.get(sourceRow.key());
+            if (sourceRow.finalAnalysis() == null || sourceRow.callResult() == null) {
+                if (previous == null) {
+                    append(outputResults, sourceRow);
+                    latest.put(sourceRow.key(), sourceRow);
+                }
+                continue;
+            }
             if (isComplete(previous)) {
                 continue;
             }
@@ -142,7 +151,7 @@ final class SavedResponseRejudgeRunner {
         if (!Files.isRegularFile(path)) {
             return latest;
         }
-        readSourceResults(path).forEach(item -> latest.put(item.key(), item));
+        readSourceResults(path).forEach(item -> BenchmarkResultStore.putLatest(latest, item));
         return latest;
     }
 
@@ -191,5 +200,9 @@ final class SavedResponseRejudgeRunner {
         if (!Files.isRegularFile(path)) {
             throw new IllegalArgumentException("Required source benchmark file is missing: " + path);
         }
+    }
+
+    private static String safeFileName(String value) {
+        return value.replaceAll("[^a-zA-Z0-9._-]", "_");
     }
 }

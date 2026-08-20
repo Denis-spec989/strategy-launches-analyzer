@@ -8,6 +8,7 @@ import com.github.denisspec989.strategy_launches_analyzer.dto.agent.AgentPostPro
 import com.github.denisspec989.strategy_launches_analyzer.service.agent.AgentAnalysisPostProcessor;
 import com.github.denisspec989.strategy_launches_analyzer.service.agent.AgentModelClient;
 
+import java.nio.file.Path;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -42,6 +43,14 @@ final class BenchmarkRunner {
     }
 
     BenchmarkSummary run(BenchmarkConfiguration configuration) {
+        return run(configuration, null, true);
+    }
+
+    BenchmarkSummary run(
+            BenchmarkConfiguration configuration,
+            Path runDirectory,
+            boolean requireWinner
+    ) {
         List<BenchmarkCase> cases = new BenchmarkCaseLoader(objectMapper)
                 .load(BenchmarkCaseLoader.DEFAULT_DATASET);
         if (cases.size() != EXPECTED_CASE_COUNT) {
@@ -54,9 +63,11 @@ final class BenchmarkRunner {
         cases.forEach(benchmarkCase -> inputs.put(benchmarkCase.id(), inputFactory.create(benchmarkCase)));
 
         BenchmarkManifest requestedManifest = new BenchmarkManifest(
-                configuration.resumeFrom() == null
-                        ? BenchmarkResultStore.newRunId()
-                        : configuration.resumeFrom().getFileName().toString(),
+                configuration.resumeFrom() != null
+                        ? configuration.resumeFrom().getFileName().toString()
+                        : runDirectory == null
+                                ? BenchmarkResultStore.newRunId()
+                                : runDirectory.toAbsolutePath().normalize().getFileName().toString(),
                 Instant.now(),
                 BenchmarkHashes.gitCommit(),
                 inputFactory.contractVersion(),
@@ -71,7 +82,9 @@ final class BenchmarkRunner {
                 BenchmarkHashes.judgePromptHash(),
                 configuration.shuffleSeed()
         );
-        BenchmarkResultStore store = BenchmarkResultStore.open(objectMapper, configuration, requestedManifest);
+        BenchmarkResultStore store = BenchmarkResultStore.open(
+                objectMapper, configuration, requestedManifest, runDirectory
+        );
         Map<String, BenchmarkSampleResult> latest = store.readLatestResults();
 
         for (BenchmarkCase benchmarkCase : cases) {
@@ -89,7 +102,7 @@ final class BenchmarkRunner {
                             inputs.get(benchmarkCase.id()),
                             model,
                             repetition,
-                            cached == null ? null : cached.callResult()
+                            reusableCall(cached)
                     );
                     store.append(result);
                     latest.put(key, result);
@@ -106,7 +119,7 @@ final class BenchmarkRunner {
         );
         new BenchmarkReportWriter(objectMapper).write(store.runDirectory(), summary);
         System.out.println("Benchmark report: " + store.runDirectory().resolve("summary.md"));
-        if (summary.winner() == null) {
+        if (requireWinner && summary.winner() == null) {
             throw new IllegalStateException(
                     "Benchmark completed without a winner: " + String.join("; ", summary.globalIssues())
             );
@@ -116,14 +129,23 @@ final class BenchmarkRunner {
     }
 
     private static boolean isComplete(BenchmarkSampleResult result) {
-        return result != null
-                && result.status() == BenchmarkSampleStatus.SUCCESS
+        if (result == null) {
+            return false;
+        }
+        if (result.status() == BenchmarkSampleStatus.POST_PROCESSING_FAILED) {
+            return result.callResult() != null;
+        }
+        return result.status() == BenchmarkSampleStatus.SUCCESS
                 && result.callResult() != null
                 && result.rawGrade() != null
                 && result.finalAnalysis() != null
                 && result.finalGrade() != null
                 && result.semanticGrade() != null
                 && (result.semanticGrade().safetyPass() || result.safetyAdjudication() != null);
+    }
+
+    static AgentModelCallResult reusableCall(BenchmarkSampleResult result) {
+        return result == null ? null : result.callResult();
     }
 
     private BenchmarkSampleResult evaluate(

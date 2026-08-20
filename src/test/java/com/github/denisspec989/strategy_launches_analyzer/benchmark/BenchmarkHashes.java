@@ -54,6 +54,10 @@ final class BenchmarkHashes {
         }
     }
 
+    static String textHash(String value) {
+        return sha256(value.getBytes(StandardCharsets.UTF_8));
+    }
+
     static String gitCommit() {
         try {
             Process process = new ProcessBuilder("git", "rev-parse", "HEAD")

@@ -12,7 +12,7 @@ Benchmark — компактный инженерный инструмент д�
 - отсутствие существенных semantic safety-ошибок;
 - доля Java-коррекций, задержка и расход токенов.
 
-Обычная команда `mvn test` benchmark, калибровку и rejudge **не запускает**. Все три платных профиля запускаются только вручную.
+Обычная команда `mvn test` benchmark, калибровку и rejudge **не запускает**. Все платные профили запускаются только вручную.
 
 ## Как устроен один sample
 
@@ -135,6 +135,42 @@ target/judge-calibration/v2/report.json
 
 Калибровку необходимо повторить после изменения judge model, judge prompt/rubric, calibration dataset или схемы calibration response. Изменение production prompt само по себе не меняет judge prompt hash, но требует проверить актуальность реальных calibration-ответов и при необходимости пересобрать gold dataset.
 
+## Автоматический выбор judge и модели
+
+Полный процесс разделён на две команды, чтобы основной benchmark не начался до проверки выбранной judge-модели.
+
+Первая команда получает актуальный список chat-моделей через `/models`, отдельно калибрует `GigaChat-3-Ultra` и `GigaChat-3.5-432B-A28B`, а затем записывает выбор в `target/model-selection/judges/selection.json`:
+
+```powershell
+.\mvnw.cmd verify -Pjudge-selection
+```
+
+Результаты каждой judge-модели хранятся в отдельном каталоге и безопасно продолжаются после прерывания. Выбираются только принятые калибровки с нулём unsafe false negatives. Порядок выбора: максимальный pass/fail agreement, минимальный средний MAE, минимальный максимальный MAE.
+
+После проверки `selectedJudgeModel` основной автоматический процесс запускается отдельно:
+
+```powershell
+.\mvnw.cmd verify -Pmodel-selection
+```
+
+Он выполняет следующие действия:
+
+1. Проверяет, что primary и alternate judge по-прежнему имеют совместимые принятые calibration reports.
+2. Сверяет настроенных кандидатов с актуальным `/models`.
+3. Запускает pilot по одному повторению для `GigaChat-2-Max`, `GigaChat-3-Lightning`, `GigaChat-3-Pro`, `GigaChat-3-Ultra` и `GigaChat-3.5-432B-A28B`.
+4. Оставляет до трёх моделей, прошедших все gates, и выполняет основной benchmark с тремя повторениями.
+5. Пересуживает сохранённые ответы alternate judge-моделью без повторных candidate-вызовов.
+6. Записывает `decision.json`. Статус `SELECTED` возможен только при совпадении победителей двух judge, прохождении gates, отсутствии `NEEDS_REVIEW` у победителя и semantic-разрыве не менее `0.02` в обоих отчётах. Иначе устанавливается `REVIEW_REQUIRED` с причинами.
+
+Каждый запуск находится в `target/model-selection/runs/<run-id>/`. Прерванный запуск продолжается без повторной оплаты завершённых samples:
+
+```powershell
+.\mvnw.cmd verify -Pmodel-selection `
+  "-Dmodel-selection.resume-from=target/model-selection/runs/<run-id>"
+```
+
+Списки моделей и пороги можно переопределить через `model-selection.judge-models`, `model-selection.candidate-models`, `model-selection.finalists`, `model-selection.full-repetitions` и `model-selection.minimum-semantic-gap`.
+
 ## Платный benchmark
 
 Перед запуском должен существовать принятый `target/judge-calibration/v2/report.json`.
@@ -196,11 +232,13 @@ failures/
   "-Dbenchmark-rejudge.judge-model=<judge-model>"
 ```
 
-Rejudge требует полный исходный прогон, вызывает только primary judge/adjudication и создаёт `target/benchmark-rejudge/<source-run>-<rubric-hash>/`. Candidate latency, token usage, raw/final grades и ответы берутся из исходного `results.jsonl`.
+Rejudge требует полный исходный прогон, вызывает только primary judge/adjudication и создаёт `target/benchmark-rejudge/<source-run>-<judge-model>-<rubric-hash>/`. Candidate latency, token usage, raw/final grades и ответы берутся из исходного `results.jsonl`.
 
 Если изменился только calibration dataset, достаточно заново откалибровать неизменные judge model и rubric. Само по себе это не меняет grading сохранённых ответов и не требует rejudge.
 
 Rejudge нельзя использовать после изменения production prompt, основного eval dataset, контракта или candidate-конфигурации: сохранённые ответы перестают соответствовать текущему сравнению, и нужен новый полный benchmark.
+
+При resume сетевой `CALL_FAILED` может быть выполнен заново, а полученный ответ с `POST_PROCESSING_FAILED` считается окончательным результатом sample. Такой ответ не заменяется более удачной повторной генерацией: иначе benchmark скрывал бы реальную нестабильность production-контракта. При `JUDGE_FAILED` candidate-вызов не повторяется — пересуживается сохранённый ответ.
 
 ## Когда результат достаточно надёжен
 
@@ -213,6 +251,40 @@ Benchmark предназначен для практического решен�
 - 19 сценариев по-прежнему представляют реальные задачи агента.
 
 При существенном изменении production prompt, guardrails, контракта или задач агента необходимо обновить сценарии и провести новый benchmark. При добавлении новых моделей достаточно нового benchmark на неизменном dataset и с актуальной калибровкой judge.
+
+## Полный результат GigaChat от 17 августа 2026 года
+
+Run `20260817-135524-754` сравнил все пять доступных chat-моделей по 57 samples. Primary judge — `GigaChat-3-Ultra`, alternate rejudge — `GigaChat-3.5-432B-A28B`. Candidate-вызовы при rejudge не повторялись. После resume временных timeout и одного judge connection reset оба отчёта выбрали **`GigaChat-3-Ultra`**.
+
+| Модель | Hard pass | Primary safety | Primary mean | Alternate safety | Alternate mean | p95 | Eligible primary/alternate |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: | :---: |
+| GigaChat-2-Max | 93.0% | 93.0% | 0.996 | 93.0% | 0.997 | 40 799 ms | нет / нет |
+| GigaChat-3-Lightning | 54.4% | 52.6% | 0.945 | 54.4% | 0.945 | 7 937 ms | нет / нет |
+| GigaChat-3-Pro | 98.2% | 98.2% | 0.984 | 96.5% | 0.988 | 14 159 ms | нет / нет |
+| GigaChat-3-Ultra | 100% | 100% | 0.995 | 100% | 0.998 | 43 086 ms | да / да |
+| GigaChat-3.5-432B-A28B | 100% | 100% | 0.996 | 100% | 0.998 | 44 448 ms | да / да |
+
+Ultra и 3.5 прошли все gates. Разница semantic mean между ними меньше tie tolerance `0.02`: primary judge дала немного более высокий mean модели 3.5, alternate judge — Ultra. У обеих одинаковая доля Java-коррекций, поэтому primary tie-break выбрал Ultra по меньшей p95 latency; alternate report также выбрал Ultra. Это согласованный практический winner, но не большой смысловой отрыв.
+
+Полные локальные отчёты:
+
+- `target/benchmark/20260817-135524-754/`;
+- `target/benchmark-rejudge/20260817-135524-754-GigaChat-3.5-432B-A28B-cfbe947f85b9/`.
+
+## Результат shortlist GigaChat от 14 августа 2026 года
+
+Автоматический run `20260814-130936-671` использовал primary judge `GigaChat-3-Ultra` и alternate judge `GigaChat-3.5-432B-A28B`. Обе judge-модели прошли human-калибровку на 27 кейсах с нулём unsafe false negatives и agreement 100%. Средний MAE составил `0.09185` для Ultra и `0.09259` для 3.5, поэтому Ultra выбрана primary judge.
+
+Pilot оставил финалистами `GigaChat-3-Ultra` и `GigaChat-3-Pro`. В полном прогоне по 57 samples ни один финалист не прошёл обязательный 100% production hard-pass:
+
+| Модель | Hard pass | Primary safety | Primary mean | Alternate safety | Alternate mean | p95 | Production-invalid |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
+| GigaChat-3-Ultra | 96.5% | 96.5% | 0.991 | 96.5% | 0.992 | 47 043 ms | 2/57 |
+| GigaChat-3-Pro | 98.2% | 98.2% | 0.984 | 96.5% | 0.983 | 14 970 ms | 1/57 |
+
+Три failure относятся не к сети, а к нарушению production-контракта `diffExplanations`: лишние, пустые или неизвестные diff ID/path. Поэтому итоговый `decision.json` имеет статус `REVIEW_REQUIRED`, а production-модель автоматически не выбрана. Ultra показала лучшее смысловое качество, Pro — лучшую надёжность structured результата и существенно меньшую задержку; ослабление 100% gate постфактум не выполнялось.
+
+Полные локальные отчёты находятся в `target/model-selection/runs/20260814-130936-671/`.
 
 ## Исторический OpenAI baseline от 13 августа 2026 года
 
