@@ -10,6 +10,7 @@ import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 @SpringBootTest(
         webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT,
@@ -40,6 +41,22 @@ class ActuatorEndpointConfigurationTest {
     @Test
     void doesNotExposeSensitiveActuatorEndpoints() throws Exception {
         assertStatus("/actuator/env", 404);
+    }
+
+    @Test
+    void exposesAgentAndContractInfoMetrics() throws Exception {
+        HttpRequest request = HttpRequest.newBuilder(
+                        URI.create("http://localhost:" + port + "/actuator/prometheus"))
+                .GET()
+                .build();
+
+        HttpResponse<String> response = httpClient.send(request, HttpResponse.BodyHandlers.ofString());
+
+        assertEquals(200, response.statusCode());
+        assertTrue(response.body().contains("strategy_launches_agent_info"));
+        assertTrue(response.body().contains("strategy_launches_contract_info"));
+        assertTrue(response.body().contains("prompt_hash="));
+        assertTrue(response.body().contains("contract_version="));
     }
 
     private void assertOk(String path) throws Exception {

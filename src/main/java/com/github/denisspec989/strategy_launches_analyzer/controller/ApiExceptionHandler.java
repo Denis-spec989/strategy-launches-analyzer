@@ -3,8 +3,6 @@ package com.github.denisspec989.strategy_launches_analyzer.controller;
 import com.fasterxml.jackson.databind.exc.InvalidFormatException;
 import com.github.denisspec989.strategy_launches_analyzer.dto.api.ErrorResponse;
 import com.github.denisspec989.strategy_launches_analyzer.dto.strategy.StrategyName;
-import com.github.denisspec989.strategy_launches_analyzer.exceptions.AgentAnalysisException;
-import com.github.denisspec989.strategy_launches_analyzer.exceptions.AgentUnavailableException;
 import com.github.denisspec989.strategy_launches_analyzer.exceptions.BadRequestException;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
@@ -48,25 +46,6 @@ public class ApiExceptionHandler {
                 HttpStatus.BAD_REQUEST.value(),
                 message);
         return error(HttpStatus.BAD_REQUEST, message);
-    }
-
-    @ExceptionHandler(AgentAnalysisException.class)
-    public ResponseEntity<ErrorResponse> handleAgentAnalysisException(AgentAnalysisException ex) {
-        String message = "Agent analysis failed. Check LLM configuration and availability.";
-        log.error("Comparison request failed: status={}, message={}, causeType={}",
-                HttpStatus.INTERNAL_SERVER_ERROR.value(),
-                message,
-                causeType(ex));
-        return error(HttpStatus.INTERNAL_SERVER_ERROR, message);
-    }
-
-    @ExceptionHandler(AgentUnavailableException.class)
-    public ResponseEntity<ErrorResponse> handleAgentUnavailable(AgentUnavailableException ex) {
-        String message = "Agent analysis is temporarily unavailable. Retry later.";
-        log.warn("Comparison request rejected: status={}, message={}",
-                HttpStatus.SERVICE_UNAVAILABLE.value(),
-                message);
-        return error(HttpStatus.SERVICE_UNAVAILABLE, message);
     }
 
     @ExceptionHandler(Exception.class)
@@ -116,11 +95,6 @@ public class ApiExceptionHandler {
         return String.join(", ", Arrays.stream(StrategyName.values())
                 .map(StrategyName::name)
                 .toList());
-    }
-
-    private static String causeType(Throwable ex) {
-        Throwable cause = ex.getCause() == null ? ex : ex.getCause();
-        return cause.getClass().getSimpleName();
     }
 
 }

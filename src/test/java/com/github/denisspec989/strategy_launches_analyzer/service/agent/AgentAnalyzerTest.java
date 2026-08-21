@@ -7,9 +7,11 @@ import com.github.denisspec989.strategy_launches_analyzer.dto.agent.AgentAnalysi
 import com.github.denisspec989.strategy_launches_analyzer.dto.agent.AgentAnalysisInput;
 import com.github.denisspec989.strategy_launches_analyzer.dto.agent.AgentAnalysisStatus;
 import com.github.denisspec989.strategy_launches_analyzer.dto.agent.AgentPostProcessingResult;
+import com.github.denisspec989.strategy_launches_analyzer.dto.agent.AgentRepairContext;
 import com.github.denisspec989.strategy_launches_analyzer.dto.agent.DiffExplanation;
 import com.github.denisspec989.strategy_launches_analyzer.dto.agent.GuardrailCorrection;
 import com.github.denisspec989.strategy_launches_analyzer.dto.agent.GuardrailCorrectionType;
+import com.github.denisspec989.strategy_launches_analyzer.dto.agent.RepairableAgentResponseReason;
 import com.github.denisspec989.strategy_launches_analyzer.dto.agent.StructuredAgentAnalysis;
 import com.github.denisspec989.strategy_launches_analyzer.dto.agent.TokenUsage;
 import com.github.denisspec989.strategy_launches_analyzer.dto.common.Severity;
@@ -91,6 +93,28 @@ class AgentAnalyzerTest {
         assertThat(prompt).contains("\"comparisonBasis\" : \"COERCED_NUMERIC\"");
         assertThat(prompt).contains("\"absoluteDelta\" : 2.3");
         assertThat(prompt).contains("\"relativeDeltaPercent\" : 12.7072");
+    }
+
+    @Test
+    void repairPromptContainsOnlyStructuredFailureContextAndCompleteResponseInstruction() {
+        AgentAnalysisInput input = inputForFixture("model-change");
+        StructuredAgentAnalysis previous = structuredResponse(input, Severity.WARNING);
+        AgentRepairContext repairContext = new AgentRepairContext(
+                RepairableAgentResponseReason.CONTRACT_VIOLATION,
+                List.of("summary is blank"),
+                previous
+        );
+
+        String prompt = new AgentPromptBuilder(objectMapper).buildRepairPrompt(input, repairContext);
+
+        assertThat(prompt).contains("CONTRACT_VIOLATION");
+        assertThat(prompt).contains("summary is blank");
+        assertThat(prompt).contains("Return the complete corrected object, not a patch");
+        assertThat(prompt).contains("Previous parsed response");
+        assertThat(prompt).contains("Normalized deterministic input");
+        assertThat(prompt).contains("\"strategyName\" : \"LGD_DIGITAL\"");
+        assertThat(prompt).doesNotContain("mainLaunch");
+        assertThat(prompt).doesNotContain("shadowLaunch");
     }
 
     @Test
@@ -349,6 +373,29 @@ class AgentAnalyzerTest {
         assertThat(schema).contains("overallSeverity");
         assertThat(schema).contains("summary");
         assertThat(schema).contains("diffExplanations");
+    }
+
+    @Test
+    void structuredAnalysisJsonSchemaRequiresExplanationForEveryDeterministicDiff() throws Exception {
+        JsonNode schema = objectMapper.readTree(
+                new BeanOutputConverter<>(StructuredAgentAnalysis.class).getJsonSchema()
+        );
+
+        assertThat(schema.path("properties").path("diffExplanations").path("description").asText())
+                .contains("per deterministic diff")
+                .doesNotContain("non-critical");
+        assertThat(AgentPromptBuilder.SYSTEM_PROMPT)
+                .contains("exactly one diffExplanation for every diff");
+    }
+
+    @Test
+    void promptFingerprintsIncludeSchemaAndUseShortMetricLabels() {
+        String normalHash = AgentPromptFingerprint.normalPromptHash(objectMapper);
+        String repairHash = AgentPromptFingerprint.repairPromptHash(objectMapper);
+
+        assertThat(normalHash).hasSize(64).isNotEqualTo(repairHash);
+        assertThat(repairHash).hasSize(64);
+        assertThat(AgentPromptFingerprint.metricHash(normalHash)).hasSize(12);
     }
 
     @Test

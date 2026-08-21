@@ -7,13 +7,14 @@ import com.github.denisspec989.strategy_launches_analyzer.dto.agent.AgentPostPro
 import com.github.denisspec989.strategy_launches_analyzer.dto.agent.DiffExplanation;
 import com.github.denisspec989.strategy_launches_analyzer.dto.agent.GuardrailCorrection;
 import com.github.denisspec989.strategy_launches_analyzer.dto.agent.GuardrailCorrectionType;
+import com.github.denisspec989.strategy_launches_analyzer.dto.agent.RepairableAgentResponseReason;
 import com.github.denisspec989.strategy_launches_analyzer.dto.agent.StructuredAgentAnalysis;
 import com.github.denisspec989.strategy_launches_analyzer.dto.agent.TokenUsage;
 import com.github.denisspec989.strategy_launches_analyzer.dto.common.Severity;
 import com.github.denisspec989.strategy_launches_analyzer.dto.comparison.DiffEntry;
 import com.github.denisspec989.strategy_launches_analyzer.dto.contract.ContractIssue;
 import com.github.denisspec989.strategy_launches_analyzer.dto.contract.ContractIssueType;
-import com.github.denisspec989.strategy_launches_analyzer.exceptions.AgentAnalysisException;
+import com.github.denisspec989.strategy_launches_analyzer.exceptions.RepairableAgentResponseException;
 import lombok.extern.slf4j.Slf4j;
 
 import java.util.ArrayList;
@@ -33,7 +34,7 @@ public class DefaultAgentAnalysisPostProcessor implements AgentAnalysisPostProce
             AgentAnalysisInput input,
             TokenUsage tokenUsage
     ) {
-        validate(raw, input);
+        validate(raw, input, tokenUsage);
         List<GuardrailCorrection> corrections = new ArrayList<>();
         List<DiffExplanation> explanations = withDeterministicDiffExplanations(
                 input,
@@ -73,11 +74,15 @@ public class DefaultAgentAnalysisPostProcessor implements AgentAnalysisPostProce
         return new AgentPostProcessingResult(analysis, corrections);
     }
 
-    private static void validate(StructuredAgentAnalysis response, AgentAnalysisInput input) {
+    private static void validate(
+            StructuredAgentAnalysis response,
+            AgentAnalysisInput input,
+            TokenUsage tokenUsage
+    ) {
         List<String> violations = new ArrayList<>();
         if (response == null) {
             violations.add("response is empty");
-            throw invalidResponse(violations);
+            throw invalidResponse(violations, null, tokenUsage);
         }
         if (response.overallSeverity() == null) {
             violations.add("overallSeverity is null");
@@ -88,7 +93,7 @@ public class DefaultAgentAnalysisPostProcessor implements AgentAnalysisPostProce
         validateRecommendations(response.recommendations(), violations);
         validateDiffExplanations(response.diffExplanations(), input, violations);
         if (!violations.isEmpty()) {
-            throw invalidResponse(violations);
+            throw invalidResponse(violations, response, tokenUsage);
         }
     }
 
@@ -327,8 +332,18 @@ public class DefaultAgentAnalysisPostProcessor implements AgentAnalysisPostProce
         return expectedDiffs;
     }
 
-    private static AgentAnalysisException invalidResponse(List<String> violations) {
-        return new AgentAnalysisException("Invalid structured LLM response: " + String.join("; ", violations) + ".");
+    private static RepairableAgentResponseException invalidResponse(
+            List<String> violations,
+            StructuredAgentAnalysis previousResponse,
+            TokenUsage tokenUsage
+    ) {
+        return new RepairableAgentResponseException(
+                "Invalid structured LLM response: " + String.join("; ", violations) + ".",
+                RepairableAgentResponseReason.CONTRACT_VIOLATION,
+                violations,
+                previousResponse,
+                tokenUsage
+        );
     }
 
     private static void requireNonBlank(String value, String fieldName, List<String> violations) {

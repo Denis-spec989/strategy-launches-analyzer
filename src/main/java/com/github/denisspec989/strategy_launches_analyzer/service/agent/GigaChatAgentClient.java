@@ -16,10 +16,13 @@ public class GigaChatAgentClient implements AgentModelClient {
     @Override
     public AgentModelCallResult call(AgentAnalysisInput input, AgentCallOptions options) {
         long startedAt = System.nanoTime();
+        String userPrompt = options.repairContext() == null
+                ? promptBuilder.buildUserPrompt(input)
+                : promptBuilder.buildRepairPrompt(input, options.repairContext());
         GigaChatStructuredCompletionResult<StructuredAgentAnalysis> result = completionClient.complete(
                 options.model(),
                 AgentPromptBuilder.SYSTEM_PROMPT,
-                promptBuilder.buildUserPrompt(input),
+                userPrompt,
                 StructuredAgentAnalysis.class
         );
         return new AgentModelCallResult(

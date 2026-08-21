@@ -2,9 +2,12 @@ package com.github.denisspec989.strategy_launches_analyzer.service;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.github.denisspec989.strategy_launches_analyzer.dto.agent.AgentAnalysisInput;
+import com.github.denisspec989.strategy_launches_analyzer.dto.agent.AgentFallbackReason;
 import com.github.denisspec989.strategy_launches_analyzer.dto.agent.TokenUsage;
+import com.github.denisspec989.strategy_launches_analyzer.exceptions.AgentExecutionFailureException;
 import com.github.denisspec989.strategy_launches_analyzer.service.agent.AgentAnalyzer;
 import com.github.denisspec989.strategy_launches_analyzer.service.agent.AgentInputNormalizer;
+import com.github.denisspec989.strategy_launches_analyzer.service.agent.AgentMetrics;
 import com.github.denisspec989.strategy_launches_analyzer.dto.contract.ContractFieldContext;
 import com.github.denisspec989.strategy_launches_analyzer.dto.api.CompareStrategyRequest;
 import com.github.denisspec989.strategy_launches_analyzer.dto.api.CompareStrategyResponse;
@@ -15,11 +18,10 @@ import com.github.denisspec989.strategy_launches_analyzer.dto.comparison.DiffRes
 import com.github.denisspec989.strategy_launches_analyzer.service.diff.StrategyDiffEngine;
 import com.github.denisspec989.strategy_launches_analyzer.dto.agent.AgentAnalysis;
 import com.github.denisspec989.strategy_launches_analyzer.dto.comparison.ComparisonSummary;
-import com.github.denisspec989.strategy_launches_analyzer.exceptions.AgentAnalysisException;
-import com.github.denisspec989.strategy_launches_analyzer.exceptions.AgentUnavailableException;
 import com.github.denisspec989.strategy_launches_analyzer.exceptions.BadRequestException;
 import com.github.denisspec989.strategy_launches_analyzer.utils.JsonNodePath;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
@@ -36,11 +38,14 @@ public class CompareStrategyLaunchesUseCase {
     private final Semaphore agentBulkhead;
     private final int maxLaunchNodes;
     private final int maxLaunchDepth;
+    private final AgentMetrics agentMetrics;
 
+    @Autowired
     public CompareStrategyLaunchesUseCase(
             StrategyDiffEngine diffEngine,
             StrategyContractRegistry contractRegistry,
             AgentAnalyzer agentAnalyzer,
+            AgentMetrics agentMetrics,
             @Value("${strategy-launches-analyzer.agent.max-concurrent-calls:20}") int maxConcurrentAgentCalls,
             @Value("${strategy-launches-analyzer.request.max-launch-nodes:5000}") int maxLaunchNodes,
             @Value("${strategy-launches-analyzer.request.max-launch-depth:20}") int maxLaunchDepth
@@ -51,6 +56,26 @@ public class CompareStrategyLaunchesUseCase {
         this.agentBulkhead = new Semaphore(maxConcurrentAgentCalls);
         this.maxLaunchNodes = maxLaunchNodes;
         this.maxLaunchDepth = maxLaunchDepth;
+        this.agentMetrics = agentMetrics;
+    }
+
+    CompareStrategyLaunchesUseCase(
+            StrategyDiffEngine diffEngine,
+            StrategyContractRegistry contractRegistry,
+            AgentAnalyzer agentAnalyzer,
+            int maxConcurrentAgentCalls,
+            int maxLaunchNodes,
+            int maxLaunchDepth
+    ) {
+        this(
+                diffEngine,
+                contractRegistry,
+                agentAnalyzer,
+                AgentMetrics.noop(),
+                maxConcurrentAgentCalls,
+                maxLaunchNodes,
+                maxLaunchDepth
+        );
     }
 
     public CompareStrategyResponse compare(CompareStrategyRequest request) {
@@ -134,22 +159,30 @@ public class CompareStrategyLaunchesUseCase {
                 summary.deterministicSeverity(),
                 diffResult.diffs().size(),
                 diffResult.contractValidation().size());
-        AgentAnalysisInput input = new AgentAnalysisInput(
-                contract.strategyName(),
-                summary,
-                AgentInputNormalizer.normalizeDiffs(diffResult.diffs()),
-                AgentInputNormalizer.normalizeIssues(diffResult.contractValidation()),
-                contractContext(contract, diffResult),
-                AgentInputNormalizer.withoutAttributes(request.metadata())
-        );
-        if (!agentBulkhead.tryAcquire()) {
-            log.warn("{} agent analysis rejected: requestId={}, reason=bulkhead-full, availablePermits={}",
-                    contract.strategyName(),
-                    requestId,
-                    agentBulkhead.availablePermits());
-            throw new AgentUnavailableException("Agent analysis capacity exceeded. Retry later.");
-        }
+        boolean acquired = false;
         try {
+            AgentAnalysisInput input = new AgentAnalysisInput(
+                    contract.strategyName(),
+                    summary,
+                    AgentInputNormalizer.normalizeDiffs(diffResult.diffs()),
+                    AgentInputNormalizer.normalizeIssues(diffResult.contractValidation()),
+                    contractContext(contract, diffResult),
+                    AgentInputNormalizer.withoutAttributes(request.metadata())
+            );
+            acquired = agentBulkhead.tryAcquire();
+            if (!acquired) {
+                log.warn("{} agent analysis rejected: requestId={}, reason=bulkhead-full, availablePermits={}",
+                        contract.strategyName(),
+                        requestId,
+                        agentBulkhead.availablePermits());
+                return fallback(
+                        contract.strategyName(),
+                        summary,
+                        AgentFallbackReason.CAPACITY,
+                        TokenUsage.zero(),
+                        startedAt
+                );
+            }
             AgentAnalysis analysis = agentAnalyzer.analyze(input);
             TokenUsage tokenUsage = analysis.tokenUsage() == null ? TokenUsage.zero() : analysis.tokenUsage();
             log.info("{} agent analysis completed: requestId={}, status={}, overallSeverity={}, "
@@ -167,13 +200,45 @@ public class CompareStrategyLaunchesUseCase {
                     valueOrNotProvided(tokenUsage.model()),
                     elapsedMs(startedAt));
             return analysis;
-        } catch (AgentAnalysisException ex) {
-            throw ex;
+        } catch (AgentExecutionFailureException ex) {
+            log.error("{} agent analysis failed: requestId={}, reason={}, errorType={}",
+                    contract.strategyName(), requestId, ex.reason(), ex.getClass().getSimpleName());
+            return fallback(contract.strategyName(), summary, ex.reason(), ex.tokenUsage(), startedAt);
         } catch (RuntimeException ex) {
-            throw new AgentAnalysisException("Agent analysis failed.", ex);
+            log.error("{} agent analysis failed unexpectedly: requestId={}, errorType={}",
+                    contract.strategyName(), requestId, ex.getClass().getSimpleName(), ex);
+            return fallback(
+                    contract.strategyName(),
+                    summary,
+                    AgentFallbackReason.INTERNAL,
+                    TokenUsage.zero(),
+                    startedAt
+            );
         } finally {
-            agentBulkhead.release();
+            if (acquired) {
+                agentBulkhead.release();
+            }
         }
+    }
+
+    private AgentAnalysis fallback(
+            String strategyName,
+            ComparisonSummary summary,
+            AgentFallbackReason reason,
+            TokenUsage tokenUsage,
+            long startedAt
+    ) {
+        try {
+            agentMetrics.recordFallback(strategyName, reason, System.nanoTime() - startedAt);
+        } catch (RuntimeException ex) {
+            log.warn("Agent fallback metrics recording failed: strategyName={}, reason={}, errorType={}",
+                    strategyName, reason, ex.getClass().getSimpleName());
+        }
+        return AgentAnalysis.failed(
+                "LLM-анализ недоступен.",
+                summary.deterministicSeverity(),
+                tokenUsage
+        );
     }
 
     private List<ContractFieldContext> contractContext(StrategyContract contract, DiffResult diffResult) {

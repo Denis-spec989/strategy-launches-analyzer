@@ -31,6 +31,7 @@ server:
 strategy-launches-analyzer:
   agent:
     max-concurrent-calls: 20
+    repair-enabled: ${AGENT_REPAIR_ENABLED:true}
     gigachat:
       auth-mode: ${GIGACHAT_AUTH_MODE}
       model: ${GIGACHAT_MODEL}

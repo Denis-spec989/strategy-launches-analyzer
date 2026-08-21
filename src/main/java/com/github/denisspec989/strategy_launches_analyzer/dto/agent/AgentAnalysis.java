@@ -22,16 +22,24 @@ public record AgentAnalysis(
     }
 
     public static AgentAnalysis failed(String errorMessage, Severity deterministicSeverity) {
+        return failed(errorMessage, deterministicSeverity, TokenUsage.zero());
+    }
+
+    public static AgentAnalysis failed(
+            String errorMessage,
+            Severity deterministicSeverity,
+            TokenUsage tokenUsage
+    ) {
         Severity failureSeverity = max(deterministicSeverity, Severity.WARNING);
         return new AgentAnalysis(
                 AgentAnalysisStatus.FAILED,
                 failureSeverity,
-                "Agent analysis is unavailable. Deterministic diffs are still returned.",
-                "",
-                "LLM analysis failed and should be retried after checking model configuration.",
-                List.of("Review deterministic diffs manually."),
+                "LLM-анализ недоступен. Детерминированные отличия и результаты проверки контракта возвращены.",
+                "Бизнес-влияние автоматически не оценено.",
+                "Используйте детерминированные отличия и результаты проверки контракта для ручной оценки рисков.",
+                List.of("Проверьте детерминированные результаты вручную и повторите запрос позднее."),
                 List.of(),
-                TokenUsage.zero(),
+                tokenUsage == null ? TokenUsage.zero() : tokenUsage,
                 errorMessage
         );
     }

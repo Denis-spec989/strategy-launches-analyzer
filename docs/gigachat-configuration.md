@@ -54,6 +54,7 @@ $env:GIGACHAT_TRUST_STORE_PASSWORD="<truststore-password>"
 | `GIGACHAT_READ_TIMEOUT` | `120s` | Таймаут чтения ответа |
 | `GIGACHAT_VERIFY_SSL_CERTS` | `true` | Проверка SSL-сертификатов в режиме `certificate` |
 | `GIGACHAT_AUTH_RETRIES` | `1` | Число повторов при ошибке авторизации |
+| `AGENT_REPAIR_ENABLED` | `true` | Одна repair-попытка для типизированных ошибок structured response |
 
 В режиме `certificate` проверка SSL включена по умолчанию и управляется `GIGACHAT_VERIFY_SSL_CERTS`. В режиме `user-password` проверка SSL всегда отключена как для получения токена, так и для completion-запроса; значение `GIGACHAT_VERIFY_SSL_CERTS` в этой ветке игнорируется. Логирование SDK-запросов и ответов жёстко выключено в коде и не настраивается, чтобы промпты и credentials не попадали в логи.
 

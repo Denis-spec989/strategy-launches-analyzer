@@ -12,8 +12,9 @@ import chat.giga.model.completion.Usage;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.github.denisspec989.strategy_launches_analyzer.dto.agent.StructuredAgentAnalysis;
+import com.github.denisspec989.strategy_launches_analyzer.dto.agent.RepairableAgentResponseReason;
 import com.github.denisspec989.strategy_launches_analyzer.dto.common.Severity;
-import com.github.denisspec989.strategy_launches_analyzer.exceptions.AgentAnalysisException;
+import com.github.denisspec989.strategy_launches_analyzer.exceptions.RepairableAgentResponseException;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
@@ -86,8 +87,10 @@ class GigaChatStructuredCompletionClientTest {
         when(sdkClient.completions(any())).thenReturn(CompletionResponse.builder().build());
 
         assertThatThrownBy(() -> complete())
-                .isInstanceOf(AgentAnalysisException.class)
-                .hasMessageContaining("no completion choices");
+                .isInstanceOfSatisfying(RepairableAgentResponseException.class, ex -> {
+                    assertThat(ex).hasMessageContaining("no completion choices");
+                    assertThat(ex.reason()).isEqualTo(RepairableAgentResponseReason.NO_CHOICE);
+                });
     }
 
     @Test
@@ -95,8 +98,11 @@ class GigaChatStructuredCompletionClientTest {
         when(sdkClient.completions(any())).thenReturn(response(ChoiceFinishReason.LENGTH, "{}"));
 
         assertThatThrownBy(() -> complete())
-                .isInstanceOf(AgentAnalysisException.class)
-                .hasMessageContaining("did not finish normally", "length");
+                .isInstanceOfSatisfying(RepairableAgentResponseException.class, ex -> {
+                    assertThat(ex).hasMessageContaining("did not finish normally", "length");
+                    assertThat(ex.reason()).isEqualTo(RepairableAgentResponseReason.INCOMPLETE_RESPONSE);
+                    assertThat(ex.tokenUsage().totalTokens()).isEqualTo(18);
+                });
     }
 
     @Test
@@ -104,8 +110,10 @@ class GigaChatStructuredCompletionClientTest {
         when(sdkClient.completions(any())).thenReturn(response(ChoiceFinishReason.STOP, " "));
 
         assertThatThrownBy(() -> complete())
-                .isInstanceOf(AgentAnalysisException.class)
-                .hasMessageContaining("empty structured response");
+                .isInstanceOfSatisfying(RepairableAgentResponseException.class, ex -> {
+                    assertThat(ex).hasMessageContaining("empty structured response");
+                    assertThat(ex.reason()).isEqualTo(RepairableAgentResponseReason.EMPTY_CONTENT);
+                });
     }
 
     @Test
@@ -113,8 +121,11 @@ class GigaChatStructuredCompletionClientTest {
         when(sdkClient.completions(any())).thenReturn(response(ChoiceFinishReason.STOP, "{invalid"));
 
         assertThatThrownBy(() -> complete())
-                .isInstanceOf(AgentAnalysisException.class)
-                .hasMessageContaining("invalid structured JSON");
+                .isInstanceOfSatisfying(RepairableAgentResponseException.class, ex -> {
+                    assertThat(ex).hasMessageContaining("invalid structured JSON");
+                    assertThat(ex.reason()).isEqualTo(RepairableAgentResponseReason.INVALID_JSON);
+                    assertThat(ex.previousResponse()).isNull();
+                });
     }
 
     private void complete() {

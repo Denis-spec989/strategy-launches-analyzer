@@ -37,15 +37,16 @@ class StrategyComparisonControllerTest {
     private final ObjectMapper objectMapper;
 
     @Test
-    void returnsInternalServerErrorWhenAgentFails() throws Exception {
+    void returnsDeterministicFallbackWhenAgentFails() throws Exception {
         mockMvc.perform(post("/api/v1/strategies/compare")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(requestBody("model-change")))
-                .andExpect(status().isInternalServerError())
-                .andExpect(jsonPath("$.status").value(500))
-                .andExpect(jsonPath("$.message").value("Agent analysis failed. Check LLM configuration and availability."))
-                .andExpect(jsonPath("$.diffs").doesNotExist())
-                .andExpect(jsonPath("$.agentAnalysis").doesNotExist());
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.summary.totalDiffs").value(3))
+                .andExpect(jsonPath("$.diffs.length()").value(3))
+                .andExpect(jsonPath("$.agentAnalysis.status").value("FAILED"))
+                .andExpect(jsonPath("$.agentAnalysis.overallSeverity").value("WARNING"))
+                .andExpect(jsonPath("$.agentAnalysis.errorMessage").value("LLM-анализ недоступен."));
     }
 
     @Test

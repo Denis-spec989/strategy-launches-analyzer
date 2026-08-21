@@ -32,7 +32,7 @@ public record StructuredAgentAnalysis(
         List<String> recommendations,
 
         @JsonProperty(required = true)
-        @JsonPropertyDescription("Exactly one explanation per non-critical diff. Match diffId and copy path verbatim from the payload; never invent ids or paths and never duplicate a diffId.")
+        @JsonPropertyDescription("Exactly one explanation per deterministic diff. Match diffId and copy path verbatim from the payload; never invent ids or paths and never duplicate a diffId.")
         List<DiffExplanation> diffExplanations
 ) {
 }

@@ -6,13 +6,14 @@ import com.github.denisspec989.strategy_launches_analyzer.TestFixtures;
 import com.github.denisspec989.strategy_launches_analyzer.dto.agent.AgentAnalysis;
 import com.github.denisspec989.strategy_launches_analyzer.dto.agent.AgentAnalysisInput;
 import com.github.denisspec989.strategy_launches_analyzer.dto.agent.AgentAnalysisStatus;
+import com.github.denisspec989.strategy_launches_analyzer.dto.agent.AgentFallbackReason;
 import com.github.denisspec989.strategy_launches_analyzer.dto.agent.TokenUsage;
 import com.github.denisspec989.strategy_launches_analyzer.dto.api.CompareStrategyRequest;
 import com.github.denisspec989.strategy_launches_analyzer.dto.api.CompareStrategyResponse;
 import com.github.denisspec989.strategy_launches_analyzer.dto.common.Severity;
 import com.github.denisspec989.strategy_launches_analyzer.dto.strategy.StrategyName;
-import com.github.denisspec989.strategy_launches_analyzer.exceptions.AgentUnavailableException;
 import com.github.denisspec989.strategy_launches_analyzer.exceptions.BadRequestException;
+import com.github.denisspec989.strategy_launches_analyzer.exceptions.AgentExecutionFailureException;
 import com.github.denisspec989.strategy_launches_analyzer.service.agent.AgentAnalyzer;
 import com.github.denisspec989.strategy_launches_analyzer.service.contract.ContractValidator;
 import com.github.denisspec989.strategy_launches_analyzer.service.contract.OpenApiStrategyContractLoader;
@@ -37,7 +38,7 @@ class CompareStrategyLaunchesUseCaseTest {
     private final StrategyDiffEngine diffEngine = new StrategyDiffEngine(new ContractValidator());
 
     @Test
-    void rejectsAgentCallsBeyondBulkheadLimit() throws Exception {
+    void returnsDeterministicFallbackForCallsBeyondBulkheadLimit() throws Exception {
         CountDownLatch insideAgent = new CountDownLatch(1);
         CountDownLatch release = new CountDownLatch(1);
         AgentAnalyzer blockingAgent = input -> {
@@ -58,8 +59,13 @@ class CompareStrategyLaunchesUseCaseTest {
             Future<?> occupying = executor.submit(() -> useCase.compare(request));
             assertThat(insideAgent.await(5, TimeUnit.SECONDS)).isTrue();
 
-            assertThatThrownBy(() -> useCase.compare(request))
-                    .isInstanceOf(AgentUnavailableException.class);
+            CompareStrategyResponse fallback = useCase.compare(request);
+
+            assertThat(fallback.agentAnalysis().status()).isEqualTo(AgentAnalysisStatus.FAILED);
+            assertThat(fallback.agentAnalysis().overallSeverity())
+                    .isEqualTo(fallback.summary().deterministicSeverity());
+            assertThat(fallback.diffs()).isNotEmpty();
+            assertThat(fallback.agentAnalysis().errorMessage()).isEqualTo("LLM-анализ недоступен.");
 
             release.countDown();
             occupying.get(5, TimeUnit.SECONDS);
@@ -120,6 +126,53 @@ class CompareStrategyLaunchesUseCaseTest {
         assertThat(response.diffs()).allSatisfy(diff ->
                 assertThat(diff.deterministicSeverity()).isIn(Severity.WARNING, Severity.CRITICAL));
         assertThat(capturedInput.get().diffs()).containsExactlyElementsOf(response.diffs());
+    }
+
+    @Test
+    void returnsDeterministicFallbackWhenAgentThrows() {
+        CompareStrategyLaunchesUseCase useCase = new CompareStrategyLaunchesUseCase(
+                diffEngine,
+                registry,
+                input -> {
+                    throw new IllegalStateException("provider unavailable");
+                },
+                20,
+                100_000,
+                100
+        );
+
+        CompareStrategyResponse response = useCase.compare(request("model-change"));
+
+        assertThat(response.agentAnalysis().status()).isEqualTo(AgentAnalysisStatus.FAILED);
+        assertThat(response.agentAnalysis().overallSeverity()).isEqualTo(response.summary().deterministicSeverity());
+        assertThat(response.agentAnalysis().summary()).contains("Детерминированные отличия");
+        assertThat(response.agentAnalysis().businessImpact()).isNotBlank();
+        assertThat(response.diffs()).isNotEmpty();
+    }
+
+    @Test
+    void fallbackPreservesTokensConsumedBeforeRepairExhaustion() {
+        TokenUsage consumed = new TokenUsage(11, 7, 18, 3L, 0L, "actual-model");
+        CompareStrategyLaunchesUseCase useCase = new CompareStrategyLaunchesUseCase(
+                diffEngine,
+                registry,
+                input -> {
+                    throw new AgentExecutionFailureException(
+                            "repair exhausted",
+                            null,
+                            AgentFallbackReason.REPAIR_EXHAUSTED,
+                            consumed
+                    );
+                },
+                20,
+                100_000,
+                100
+        );
+
+        CompareStrategyResponse response = useCase.compare(request("model-change"));
+
+        assertThat(response.agentAnalysis().status()).isEqualTo(AgentAnalysisStatus.FAILED);
+        assertThat(response.agentAnalysis().tokenUsage()).isEqualTo(consumed);
     }
 
     private CompareStrategyRequest request(String fixture) {

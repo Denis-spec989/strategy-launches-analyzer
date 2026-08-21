@@ -4,6 +4,8 @@
 
 Benchmark — компактный инженерный инструмент для выбора модели именно для AI-агента анализа `LGD_DIGITAL`. Он не пытается измерить универсальные способности модели и не заменяет доменную или регуляторную проверку.
 
+Benchmark намеренно оценивает только первую генерацию модели и production Java post-processing. Runtime repair-вызов не выполняется и не даёт модели зачёт: он остаётся safety net для production, а его частота и успешность контролируются Prometheus-метриками. Поэтому `POST_PROCESSING_FAILED` продолжает означать first-pass failure, даже если аналогичный production-запрос мог бы восстановиться через repair.
+
 Все модели-кандидаты получают одинаковый `AgentAnalysisInput`, построенный production-компонентами из одной пары `main`/`shadow`. Для каждого ответа проверяются:
 
 - успешность API-вызова и structured output;
@@ -208,7 +210,7 @@ summary.md
 failures/
 ```
 
-`manifest.json` фиксирует commit, contract version, production prompt hash, dataset hash, модели, параметры запуска, judge model, rubric version и judge prompt hash.
+`manifest.json` фиксирует commit, contract version, production prompt hash, dataset hash, модели, параметры запуска, judge model, rubric version и judge prompt hash. Production prompt hash включает system prompt, обычный user prompt template и каноническую JSON Schema ответа; repair prompt в first-pass benchmark hash не входит.
 
 `results.jsonl` дописывается после каждого sample. Незавершённый запуск можно продолжить:
 

@@ -1,6 +1,7 @@
 package com.github.denisspec989.strategy_launches_analyzer.benchmark;
 
-import com.github.denisspec989.strategy_launches_analyzer.service.agent.AgentPromptBuilder;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.github.denisspec989.strategy_launches_analyzer.service.agent.AgentPromptFingerprint;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
@@ -15,8 +16,7 @@ final class BenchmarkHashes {
     }
 
     static String promptHash() {
-        return sha256((AgentPromptBuilder.SYSTEM_PROMPT + "\n" + AgentPromptBuilder.USER_PROMPT_TEMPLATE)
-                .getBytes(StandardCharsets.UTF_8));
+        return AgentPromptFingerprint.normalPromptHash(new ObjectMapper().findAndRegisterModules());
     }
 
     static String judgePromptHash() {

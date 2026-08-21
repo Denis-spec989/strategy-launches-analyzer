@@ -3,6 +3,8 @@ package com.github.denisspec989.strategy_launches_analyzer.service.agent;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.github.denisspec989.strategy_launches_analyzer.dto.agent.AgentAnalysisInput;
+import com.github.denisspec989.strategy_launches_analyzer.dto.agent.AgentRepairContext;
+import com.github.denisspec989.strategy_launches_analyzer.exceptions.AgentAnalysisException;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
 
@@ -53,6 +55,24 @@ public class AgentPromptBuilder {
             %s
             """;
 
+    public static final String REPAIR_PROMPT_TEMPLATE = """
+            The previous model response did not satisfy the structured analysis contract.
+            Repair failure reason: %s
+            Validation violations:
+            %s
+
+            Return the complete corrected object, not a patch.
+            Rebuild it only from the normalized deterministic input and the system prompt.
+            If a previous parsed response is provided, retain only content that remains supported by the deterministic input.
+            Apply the same Severity contract, explain every deterministic diff exactly once, keep recommendations to at most 10, and write all analysis text in Russian.
+
+            Previous parsed response (may be null):
+            %s
+
+            Normalized deterministic input:
+            %s
+            """;
+
     private final ObjectMapper objectMapper;
 
     public String buildUserPrompt(AgentAnalysisInput input) {
@@ -61,7 +81,23 @@ public class AgentPromptBuilder {
                     objectMapper.writerWithDefaultPrettyPrinter().writeValueAsString(input)
             );
         } catch (JsonProcessingException ex) {
-            throw new IllegalStateException("Failed to serialize agent analysis input.", ex);
+            throw new AgentAnalysisException("Failed to serialize agent analysis input.", ex);
+        }
+    }
+
+    public String buildRepairPrompt(AgentAnalysisInput input, AgentRepairContext repairContext) {
+        if (repairContext == null) {
+            throw new IllegalArgumentException("repairContext is required.");
+        }
+        try {
+            return REPAIR_PROMPT_TEMPLATE.formatted(
+                    repairContext.reason(),
+                    objectMapper.writerWithDefaultPrettyPrinter().writeValueAsString(repairContext.violations()),
+                    objectMapper.writerWithDefaultPrettyPrinter().writeValueAsString(repairContext.previousResponse()),
+                    objectMapper.writerWithDefaultPrettyPrinter().writeValueAsString(input)
+            );
+        } catch (JsonProcessingException ex) {
+            throw new AgentAnalysisException("Failed to serialize agent repair input.", ex);
         }
     }
 }

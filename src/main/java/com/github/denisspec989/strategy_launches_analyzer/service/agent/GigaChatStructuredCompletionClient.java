@@ -13,9 +13,9 @@ import chat.giga.model.completion.Usage;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.github.denisspec989.strategy_launches_analyzer.dto.agent.RepairableAgentResponseReason;
 import com.github.denisspec989.strategy_launches_analyzer.dto.agent.TokenUsage;
-import com.github.denisspec989.strategy_launches_analyzer.exceptions.AgentAnalysisException;
-import org.springframework.ai.converter.BeanOutputConverter;
+import com.github.denisspec989.strategy_launches_analyzer.exceptions.RepairableAgentResponseException;
 
 import java.util.Objects;
 
@@ -45,17 +45,28 @@ public class GigaChatStructuredCompletionClient {
         Choice choice = firstCompletedChoice(response);
         String content = choice.message().content();
         if (content == null || content.isBlank()) {
-            throw new AgentAnalysisException("GigaChat returned an empty structured response.");
+            throw repairable(
+                    "GigaChat returned an empty structured response.",
+                    RepairableAgentResponseReason.EMPTY_CONTENT,
+                    "response content is blank",
+                    response
+            );
         }
 
         try {
             return new GigaChatStructuredCompletionResult<>(
                     objectMapper.readValue(content, responseType),
                     tokenUsage(response),
-                    response.model()
+                    actualModel(response)
             );
         } catch (JsonProcessingException ex) {
-            throw new AgentAnalysisException("GigaChat returned invalid structured JSON.", ex);
+            throw repairable(
+                    "GigaChat returned invalid structured JSON.",
+                    ex,
+                    RepairableAgentResponseReason.INVALID_JSON,
+                    "response content is not valid JSON",
+                    response
+            );
         }
     }
 
@@ -78,27 +89,37 @@ public class GigaChatStructuredCompletionClient {
     }
 
     private JsonNode jsonSchema(Class<?> responseType) {
-        String schema = new BeanOutputConverter<>(responseType).getJsonSchema();
-        try {
-            return objectMapper.readTree(schema);
-        } catch (JsonProcessingException ex) {
-            throw new AgentAnalysisException("Failed to build the GigaChat structured output schema.", ex);
-        }
+        return StructuredOutputSchema.create(objectMapper, responseType);
     }
 
     private static Choice firstCompletedChoice(CompletionResponse response) {
         if (response == null || response.choices() == null || response.choices().isEmpty()) {
-            throw new AgentAnalysisException("GigaChat returned no completion choices.");
+            throw repairable(
+                    "GigaChat returned no completion choices.",
+                    RepairableAgentResponseReason.NO_CHOICE,
+                    "response has no completion choice",
+                    response
+            );
         }
         Choice choice = response.choices().get(0);
         if (choice == null || choice.message() == null) {
-            throw new AgentAnalysisException("GigaChat returned an empty completion choice.");
+            throw repairable(
+                    "GigaChat returned an empty completion choice.",
+                    RepairableAgentResponseReason.NO_CHOICE,
+                    "first completion choice is empty",
+                    response
+            );
         }
         if (choice.finishReason() != ChoiceFinishReason.STOP) {
-            throw new AgentAnalysisException(
+            String finishReason = choice.finishReason() == null
+                    ? "not-provided"
+                    : choice.finishReason().toString();
+            throw repairable(
                     "GigaChat completion did not finish normally: "
-                            + (choice.finishReason() == null ? "not-provided" : choice.finishReason())
-                            + "."
+                            + finishReason + ".",
+                    RepairableAgentResponseReason.INCOMPLETE_RESPONSE,
+                    "finishReason is " + finishReason,
+                    response
             );
         }
         return choice;
@@ -112,9 +133,12 @@ public class GigaChatStructuredCompletionClient {
     }
 
     private static TokenUsage tokenUsage(CompletionResponse response) {
+        if (response == null) {
+            return TokenUsage.zero();
+        }
         Usage usage = response.usage();
         if (usage == null) {
-            return new TokenUsage(null, null, null, null, null, response.model());
+            return new TokenUsage(null, null, null, null, null, actualModel(response));
         }
         return new TokenUsage(
                 usage.promptTokens(),
@@ -122,8 +146,44 @@ public class GigaChatStructuredCompletionClient {
                 usage.totalTokens(),
                 usage.precachedPromptTokens() == null ? null : usage.precachedPromptTokens().longValue(),
                 null,
-                response.model()
+                actualModel(response)
         );
+    }
+
+    private static RepairableAgentResponseException repairable(
+            String message,
+            RepairableAgentResponseReason reason,
+            String violation,
+            CompletionResponse response
+    ) {
+        return new RepairableAgentResponseException(
+                message,
+                reason,
+                java.util.List.of(violation),
+                null,
+                tokenUsage(response)
+        );
+    }
+
+    private static RepairableAgentResponseException repairable(
+            String message,
+            Throwable cause,
+            RepairableAgentResponseReason reason,
+            String violation,
+            CompletionResponse response
+    ) {
+        return new RepairableAgentResponseException(
+                message,
+                cause,
+                reason,
+                java.util.List.of(violation),
+                null,
+                tokenUsage(response)
+        );
+    }
+
+    private static String actualModel(CompletionResponse response) {
+        return response == null ? null : response.model();
     }
 
     private static void requireText(String value, String name) {
