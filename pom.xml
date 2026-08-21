@@ -31,6 +31,7 @@
 		<lombok.version>1.18.46</lombok.version>
 		<spring-ai.version>2.0.0-M8</spring-ai.version>
 		<gigachat-java.version>0.1.22</gigachat-java.version>
+		<springdoc-openapi.version>3.0.3</springdoc-openapi.version>
 	</properties>
 	<dependencies>
 		<dependency>
@@ -65,6 +66,11 @@
 		<dependency>
 			<groupId>io.micrometer</groupId>
 			<artifactId>micrometer-registry-prometheus</artifactId>
+		</dependency>
+		<dependency>
+			<groupId>org.springdoc</groupId>
+			<artifactId>springdoc-openapi-starter-webmvc-api</artifactId>
+			<version>${springdoc-openapi.version}</version>
 		</dependency>
 		<dependency>
 			<groupId>org.projectlombok</groupId>
@@ -114,6 +120,50 @@
 	</build>
 
 	<profiles>
+		<profile>
+			<id>openapi</id>
+			<build>
+				<plugins>
+					<plugin>
+						<groupId>org.springframework.boot</groupId>
+						<artifactId>spring-boot-maven-plugin</artifactId>
+						<configuration>
+							<jvmArguments>-Dspring.application.admin.enabled=true -Dserver.port=18080 -Dspringdoc.api-docs.enabled=true -Dstrategy-launches-analyzer.agent.gigachat.auth-mode=user-password -Dstrategy-launches-analyzer.agent.gigachat.model=openapi-model -Dstrategy-launches-analyzer.agent.gigachat.user-password.api-url=http://127.0.0.1:18081/v1 -Dstrategy-launches-analyzer.agent.gigachat.user-password.auth-api-url=http://127.0.0.1:18081/auth -Dstrategy-launches-analyzer.agent.gigachat.user-password.username=openapi -Dstrategy-launches-analyzer.agent.gigachat.user-password.password=openapi -Dstrategy-launches-analyzer.agent.gigachat.user-password.scope=GIGACHAT_API_PERS</jvmArguments>
+						</configuration>
+						<executions>
+							<execution>
+								<id>openapi-start</id>
+								<phase>pre-integration-test</phase>
+								<goals><goal>start</goal></goals>
+							</execution>
+							<execution>
+								<id>openapi-stop</id>
+								<phase>post-integration-test</phase>
+								<goals><goal>stop</goal></goals>
+							</execution>
+						</executions>
+					</plugin>
+					<plugin>
+						<groupId>org.springdoc</groupId>
+						<artifactId>springdoc-openapi-maven-plugin</artifactId>
+						<version>1.5</version>
+						<executions>
+							<execution>
+								<id>generate-public-openapi</id>
+								<phase>integration-test</phase>
+								<goals><goal>generate</goal></goals>
+							</execution>
+						</executions>
+						<configuration>
+							<apiDocsUrl>http://localhost:18080/v3/api-docs.yaml</apiDocsUrl>
+							<outputDir>${project.basedir}/docs/openapi</outputDir>
+							<outputFileName>strategy-comparison-v1.openapi.yaml</outputFileName>
+							<failOnError>true</failOnError>
+						</configuration>
+					</plugin>
+				</plugins>
+			</build>
+		</profile>
 		<profile>
 			<id>judge-selection</id>
 			<properties>

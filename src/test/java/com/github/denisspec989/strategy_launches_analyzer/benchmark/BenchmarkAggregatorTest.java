@@ -245,7 +245,7 @@ class BenchmarkAggregatorTest {
                 "Риски",
                 List.of("Проверить"),
                 List.of(),
-                TokenUsage.zero(),
+                null,
                 null
         );
     }

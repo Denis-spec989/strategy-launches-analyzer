@@ -1,14 +1,20 @@
 package com.github.denisspec989.strategy_launches_analyzer.dto.comparison;
 
+import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.github.denisspec989.strategy_launches_analyzer.dto.common.Severity;
+import io.swagger.v3.oas.annotations.media.Schema;
 
 import java.math.BigDecimal;
+import java.util.Objects;
+import java.util.UUID;
 
 @JsonInclude(JsonInclude.Include.NON_NULL)
+@JsonIgnoreProperties(ignoreUnknown = true)
 public record DiffEntry(
-        String id,
+        @Schema(requiredMode = Schema.RequiredMode.REQUIRED)
+        UUID id,
         String path,
         DiffType type,
         DiffCategory category,
@@ -17,17 +23,17 @@ public record DiffEntry(
         BigDecimal absoluteDelta,
         BigDecimal relativeDeltaPercent,
         ComparisonBasis comparisonBasis,
-        Severity deterministicSeverity,
-        String description
+        Severity deterministicSeverity
 ) {
     public DiffEntry {
+        Objects.requireNonNull(id, "Diff id must not be null.");
         if (deterministicSeverity == null || deterministicSeverity == Severity.INFO) {
             throw new IllegalArgumentException("Diff deterministicSeverity must be WARNING or CRITICAL.");
         }
     }
 
     public DiffEntry(
-            String id,
+            UUID id,
             String path,
             DiffType type,
             DiffCategory category,
@@ -35,8 +41,7 @@ public record DiffEntry(
             JsonNode shadowValue,
             BigDecimal absoluteDelta,
             BigDecimal relativeDeltaPercent,
-            Severity deterministicSeverity,
-            String description
+            Severity deterministicSeverity
     ) {
         this(
                 id,
@@ -48,8 +53,7 @@ public record DiffEntry(
                 absoluteDelta,
                 relativeDeltaPercent,
                 null,
-                deterministicSeverity,
-                description
+                deterministicSeverity
         );
     }
 }

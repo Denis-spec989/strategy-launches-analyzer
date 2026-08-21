@@ -1,0 +1,346 @@
+openapi: 3.1.0
+info:
+  title: Strategy Launches Analyzer API
+  version: 1.0.0
+servers:
+- url: /
+paths:
+  /api/v1/strategies/compare:
+    post:
+      tags:
+      - Strategy comparison
+      summary: Compare main and shadow strategy launches
+      operationId: compare
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CompareStrategyRequest"
+        required: true
+      responses:
+        "200":
+          description: Comparison completed; deterministic results are returned even
+            if LLM analysis failed.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CompareStrategyResponse"
+                additionalProperties:
+                  default: ""
+                default: ""
+        "400":
+          description: Request validation failed.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+                additionalProperties:
+                  default: ""
+                default: ""
+        "500":
+          description: Unexpected server error.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+                additionalProperties:
+                  default: ""
+                default: ""
+components:
+  schemas:
+    CompareStrategyRequest:
+      type: object
+      properties:
+        strategy:
+          type: string
+          enum:
+          - LGD_DIGITAL
+        mainLaunch:
+          $ref: "#/components/schemas/JsonNode"
+        shadowLaunch:
+          $ref: "#/components/schemas/JsonNode"
+        metadata:
+          $ref: "#/components/schemas/LaunchMetadata"
+      required:
+      - mainLaunch
+      - metadata
+      - shadowLaunch
+      - strategy
+    JsonNode: {}
+    LaunchMetadata:
+      type: object
+      properties:
+        requestId:
+          type: string
+          format: uuid
+          default: ""
+          pattern: "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+        mainLaunchId:
+          type: string
+        shadowLaunchId:
+          type: string
+        mainLaunchDt:
+          type: string
+          format: date-time
+        shadowLaunchDt:
+          type: string
+          format: date-time
+        attributes:
+          type: object
+          additionalProperties:
+            type: string
+      required:
+      - mainLaunchDt
+      - requestId
+      - shadowLaunchDt
+    AgentAnalysis:
+      default: null
+      description: LLM analysis. The response shape depends on status.
+      discriminator:
+        propertyName: status
+      oneOf:
+      - $ref: "#/components/schemas/CompletedAgentAnalysis"
+      - $ref: "#/components/schemas/FailedAgentAnalysis"
+    CompareStrategyResponse:
+      type: object
+      properties:
+        strategyName:
+          type: string
+        contractVersion:
+          type: string
+        analyzedAt:
+          type: string
+          format: date-time
+          default: ""
+        metadata:
+          $ref: "#/components/schemas/LaunchMetadata"
+          default: ""
+        summary:
+          $ref: "#/components/schemas/ComparisonSummary"
+        diffs:
+          type: array
+          items:
+            $ref: "#/components/schemas/DiffEntry"
+        contractValidation:
+          type: array
+          items:
+            $ref: "#/components/schemas/ContractIssue"
+        agentAnalysis:
+          $ref: "#/components/schemas/AgentAnalysis"
+      required:
+      - analyzedAt
+      - metadata
+    ComparisonSummary:
+      type: object
+      properties:
+        totalDiffs:
+          type: integer
+          format: int32
+        metricDiffs:
+          type: integer
+          format: int32
+        modelDiffs:
+          type: integer
+          format: int32
+        calculationContextDiffs:
+          type: integer
+          format: int32
+        contractTechnicalDiffs:
+          type: integer
+          format: int32
+        contractValidationIssues:
+          type: integer
+          format: int32
+        hasCriticalIssues:
+          type: boolean
+        deterministicSeverity:
+          type: string
+          enum:
+          - INFO
+          - WARNING
+          - CRITICAL
+    CompletedAgentAnalysis:
+      type: object
+      default: null
+      description: Successful LLM analysis.
+      properties:
+        status:
+          type: string
+          default: ""
+          enum:
+          - COMPLETED
+        overallSeverity:
+          type: string
+          default: ""
+          enum:
+          - INFO
+          - WARNING
+          - CRITICAL
+        summary:
+          type: string
+          default: ""
+        businessImpact:
+          type: string
+          default: ""
+        technicalRisks:
+          type: string
+          default: ""
+        recommendations:
+          type: array
+          default: ""
+          items:
+            type: string
+        diffExplanations:
+          type: array
+          default: ""
+          items:
+            $ref: "#/components/schemas/DiffExplanation"
+      required:
+      - businessImpact
+      - diffExplanations
+      - overallSeverity
+      - recommendations
+      - status
+      - summary
+      - technicalRisks
+    ContractIssue:
+      type: object
+      properties:
+        id:
+          type: string
+        side:
+          type: string
+          enum:
+          - MAIN
+          - SHADOW
+        path:
+          type: string
+        type:
+          type: string
+          enum:
+          - REQUIRED_FIELD_MISSING
+          - TYPE_MISMATCH
+          - NULLABILITY_VIOLATION
+          - UNKNOWN_FIELD
+        severity:
+          type: string
+          enum:
+          - INFO
+          - WARNING
+          - CRITICAL
+        expected:
+          type: string
+        actual:
+          type: string
+        actualValue:
+          $ref: "#/components/schemas/JsonNode"
+        message:
+          type: string
+    DiffEntry:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+          default: ""
+        path:
+          type: string
+        type:
+          type: string
+          enum:
+          - NUMERIC_VALUE_CHANGED
+          - STRING_VALUE_CHANGED
+          - BOOLEAN_VALUE_CHANGED
+          - FIELD_ADDED_IN_SHADOW
+          - FIELD_MISSING_IN_SHADOW
+          - FIELD_ADDED_IN_MAIN
+          - TYPE_MISMATCH
+          - NULLABILITY_VIOLATION
+          - REQUIRED_FIELD_MISSING
+        category:
+          type: string
+          enum:
+          - METRIC
+          - MODEL
+          - CALCULATION_CONTEXT
+          - CONTRACT_TECHNICAL
+        mainValue:
+          $ref: "#/components/schemas/JsonNode"
+        shadowValue:
+          $ref: "#/components/schemas/JsonNode"
+        absoluteDelta:
+          type: number
+        relativeDeltaPercent:
+          type: number
+        comparisonBasis:
+          type: string
+          enum:
+          - COERCED_NUMERIC
+        deterministicSeverity:
+          type: string
+          enum:
+          - INFO
+          - WARNING
+          - CRITICAL
+      required:
+      - id
+    DiffExplanation:
+      type: object
+      properties:
+        diffId:
+          type: string
+          format: uuid
+        path:
+          type: string
+        severity:
+          type: string
+          enum:
+          - INFO
+          - WARNING
+          - CRITICAL
+        explanation:
+          type: string
+      required:
+      - diffId
+      - explanation
+      - path
+      - severity
+    FailedAgentAnalysis:
+      type: object
+      default: null
+      description: Safe public description of an LLM analysis failure.
+      properties:
+        status:
+          type: string
+          default: ""
+          enum:
+          - FAILED
+        failureReason:
+          type: string
+          default: ""
+          enum:
+          - CAPACITY
+          - TRANSPORT
+          - RESPONSE_INVALID
+          - REPAIR_EXHAUSTED
+          - INTERNAL
+        errorMessage:
+          type: string
+          default: ""
+      required:
+      - errorMessage
+      - failureReason
+      - status
+    ErrorResponse:
+      type: object
+      properties:
+        timestamp:
+          type: string
+          format: date-time
+        status:
+          type: integer
+          format: int32
+        error:
+          type: string
+        message:
+          type: string

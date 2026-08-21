@@ -28,6 +28,11 @@ management:
 server:
   shutdown: graceful
 
+springdoc:
+  api-docs:
+    enabled: false
+  paths-to-match: /api/v1/**
+
 strategy-launches-analyzer:
   agent:
     max-concurrent-calls: 20

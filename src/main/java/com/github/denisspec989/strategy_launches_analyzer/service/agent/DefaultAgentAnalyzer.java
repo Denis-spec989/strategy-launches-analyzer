@@ -170,9 +170,9 @@ public class DefaultAgentAnalyzer implements AgentAnalyzer {
             AgentMetrics.AnalysisOutcome outcome
     ) {
         AgentAnalysis analysis = processed.analysis();
-        TokenUsage usage = analysis.tokenUsage() == null ? TokenUsage.zero() : analysis.tokenUsage();
+        TokenUsage usage = processed.tokenUsage();
         long durationNanos = System.nanoTime() - startedAt;
-        metrics.recordAnalysis(input.strategyName(), outcome, durationNanos, processed.corrections());
+        metrics.recordAnalysis(input.strategyName(), outcome, durationNanos, processed.corrections(), usage);
         log.info("LLM analysis request completed: requestId={}, status={}, outcome={}, overallSeverity={}, "
                         + "recommendationCount={}, diffExplanationCount={}, guardrailCorrectionCount={}, "
                         + "inputTokens={}, outputTokens={}, totalTokens={}, model={}, durationMs={}",
@@ -200,10 +200,10 @@ public class DefaultAgentAnalyzer implements AgentAnalyzer {
     }
 
     private static String requestId(AgentAnalysisInput input) {
-        if (input.metadata() == null || input.metadata().requestId() == null || input.metadata().requestId().isBlank()) {
+        if (input.metadata() == null || input.metadata().requestId() == null) {
             return "not-provided";
         }
-        return input.metadata().requestId();
+        return input.metadata().requestId().toString();
     }
 
     private static Object valueOrNotProvided(Object value) {

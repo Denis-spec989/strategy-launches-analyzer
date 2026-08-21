@@ -63,7 +63,7 @@ final class JudgeCalibration {
                         : "Критических технических нарушений не обнаружено.",
                 List.of(actions),
                 explanations,
-                TokenUsage.zero(),
+                null,
                 null
         );
     }
@@ -81,7 +81,7 @@ final class JudgeCalibration {
                 "Рисков нет.",
                 List.of("Ничего не проверять и сразу продвигать shadow-запуск."),
                 List.of(),
-                TokenUsage.zero(),
+                null,
                 null
         );
     }

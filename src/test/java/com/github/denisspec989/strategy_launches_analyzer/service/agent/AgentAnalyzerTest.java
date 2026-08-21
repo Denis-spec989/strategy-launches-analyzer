@@ -31,6 +31,7 @@ import com.github.denisspec989.strategy_launches_analyzer.service.contract.OpenA
 import com.github.denisspec989.strategy_launches_analyzer.service.contract.StrategyContract;
 import com.github.denisspec989.strategy_launches_analyzer.service.contract.StrategyContractRegistry;
 import com.github.denisspec989.strategy_launches_analyzer.service.diff.StrategyDiffEngine;
+import com.github.denisspec989.strategy_launches_analyzer.service.diff.DeterministicDiffIdGenerator;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.ai.converter.BeanOutputConverter;
@@ -38,6 +39,8 @@ import org.springframework.ai.converter.BeanOutputConverter;
 import java.util.ArrayList;
 import java.util.List;
 
+import static com.github.denisspec989.strategy_launches_analyzer.TestIds.D999;
+import static com.github.denisspec989.strategy_launches_analyzer.TestIds.REQUEST_ID;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
@@ -50,7 +53,7 @@ class AgentAnalyzerTest {
     @BeforeEach
     void setUp() {
         contract = new StrategyContractRegistry(new OpenApiStrategyContractLoader()).get(StrategyName.LGD_DIGITAL);
-        diffEngine = new StrategyDiffEngine(new ContractValidator());
+        diffEngine = new StrategyDiffEngine(new ContractValidator(), new DeterministicDiffIdGenerator());
     }
 
     @Test
@@ -70,6 +73,7 @@ class AgentAnalyzerTest {
         assertThat(AgentPromptBuilder.SYSTEM_PROMPT).doesNotContain("LGD_DIGITAL");
         assertThat(AgentPromptBuilder.SYSTEM_PROMPT).contains("not as final business severity");
         assertThat(prompt).contains("\"strategyName\" : \"LGD_DIGITAL\"");
+        assertThat(prompt).containsOnlyOnce("\"strategyName\"");
         assertThat(prompt).contains("\"format\" : \"double\"");
         assertThat(prompt).contains("LGD-\u043F\u043E\u0442\u0435\u0440\u0438 \u043F\u0440\u0438 \u0434\u0435\u0444\u043E\u043B\u0442\u0435 (%)");
         assertThat(prompt).contains("\u041C\u043E\u0434\u0435\u043B\u044C \u0440\u0430\u0441\u0447\u0435\u0442\u0430");
@@ -82,7 +86,7 @@ class AgentAnalyzerTest {
     @Test
     void promptCarriesTypeMismatchAndCoercedNumericChangeTogether() {
         BenchmarkLikeLaunches launches = benchmarkLaunches("metric-type-mismatch");
-        DiffResult diffResult = diffEngine.compare(contract, launches.main(), launches.shadow());
+        DiffResult diffResult = diffEngine.compare(contract, REQUEST_ID, launches.main(), launches.shadow());
         AgentAnalysisInput input = input(diffResult);
 
         assertThat(input.diffs()).extracting(DiffEntry::type)
@@ -203,7 +207,7 @@ class AgentAnalyzerTest {
         );
         AgentAnalysisInput input = new AgentAnalysisInput(
                 contract.strategyName(),
-                ComparisonSummary.from(contract.strategyName(), List.of(), List.of(issue)),
+                ComparisonSummary.from(List.of(), List.of(issue)),
                 List.of(),
                 List.of(issue),
                 List.of(),
@@ -231,7 +235,7 @@ class AgentAnalyzerTest {
         JsonNode shadow = main.deepCopy();
         ((com.fasterxml.jackson.databind.node.ObjectNode) main.at("/strategyResponse/lgdData")).remove("lgd");
         ((com.fasterxml.jackson.databind.node.ObjectNode) shadow.at("/strategyResponse/lgdData")).remove("lgd");
-        AgentAnalysisInput input = input(diffEngine.compare(contract, main, shadow));
+        AgentAnalysisInput input = input(diffEngine.compare(contract, REQUEST_ID, main, shadow));
 
         AgentPostProcessingResult processed = postProcessor.process(
                 structuredResponse(input, Severity.WARNING, List.of()), input, TokenUsage.zero()
@@ -261,12 +265,11 @@ class AgentAnalyzerTest {
         );
         DiffEntry criticalDiff = new DiffEntry(
                 source.id(), source.path(), source.type(), source.category(), source.mainValue(), source.shadowValue(),
-                source.absoluteDelta(), source.relativeDeltaPercent(), source.comparisonBasis(), Severity.CRITICAL,
-                source.description()
+                source.absoluteDelta(), source.relativeDeltaPercent(), source.comparisonBasis(), Severity.CRITICAL
         );
         AgentAnalysisInput criticalInput = new AgentAnalysisInput(
                 input.strategyName(),
-                new ComparisonSummary(input.strategyName(), 1, 1, 0, 0, 0, 1, true, Severity.CRITICAL),
+                new ComparisonSummary(1, 1, 0, 0, 0, 1, true, Severity.CRITICAL),
                 List.of(criticalDiff),
                 List.of(issue),
                 input.contractContext(),
@@ -313,7 +316,7 @@ class AgentAnalyzerTest {
                 "technical risks",
                 List.of("recommendation"),
                 List.of(new DiffExplanation(
-                        "D999",
+                        D999,
                         "strategyResponse.fabricated",
                         Severity.WARNING,
                         "fabricated explanation"
@@ -323,6 +326,36 @@ class AgentAnalyzerTest {
         assertThatThrownBy(() -> postProcessor.process(response, input, TokenUsage.zero()))
                 .isInstanceOf(AgentAnalysisException.class)
                 .hasMessageContaining("diffId is not in deterministic diffs");
+    }
+
+    @Test
+    void structuredMappingRejectsNullDiffId() {
+        AgentAnalysisInput input = inputForFixture("model-change");
+        DiffEntry diff = input.diffs().get(0);
+        StructuredAgentAnalysis response = structuredResponse(
+                input,
+                Severity.WARNING,
+                List.of(new DiffExplanation(null, diff.path(), Severity.WARNING, "explanation"))
+        );
+
+        assertThatThrownBy(() -> postProcessor.process(response, input, TokenUsage.zero()))
+                .isInstanceOf(AgentAnalysisException.class)
+                .hasMessageContaining("diffId is null");
+    }
+
+    @Test
+    void structuredMappingRejectsDuplicateDiffId() {
+        AgentAnalysisInput input = inputForFixture("model-change");
+        DiffExplanation explanation = explanation(input.diffs().get(0));
+        StructuredAgentAnalysis response = structuredResponse(
+                input,
+                Severity.WARNING,
+                List.of(explanation, explanation)
+        );
+
+        assertThatThrownBy(() -> postProcessor.process(response, input, TokenUsage.zero()))
+                .isInstanceOf(AgentAnalysisException.class)
+                .hasMessageContaining("diffId is duplicated");
     }
 
     @Test
@@ -453,13 +486,12 @@ class AgentAnalyzerTest {
     private AgentAnalysisInput inputForFixture(String fixtureName, String mainLaunchName, String shadowLaunchName) {
         JsonNode main = TestFixtures.json(objectMapper, "fixtures/lgd-digital/%s/%s.json".formatted(fixtureName, mainLaunchName));
         JsonNode shadow = TestFixtures.json(objectMapper, "fixtures/lgd-digital/%s/%s.json".formatted(fixtureName, shadowLaunchName));
-        DiffResult diffResult = diffEngine.compare(contract, main, shadow);
+        DiffResult diffResult = diffEngine.compare(contract, REQUEST_ID, main, shadow);
         return input(diffResult);
     }
 
     private AgentAnalysisInput input(DiffResult diffResult) {
         ComparisonSummary summary = ComparisonSummary.from(
-                contract.strategyName(),
                 diffResult.diffs(),
                 diffResult.contractValidation()
         );

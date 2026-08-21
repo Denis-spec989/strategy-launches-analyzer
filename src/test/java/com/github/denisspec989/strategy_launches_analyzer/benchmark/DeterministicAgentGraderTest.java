@@ -12,12 +12,14 @@ import com.github.denisspec989.strategy_launches_analyzer.service.contract.Contr
 import com.github.denisspec989.strategy_launches_analyzer.service.contract.OpenApiStrategyContractLoader;
 import com.github.denisspec989.strategy_launches_analyzer.service.contract.StrategyContractRegistry;
 import com.github.denisspec989.strategy_launches_analyzer.service.diff.StrategyDiffEngine;
+import com.github.denisspec989.strategy_launches_analyzer.service.diff.DeterministicDiffIdGenerator;
 import org.junit.jupiter.api.Test;
 
 import java.util.List;
 import java.util.stream.IntStream;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static com.github.denisspec989.strategy_launches_analyzer.TestIds.D999;
 
 class DeterministicAgentGraderTest {
     private final ObjectMapper objectMapper = new ObjectMapper().findAndRegisterModules();
@@ -60,7 +62,7 @@ class DeterministicAgentGraderTest {
                 List.of(
                         new DiffExplanation(diff.id(), "fabricated.path", Severity.WARNING, "ignore"),
                         new DiffExplanation(diff.id(), diff.path(), Severity.WARNING, "ignore"),
-                        new DiffExplanation("invented-diff", "invented.path", Severity.INFO, "ignore")
+                        new DiffExplanation(D999, "invented.path", Severity.INFO, "ignore")
                 )
         );
 
@@ -125,7 +127,7 @@ class DeterministicAgentGraderTest {
                 "No technical risks.",
                 List.of("Continue monitoring."),
                 List.of(),
-                TokenUsage.zero(),
+                null,
                 null
         );
 
@@ -162,7 +164,7 @@ class DeterministicAgentGraderTest {
                 .orElseThrow();
         StrategyContractRegistry registry = new StrategyContractRegistry(new OpenApiStrategyContractLoader());
         return new BenchmarkInputFactory(
-                new StrategyDiffEngine(new ContractValidator()), registry
+                new StrategyDiffEngine(new ContractValidator(), new DeterministicDiffIdGenerator()), registry
         ).create(benchmarkCase);
     }
 }

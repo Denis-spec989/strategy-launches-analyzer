@@ -35,7 +35,8 @@ public final class AgentInputNormalizer {
                 metadata.requestId(),
                 metadata.mainLaunchId(),
                 metadata.shadowLaunchId(),
-                metadata.launchTimestamp(),
+                metadata.mainLaunchDt(),
+                metadata.shadowLaunchDt(),
                 null
         );
     }
@@ -56,8 +57,7 @@ public final class AgentInputNormalizer {
                 diff.absoluteDelta(),
                 diff.relativeDeltaPercent(),
                 diff.comparisonBasis(),
-                diff.deterministicSeverity(),
-                diff.description()
+                diff.deterministicSeverity()
         );
     }
 

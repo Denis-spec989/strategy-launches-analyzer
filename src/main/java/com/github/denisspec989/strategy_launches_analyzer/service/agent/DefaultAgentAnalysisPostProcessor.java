@@ -23,6 +23,7 @@ import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.UUID;
 
 @Slf4j
 public class DefaultAgentAnalysisPostProcessor implements AgentAnalysisPostProcessor {
@@ -68,10 +69,10 @@ public class DefaultAgentAnalysisPostProcessor implements AgentAnalysisPostProce
                 technicalRisks,
                 copyTrimmed(raw.recommendations()),
                 explanations,
-                tokenUsage == null ? TokenUsage.zero() : tokenUsage,
+                null,
                 null
         );
-        return new AgentPostProcessingResult(analysis, corrections);
+        return new AgentPostProcessingResult(analysis, corrections, tokenUsage);
     }
 
     private static void validate(
@@ -116,20 +117,22 @@ public class DefaultAgentAnalysisPostProcessor implements AgentAnalysisPostProce
             AgentAnalysisInput input,
             List<String> violations
     ) {
-        Map<String, String> expectedDiffs = expectedDiffs(input);
+        Map<UUID, String> expectedDiffs = expectedDiffs(input);
         List<DiffExplanation> safeExplanations = explanations == null ? List.of() : explanations;
         if (safeExplanations.size() > expectedDiffs.size()) {
             violations.add("diffExplanations exceeds deterministic diff count");
         }
 
-        Set<String> coveredDiffIds = new LinkedHashSet<>();
+        Set<UUID> coveredDiffIds = new LinkedHashSet<>();
         for (int index = 0; index < safeExplanations.size(); index++) {
             DiffExplanation explanation = safeExplanations.get(index);
             if (explanation == null) {
                 violations.add("diffExplanations[" + index + "] is null");
                 continue;
             }
-            requireNonBlank(explanation.diffId(), "diffExplanations[" + index + "].diffId", violations);
+            if (explanation.diffId() == null) {
+                violations.add("diffExplanations[" + index + "].diffId is null");
+            }
             requireNonBlank(explanation.path(), "diffExplanations[" + index + "].path", violations);
             if (explanation.severity() == null) {
                 violations.add("diffExplanations[" + index + "].severity is null");
@@ -155,8 +158,8 @@ public class DefaultAgentAnalysisPostProcessor implements AgentAnalysisPostProce
             List<DiffExplanation> modelExplanations,
             List<GuardrailCorrection> corrections
     ) {
-        Map<String, DiffExplanation> byDiffId = new LinkedHashMap<>();
-        Map<String, DiffEntry> diffsById = new LinkedHashMap<>();
+        Map<UUID, DiffExplanation> byDiffId = new LinkedHashMap<>();
+        Map<UUID, DiffEntry> diffsById = new LinkedHashMap<>();
         input.diffs().forEach(diff -> diffsById.put(diff.id(), diff));
         modelExplanations.forEach(explanation -> {
             DiffEntry diff = diffsById.get(explanation.diffId());
@@ -326,8 +329,8 @@ public class DefaultAgentAnalysisPostProcessor implements AgentAnalysisPostProce
         return left.ordinal() >= right.ordinal() ? left : right;
     }
 
-    private static Map<String, String> expectedDiffs(AgentAnalysisInput input) {
-        Map<String, String> expectedDiffs = new LinkedHashMap<>();
+    private static Map<UUID, String> expectedDiffs(AgentAnalysisInput input) {
+        Map<UUID, String> expectedDiffs = new LinkedHashMap<>();
         input.diffs().forEach(diff -> expectedDiffs.put(diff.id(), diff.path()));
         return expectedDiffs;
     }

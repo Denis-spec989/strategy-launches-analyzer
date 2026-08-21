@@ -7,6 +7,7 @@ import com.github.denisspec989.strategy_launches_analyzer.dto.agent.AgentAnalysi
 import com.github.denisspec989.strategy_launches_analyzer.dto.agent.AgentFallbackReason;
 import com.github.denisspec989.strategy_launches_analyzer.dto.agent.AgentCallOptions;
 import com.github.denisspec989.strategy_launches_analyzer.dto.agent.AgentModelCallResult;
+import com.github.denisspec989.strategy_launches_analyzer.dto.agent.GuardrailCorrection;
 import com.github.denisspec989.strategy_launches_analyzer.dto.agent.RepairableAgentResponseReason;
 import com.github.denisspec989.strategy_launches_analyzer.dto.agent.StructuredAgentAnalysis;
 import com.github.denisspec989.strategy_launches_analyzer.dto.agent.TokenUsage;
@@ -25,6 +26,7 @@ import java.util.List;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 
+import static com.github.denisspec989.strategy_launches_analyzer.TestIds.D001;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
@@ -51,7 +53,7 @@ class DefaultAgentAnalyzerTest {
         };
         AgentAnalysisInput input = new AgentAnalysisInput(
                 "LGD_DIGITAL",
-                new ComparisonSummary("LGD_DIGITAL", 0, 0, 0, 0, 0, 0, false, Severity.INFO),
+                new ComparisonSummary(0, 0, 0, 0, 0, 0, false, Severity.INFO),
                 List.of(),
                 List.of(),
                 List.of(),
@@ -73,6 +75,7 @@ class DefaultAgentAnalyzerTest {
     @EnumSource(RepairableAgentResponseReason.class)
     void retriesEveryRepairableResponseReasonExactlyOnce(RepairableAgentResponseReason reason) {
         AtomicInteger calls = new AtomicInteger();
+        RecordingAgentMetrics metrics = new RecordingAgentMetrics();
         AgentModelClient client = (input, options) -> {
             if (calls.incrementAndGet() == 1) {
                 throw repairable(reason, usage(2, 1));
@@ -81,20 +84,21 @@ class DefaultAgentAnalyzerTest {
             assertThat(options.repairContext().reason()).isEqualTo(reason);
             return result(options, validResponse(), usage(3, 2));
         };
-        DefaultAgentAnalyzer analyzer = analyzer(client);
+        DefaultAgentAnalyzer analyzer = analyzer(client, metrics);
 
         AgentAnalysis analysis = analyzer.analyze(emptyInput());
 
         assertThat(calls).hasValue(2);
         assertThat(analysis.status()).isEqualTo(AgentAnalysisStatus.COMPLETED);
-        assertThat(analysis.tokenUsage().inputTokens()).isEqualTo(5);
-        assertThat(analysis.tokenUsage().outputTokens()).isEqualTo(3);
+        assertThat(metrics.analysisTokenUsage.get().inputTokens()).isEqualTo(5);
+        assertThat(metrics.analysisTokenUsage.get().outputTokens()).isEqualTo(3);
     }
 
     @Test
     void repairCarriesParsedResponseAndValidationViolations() {
         AtomicInteger calls = new AtomicInteger();
         AtomicReference<AgentCallOptions> repairOptions = new AtomicReference<>();
+        RecordingAgentMetrics metrics = new RecordingAgentMetrics();
         StructuredAgentAnalysis invalid = new StructuredAgentAnalysis(
                 Severity.INFO,
                 " ",
@@ -111,12 +115,12 @@ class DefaultAgentAnalyzerTest {
             return result(options, validResponse(), usage(7, 3));
         };
 
-        AgentAnalysis analysis = analyzer(client).analyze(emptyInput());
+        analyzer(client, metrics).analyze(emptyInput());
 
         assertThat(repairOptions.get().repairContext().previousResponse()).isSameAs(invalid);
         assertThat(repairOptions.get().repairContext().violations()).contains("summary is blank");
-        assertThat(analysis.tokenUsage().inputTokens()).isEqualTo(12);
-        assertThat(analysis.tokenUsage().outputTokens()).isEqualTo(5);
+        assertThat(metrics.analysisTokenUsage.get().inputTokens()).isEqualTo(12);
+        assertThat(metrics.analysisTokenUsage.get().outputTokens()).isEqualTo(5);
     }
 
     @Test
@@ -232,7 +236,7 @@ class DefaultAgentAnalyzerTest {
     void localGuardrailCorrectionDoesNotTriggerRepair() {
         AtomicInteger calls = new AtomicInteger();
         DiffEntry diff = new DiffEntry(
-                "D001",
+                D001,
                 "strategyResponse.lgdData.lgdModel",
                 DiffType.STRING_VALUE_CHANGED,
                 DiffCategory.MODEL,
@@ -240,12 +244,11 @@ class DefaultAgentAnalyzerTest {
                 TextNode.valueOf("shadow"),
                 null,
                 null,
-                Severity.WARNING,
-                "Model changed."
+                Severity.WARNING
         );
         AgentAnalysisInput input = new AgentAnalysisInput(
                 "LGD_DIGITAL",
-                new ComparisonSummary("LGD_DIGITAL", 1, 0, 1, 0, 0, 0, false, Severity.WARNING),
+                new ComparisonSummary(1, 0, 1, 0, 0, 0, false, Severity.WARNING),
                 List.of(diff),
                 List.of(),
                 List.of(),
@@ -267,21 +270,27 @@ class DefaultAgentAnalyzerTest {
 
         assertThat(calls).hasValue(1);
         assertThat(analysis.diffExplanations()).singleElement().satisfies(explanation ->
-                assertThat(explanation.diffId()).isEqualTo("D001"));
+                assertThat(explanation.diffId()).isEqualTo(D001));
     }
 
     private static DefaultAgentAnalyzer analyzer(AgentModelClient client) {
+        return analyzer(client, AgentMetrics.noop());
+    }
+
+    private static DefaultAgentAnalyzer analyzer(AgentModelClient client, AgentMetrics metrics) {
         return new DefaultAgentAnalyzer(
                 client,
                 new DefaultAgentAnalysisPostProcessor(),
-                "configured-model"
+                "configured-model",
+                true,
+                metrics
         );
     }
 
     private static AgentAnalysisInput emptyInput() {
         return new AgentAnalysisInput(
                 "LGD_DIGITAL",
-                new ComparisonSummary("LGD_DIGITAL", 0, 0, 0, 0, 0, 0, false, Severity.INFO),
+                new ComparisonSummary(0, 0, 0, 0, 0, 0, false, Severity.INFO),
                 List.of(),
                 List.of(),
                 List.of(),
@@ -323,5 +332,37 @@ class DefaultAgentAnalyzerTest {
 
     private static TokenUsage usage(int input, int output) {
         return new TokenUsage(input, output, input + output, 0L, 0L, "configured-model");
+    }
+
+    private static final class RecordingAgentMetrics implements AgentMetrics {
+        private final AtomicReference<TokenUsage> analysisTokenUsage = new AtomicReference<>();
+
+        @Override
+        public void recordAnalysis(
+                String strategy,
+                AnalysisOutcome outcome,
+                long durationNanos,
+                List<GuardrailCorrection> corrections,
+                TokenUsage tokenUsage
+        ) {
+            analysisTokenUsage.set(tokenUsage);
+        }
+
+        @Override
+        public void recordFallback(
+                String strategy,
+                AgentFallbackReason reason,
+                long durationNanos,
+                TokenUsage tokenUsage
+        ) {
+        }
+
+        @Override
+        public void recordRepair(String strategy, RepairableAgentResponseReason reason, boolean success) {
+        }
+
+        @Override
+        public void recordValidationFailure(String strategy, RepairableAgentResponseReason reason) {
+        }
     }
 }

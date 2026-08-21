@@ -1,7 +1,6 @@
 package com.github.denisspec989.strategy_launches_analyzer.dto.comparison;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.github.denisspec989.strategy_launches_analyzer.dto.comparison.ComparisonSummary;
 import com.github.denisspec989.strategy_launches_analyzer.dto.contract.ContractIssueType;
 import com.github.denisspec989.strategy_launches_analyzer.dto.contract.ContractIssue;
 import com.github.denisspec989.strategy_launches_analyzer.dto.comparison.DiffCategory;
@@ -14,27 +13,31 @@ import org.junit.jupiter.api.Test;
 import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static com.github.denisspec989.strategy_launches_analyzer.TestIds.D001;
+import static com.github.denisspec989.strategy_launches_analyzer.TestIds.D002;
+import static com.github.denisspec989.strategy_launches_analyzer.TestIds.D003;
+import static com.github.denisspec989.strategy_launches_analyzer.TestIds.D004;
 
 class ComparisonSummaryTest {
     private final ObjectMapper objectMapper = new ObjectMapper();
 
     @Test
     void emptyComparisonUsesInfoDeterministicSeverity() {
-        ComparisonSummary summary = ComparisonSummary.from("LGD_DIGITAL", List.of(), List.of());
+        ComparisonSummary summary = ComparisonSummary.from(List.of(), List.of());
 
         assertThat(summary.deterministicSeverity()).isEqualTo(Severity.INFO);
     }
 
     @Test
     void comparisonWithDiffUsesWarningDeterministicSeverity() {
-        ComparisonSummary summary = ComparisonSummary.from("LGD_DIGITAL", List.of(metricDiff()), List.of());
+        ComparisonSummary summary = ComparisonSummary.from(List.of(metricDiff()), List.of());
 
         assertThat(summary.deterministicSeverity()).isEqualTo(Severity.WARNING);
     }
 
     @Test
     void comparisonWithCriticalIssueUsesCriticalDeterministicSeverity() {
-        ComparisonSummary summary = ComparisonSummary.from("LGD_DIGITAL", List.of(), List.of(criticalIssue()));
+        ComparisonSummary summary = ComparisonSummary.from(List.of(), List.of(criticalIssue()));
 
         assertThat(summary.deterministicSeverity()).isEqualTo(Severity.CRITICAL);
         assertThat(summary.hasCriticalIssues()).isTrue();
@@ -42,7 +45,7 @@ class ComparisonSummaryTest {
 
     @Test
     void comparisonWithHardCriticalDiffUsesCriticalDeterministicSeverity() {
-        ComparisonSummary summary = ComparisonSummary.from("LGD_DIGITAL", List.of(hardCriticalDiff()), List.of());
+        ComparisonSummary summary = ComparisonSummary.from(List.of(hardCriticalDiff()), List.of());
 
         assertThat(summary.deterministicSeverity()).isEqualTo(Severity.CRITICAL);
         assertThat(summary.hasCriticalIssues()).isTrue();
@@ -50,16 +53,16 @@ class ComparisonSummaryTest {
 
     @Test
     void serializesDeterministicSeverityWithoutHighestSeverity() throws Exception {
-        String json = objectMapper.writeValueAsString(ComparisonSummary.from("LGD_DIGITAL", List.of(metricDiff()), List.of()));
+        String json = objectMapper.writeValueAsString(ComparisonSummary.from(List.of(metricDiff()), List.of()));
 
         assertThat(json).contains("\"deterministicSeverity\":\"WARNING\"");
         assertThat(json).doesNotContain("highestSeverity");
+        assertThat(json).doesNotContain("strategyName");
     }
 
     @Test
     void categoryBreakdownSumsToTotalDiffsIncludingCalculationContext() {
         ComparisonSummary summary = ComparisonSummary.from(
-                "LGD_DIGITAL",
                 List.of(metricDiff(), modelDiff(), calculationContextDiff(), contractTechnicalDiff()),
                 List.of()
         );
@@ -74,7 +77,7 @@ class ComparisonSummaryTest {
 
     private static DiffEntry modelDiff() {
         return new DiffEntry(
-                "D002",
+                D002,
                 "strategyResponse.lgdData.lgdModel",
                 DiffType.STRING_VALUE_CHANGED,
                 DiffCategory.MODEL,
@@ -82,14 +85,13 @@ class ComparisonSummaryTest {
                 null,
                 null,
                 null,
-                Severity.WARNING,
-                "Model changed in shadow launch."
+                Severity.WARNING
         );
     }
 
     private static DiffEntry calculationContextDiff() {
         return new DiffEntry(
-                "D003",
+                D003,
                 "strategyResponse.lgdData.scenario",
                 DiffType.STRING_VALUE_CHANGED,
                 DiffCategory.CALCULATION_CONTEXT,
@@ -97,14 +99,13 @@ class ComparisonSummaryTest {
                 null,
                 null,
                 null,
-                Severity.WARNING,
-                "Calculation scenario changed in shadow launch."
+                Severity.WARNING
         );
     }
 
     private static DiffEntry contractTechnicalDiff() {
         return new DiffEntry(
-                "D004",
+                D004,
                 "strategyResponse.extra",
                 DiffType.FIELD_ADDED_IN_SHADOW,
                 DiffCategory.CONTRACT_TECHNICAL,
@@ -112,14 +113,13 @@ class ComparisonSummaryTest {
                 null,
                 null,
                 null,
-                Severity.WARNING,
-                "Undeclared field present only in shadow launch."
+                Severity.WARNING
         );
     }
 
     private static DiffEntry metricDiff() {
         return new DiffEntry(
-                "D001",
+                D001,
                 "strategyResponse.lgdData.lgd",
                 DiffType.NUMERIC_VALUE_CHANGED,
                 DiffCategory.METRIC,
@@ -127,14 +127,13 @@ class ComparisonSummaryTest {
                 null,
                 null,
                 null,
-                Severity.WARNING,
-                "Numeric value changed in shadow launch."
+                Severity.WARNING
         );
     }
 
     private static DiffEntry hardCriticalDiff() {
         return new DiffEntry(
-                "D001",
+                D001,
                 "strategyResponse.lgdData.mode",
                 DiffType.STRING_VALUE_CHANGED,
                 DiffCategory.CONTRACT_TECHNICAL,
@@ -142,8 +141,7 @@ class ComparisonSummaryTest {
                 null,
                 null,
                 null,
-                Severity.CRITICAL,
-                "Technical field changed in shadow launch."
+                Severity.CRITICAL
         );
     }
 

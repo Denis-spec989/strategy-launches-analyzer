@@ -7,21 +7,28 @@ import com.github.denisspec989.strategy_launches_analyzer.dto.agent.AgentAnalysi
 import com.github.denisspec989.strategy_launches_analyzer.dto.agent.AgentAnalysisInput;
 import com.github.denisspec989.strategy_launches_analyzer.dto.agent.AgentAnalysisStatus;
 import com.github.denisspec989.strategy_launches_analyzer.dto.agent.AgentFallbackReason;
+import com.github.denisspec989.strategy_launches_analyzer.dto.agent.GuardrailCorrection;
+import com.github.denisspec989.strategy_launches_analyzer.dto.agent.RepairableAgentResponseReason;
 import com.github.denisspec989.strategy_launches_analyzer.dto.agent.TokenUsage;
 import com.github.denisspec989.strategy_launches_analyzer.dto.api.CompareStrategyRequest;
 import com.github.denisspec989.strategy_launches_analyzer.dto.api.CompareStrategyResponse;
+import com.github.denisspec989.strategy_launches_analyzer.dto.api.LaunchMetadata;
 import com.github.denisspec989.strategy_launches_analyzer.dto.common.Severity;
 import com.github.denisspec989.strategy_launches_analyzer.dto.strategy.StrategyName;
 import com.github.denisspec989.strategy_launches_analyzer.exceptions.BadRequestException;
 import com.github.denisspec989.strategy_launches_analyzer.exceptions.AgentExecutionFailureException;
 import com.github.denisspec989.strategy_launches_analyzer.service.agent.AgentAnalyzer;
+import com.github.denisspec989.strategy_launches_analyzer.service.agent.AgentMetrics;
 import com.github.denisspec989.strategy_launches_analyzer.service.contract.ContractValidator;
 import com.github.denisspec989.strategy_launches_analyzer.service.contract.OpenApiStrategyContractLoader;
 import com.github.denisspec989.strategy_launches_analyzer.service.contract.StrategyContractRegistry;
 import com.github.denisspec989.strategy_launches_analyzer.service.diff.StrategyDiffEngine;
+import com.github.denisspec989.strategy_launches_analyzer.service.diff.DeterministicDiffIdGenerator;
 import org.junit.jupiter.api.Test;
 
+import java.time.Instant;
 import java.util.List;
+import java.util.UUID;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -35,7 +42,10 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 class CompareStrategyLaunchesUseCaseTest {
     private final ObjectMapper objectMapper = new ObjectMapper().findAndRegisterModules();
     private final StrategyContractRegistry registry = new StrategyContractRegistry(new OpenApiStrategyContractLoader());
-    private final StrategyDiffEngine diffEngine = new StrategyDiffEngine(new ContractValidator());
+    private final StrategyDiffEngine diffEngine = new StrategyDiffEngine(
+            new ContractValidator(),
+            new DeterministicDiffIdGenerator()
+    );
 
     @Test
     void returnsDeterministicFallbackForCallsBeyondBulkheadLimit() throws Exception {
@@ -62,10 +72,10 @@ class CompareStrategyLaunchesUseCaseTest {
             CompareStrategyResponse fallback = useCase.compare(request);
 
             assertThat(fallback.agentAnalysis().status()).isEqualTo(AgentAnalysisStatus.FAILED);
-            assertThat(fallback.agentAnalysis().overallSeverity())
-                    .isEqualTo(fallback.summary().deterministicSeverity());
+            assertThat(fallback.agentAnalysis().overallSeverity()).isNull();
             assertThat(fallback.diffs()).isNotEmpty();
-            assertThat(fallback.agentAnalysis().errorMessage()).isEqualTo("LLM-анализ недоступен.");
+            assertThat(fallback.agentAnalysis().failureReason()).isEqualTo(AgentFallbackReason.CAPACITY);
+            assertThat(fallback.agentAnalysis().errorMessage()).isEqualTo(AgentFallbackReason.CAPACITY.publicMessage());
 
             release.countDown();
             occupying.get(5, TimeUnit.SECONDS);
@@ -88,6 +98,7 @@ class CompareStrategyLaunchesUseCaseTest {
                 .isEqualTo(registry.get(StrategyName.LGD_DIGITAL).version())
                 .isNotBlank();
         assertThat(response.analyzedAt()).isNotNull();
+        assertThat(response.metadata()).isEqualTo(request.metadata());
     }
 
     @Test
@@ -144,15 +155,19 @@ class CompareStrategyLaunchesUseCaseTest {
         CompareStrategyResponse response = useCase.compare(request("model-change"));
 
         assertThat(response.agentAnalysis().status()).isEqualTo(AgentAnalysisStatus.FAILED);
-        assertThat(response.agentAnalysis().overallSeverity()).isEqualTo(response.summary().deterministicSeverity());
-        assertThat(response.agentAnalysis().summary()).contains("Детерминированные отличия");
-        assertThat(response.agentAnalysis().businessImpact()).isNotBlank();
+        assertThat(response.agentAnalysis().failureReason()).isEqualTo(AgentFallbackReason.INTERNAL);
+        assertThat(response.agentAnalysis().errorMessage()).isEqualTo(AgentFallbackReason.INTERNAL.publicMessage());
+        assertThat(response.agentAnalysis().errorMessage()).doesNotContain("provider unavailable");
+        assertThat(response.agentAnalysis().overallSeverity()).isNull();
+        assertThat(response.agentAnalysis().summary()).isNull();
+        assertThat(response.agentAnalysis().businessImpact()).isNull();
         assertThat(response.diffs()).isNotEmpty();
     }
 
     @Test
-    void fallbackPreservesTokensConsumedBeforeRepairExhaustion() {
+    void fallbackRecordsTokensConsumedBeforeRepairExhaustionWithoutExposingThem() {
         TokenUsage consumed = new TokenUsage(11, 7, 18, 3L, 0L, "actual-model");
+        RecordingAgentMetrics metrics = new RecordingAgentMetrics();
         CompareStrategyLaunchesUseCase useCase = new CompareStrategyLaunchesUseCase(
                 diffEngine,
                 registry,
@@ -164,6 +179,7 @@ class CompareStrategyLaunchesUseCaseTest {
                             consumed
                     );
                 },
+                metrics,
                 20,
                 100_000,
                 100
@@ -172,13 +188,23 @@ class CompareStrategyLaunchesUseCaseTest {
         CompareStrategyResponse response = useCase.compare(request("model-change"));
 
         assertThat(response.agentAnalysis().status()).isEqualTo(AgentAnalysisStatus.FAILED);
-        assertThat(response.agentAnalysis().tokenUsage()).isEqualTo(consumed);
+        assertThat(response.agentAnalysis().failureReason()).isEqualTo(AgentFallbackReason.REPAIR_EXHAUSTED);
+        assertThat(metrics.fallbackTokenUsage.get()).isEqualTo(consumed);
+        assertThat(objectMapper.valueToTree(response).path("agentAnalysis").has("tokenUsage")).isFalse();
     }
 
     private CompareStrategyRequest request(String fixture) {
         JsonNode main = TestFixtures.json(objectMapper, "fixtures/lgd-digital/%s/main.json".formatted(fixture));
         JsonNode shadow = TestFixtures.json(objectMapper, "fixtures/lgd-digital/%s/shadow.json".formatted(fixture));
-        return new CompareStrategyRequest(StrategyName.LGD_DIGITAL, main, shadow, null);
+        LaunchMetadata metadata = new LaunchMetadata(
+                UUID.fromString("11111111-1111-1111-1111-111111111111"),
+                "MAIN-1",
+                "SHADOW-1",
+                Instant.parse("2026-06-04T11:00:00Z"),
+                Instant.parse("2026-06-04T11:01:00Z"),
+                java.util.Map.of("source", "test")
+        );
+        return new CompareStrategyRequest(StrategyName.LGD_DIGITAL, main, shadow, metadata);
     }
 
     private static AgentAnalysis completedAnalysis() {
@@ -190,8 +216,40 @@ class CompareStrategyLaunchesUseCaseTest {
                 "technical risks",
                 List.of(),
                 List.of(),
-                TokenUsage.zero(),
+                null,
                 null
         );
+    }
+
+    private static final class RecordingAgentMetrics implements AgentMetrics {
+        private final AtomicReference<TokenUsage> fallbackTokenUsage = new AtomicReference<>();
+
+        @Override
+        public void recordAnalysis(
+                String strategy,
+                AnalysisOutcome outcome,
+                long durationNanos,
+                List<GuardrailCorrection> corrections,
+                TokenUsage tokenUsage
+        ) {
+        }
+
+        @Override
+        public void recordFallback(
+                String strategy,
+                AgentFallbackReason reason,
+                long durationNanos,
+                TokenUsage tokenUsage
+        ) {
+            fallbackTokenUsage.set(tokenUsage);
+        }
+
+        @Override
+        public void recordRepair(String strategy, RepairableAgentResponseReason reason, boolean success) {
+        }
+
+        @Override
+        public void recordValidationFailure(String strategy, RepairableAgentResponseReason reason) {
+        }
     }
 }

@@ -5,22 +5,29 @@
 #
 # Что учитывать после доработок (детерминированная часть ответа предсказуема,
 # текст бизнес-анализа генерирует LLM):
-# - Трассируемость ответа: contractVersion ("v1") и analyzedAt.
+# - Трассируемость ответа: contractVersion ("v1"), analyzedAt и исходная metadata.
+#   requestId — обязательный canonical UUID; mainLaunchDt и shadowLaunchDt —
+#   обязательные ISO-8601 даты запусков. Отчёты за период строятся по mainLaunchDt.
+#   При retry клиент повторяет тот же requestId и payload: сервис stateless, а
+#   diffs[].id — детерминированные UUID v5 и останутся прежними.
+# - strategyName возвращается только в корне response и не дублируется в summary.
 # - summary содержит отдельный счётчик calculationContextDiffs (категория
 #   CALCULATION_CONTEXT); сумма по категориям сходится с totalDiffs.
 # - Severity-гейт: hard-critical diff (путь .mode/.type, TYPE_MISMATCH,
 #   NULLABILITY_VIOLATION, отсутствие required-поля) и любой CRITICAL
 #   contract issue форсят agentAnalysis.overallSeverity = CRITICAL; LLM может
 #   только повысить severity, понизить детерминированный CRITICAL — не может.
-# - Изоляция входа LLM: metadata.attributes в модель НЕ передаются (остаются
-#   только в логах); сырые object/array-значения незадекларированных полей
+# - Изоляция входа LLM: metadata.attributes в модель НЕ передаются, но без
+#   изменений возвращаются клиенту; сырые object/array-значения незадекларированных полей
 #   уходят в LLM компактным дескриптором "object(size=N): ...", а в ответе API
 #   сохраняются как есть.
 # - Лимиты тела запроса: > 5000 узлов JSON или глубина вложенности > 20 → 400
 #   (BadRequest). Примеры с такими телами здесь не приводятся из-за объёма.
-# - Вызов LLM: одна попытка с таймаутом 120s; HTTP-клиент ждёт ответ до 3 минут.
+# - Вызов LLM: основная попытка и максимум одна repair-попытка; HTTP-клиент
+#   ждёт итоговый ответ до 3 минут.
 #   При переполнении одновременных
-#   вызовов агента (> 20) запрос быстро отклоняется с 503.
+#   вызовов агента (> 20) response остаётся 200, но agentAnalysis содержит
+#   status=FAILED, failureReason=CAPACITY и безопасный errorMessage.
 ###############################################################################
 
 
@@ -69,10 +76,11 @@ Content-Type: application/json
     }
   },
   "metadata": {
-    "requestId": "REQ-1",
+    "requestId": "00000000-0000-0000-0000-000000000001",
     "mainLaunchId": "MAIN-1",
     "shadowLaunchId": "SHADOW-1",
-    "launchTimestamp": "2026-06-04T11:00:00Z",
+    "mainLaunchDt": "2026-06-04T11:00:00Z",
+    "shadowLaunchDt": "2026-06-04T11:01:00Z",
     "attributes": {
       "source": "manual-http-check"
     }
@@ -123,9 +131,11 @@ Content-Type: application/json
     }
   },
   "metadata": {
-    "requestId": "REQ-2",
+    "requestId": "00000000-0000-0000-0000-000000000002",
     "mainLaunchId": "MAIN-2",
-    "shadowLaunchId": "SHADOW-2"
+    "shadowLaunchId": "SHADOW-2",
+    "mainLaunchDt": "2026-06-04T12:00:00Z",
+    "shadowLaunchDt": "2026-06-04T12:01:00Z"
   }
 }
 
@@ -174,9 +184,11 @@ Content-Type: application/json
     }
   },
   "metadata": {
-    "requestId": "REQ-3",
+    "requestId": "00000000-0000-0000-0000-000000000003",
     "mainLaunchId": "MAIN-3",
-    "shadowLaunchId": "SHADOW-3"
+    "shadowLaunchId": "SHADOW-3",
+    "mainLaunchDt": "2026-06-04T13:00:00Z",
+    "shadowLaunchDt": "2026-06-04T13:01:00Z"
   }
 }
 
@@ -233,9 +245,11 @@ Content-Type: application/json
     }
   },
   "metadata": {
-    "requestId": "REQ-4",
+    "requestId": "00000000-0000-0000-0000-000000000004",
     "mainLaunchId": "MAIN-4",
-    "shadowLaunchId": "SHADOW-4"
+    "shadowLaunchId": "SHADOW-4",
+    "mainLaunchDt": "2026-06-04T14:00:00Z",
+    "shadowLaunchDt": "2026-06-04T14:01:00Z"
   }
 }
 
@@ -283,9 +297,11 @@ Content-Type: application/json
     }
   },
   "metadata": {
-    "requestId": "REQ-5",
+    "requestId": "00000000-0000-0000-0000-000000000005",
     "mainLaunchId": "MAIN-5",
-    "shadowLaunchId": "SHADOW-5"
+    "shadowLaunchId": "SHADOW-5",
+    "mainLaunchDt": "2026-06-04T15:00:00Z",
+    "shadowLaunchDt": "2026-06-04T15:01:00Z"
   }
 }
 
@@ -337,9 +353,11 @@ Content-Type: application/json
     }
   },
   "metadata": {
-    "requestId": "REQ-6",
+    "requestId": "00000000-0000-0000-0000-000000000006",
     "mainLaunchId": "MAIN-6",
-    "shadowLaunchId": "SHADOW-6"
+    "shadowLaunchId": "SHADOW-6",
+    "mainLaunchDt": "2026-06-04T16:00:00Z",
+    "shadowLaunchDt": "2026-06-04T16:01:00Z"
   }
 }
 
@@ -386,9 +404,11 @@ Content-Type: application/json
     }
   },
   "metadata": {
-    "requestId": "REQ-7",
+    "requestId": "00000000-0000-0000-0000-000000000007",
     "mainLaunchId": "MAIN-7",
-    "shadowLaunchId": "SHADOW-7"
+    "shadowLaunchId": "SHADOW-7",
+    "mainLaunchDt": "2026-06-04T17:00:00Z",
+    "shadowLaunchDt": "2026-06-04T17:01:00Z"
   }
 }
 

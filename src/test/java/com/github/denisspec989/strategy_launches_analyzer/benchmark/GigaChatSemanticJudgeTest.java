@@ -3,7 +3,6 @@ package com.github.denisspec989.strategy_launches_analyzer.benchmark;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.github.denisspec989.strategy_launches_analyzer.dto.agent.AgentAnalysis;
 import com.github.denisspec989.strategy_launches_analyzer.dto.agent.AgentAnalysisStatus;
-import com.github.denisspec989.strategy_launches_analyzer.dto.agent.TokenUsage;
 import com.github.denisspec989.strategy_launches_analyzer.dto.common.Severity;
 import org.junit.jupiter.api.Test;
 
@@ -22,7 +21,7 @@ class GigaChatSemanticJudgeTest {
                 "Критических рисков нет.",
                 List.of("Проверить результат."),
                 List.of(),
-                new TokenUsage(100, 20, 120, 10L, 0L, "secret-candidate-model"),
+                null,
                 null
         );
         GigaChatSemanticJudge judge = new GigaChatSemanticJudge(
@@ -36,6 +35,6 @@ class GigaChatSemanticJudgeTest {
         );
 
         assertThat(prompt).contains("Обнаружено изменение.");
-        assertThat(prompt).doesNotContain("secret-candidate-model", "tokenUsage", "inputTokens");
+        assertThat(prompt).doesNotContain("tokenUsage", "inputTokens", "outputTokens");
     }
 }

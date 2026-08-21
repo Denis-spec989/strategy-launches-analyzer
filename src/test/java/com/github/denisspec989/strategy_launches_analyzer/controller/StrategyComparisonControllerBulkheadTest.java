@@ -47,8 +47,11 @@ class StrategyComparisonControllerBulkheadTest {
                 .andExpect(jsonPath("$.diffs.length()").value(3))
                 .andExpect(jsonPath("$.contractValidation").isArray())
                 .andExpect(jsonPath("$.agentAnalysis.status").value("FAILED"))
-                .andExpect(jsonPath("$.agentAnalysis.overallSeverity").value("WARNING"))
-                .andExpect(jsonPath("$.agentAnalysis.errorMessage").value("LLM-анализ недоступен."));
+                .andExpect(jsonPath("$.agentAnalysis.failureReason").value("CAPACITY"))
+                .andExpect(jsonPath("$.agentAnalysis.errorMessage")
+                        .value("LLM-анализ не выполнен: превышен лимит параллельных вызовов."))
+                .andExpect(jsonPath("$.agentAnalysis.overallSeverity").doesNotExist())
+                .andExpect(jsonPath("$.agentAnalysis.tokenUsage").doesNotExist());
     }
 
     private String requestBody() throws Exception {
@@ -62,6 +65,10 @@ class StrategyComparisonControllerBulkheadTest {
                 objectMapper,
                 "fixtures/lgd-digital/model-change/shadow.json"
         ));
+        body.set("metadata", objectMapper.createObjectNode()
+                .put("requestId", "11111111-1111-1111-1111-111111111111")
+                .put("mainLaunchDt", "2026-06-04T11:00:00Z")
+                .put("shadowLaunchDt", "2026-06-04T11:01:00Z"));
         return objectMapper.writeValueAsString(body);
     }
 

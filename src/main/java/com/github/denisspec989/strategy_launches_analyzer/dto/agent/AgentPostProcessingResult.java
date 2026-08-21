@@ -4,9 +4,11 @@ import java.util.List;
 
 public record AgentPostProcessingResult(
         AgentAnalysis analysis,
-        List<GuardrailCorrection> corrections
+        List<GuardrailCorrection> corrections,
+        TokenUsage tokenUsage
 ) {
     public AgentPostProcessingResult {
         corrections = corrections == null ? List.of() : List.copyOf(corrections);
+        tokenUsage = tokenUsage == null ? TokenUsage.zero() : tokenUsage;
     }
 }

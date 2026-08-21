@@ -6,6 +6,11 @@ describes a launch object with `strategyResponse` as the root response field.
 The comparison API is shared across strategies: call `POST /api/v1/strategies/compare`
 and pass `"strategy": "LGD_DIGITAL"` in the request body.
 
+The request must include metadata with a canonical lowercase UUID `requestId`
+and separate ISO-8601 `mainLaunchDt` and `shadowLaunchDt` timestamps. The same
+metadata, including optional attributes, is returned in the response. Retries
+reuse the same requestId; deduplication and upsert remain client responsibilities.
+
 ## Contract Fields
 
 | Path | Type | Cardinality | Nullable | Category | Description |
@@ -35,6 +40,9 @@ and pass `"strategy": "LGD_DIGITAL"` in the request body.
 - Coerced numeric comparison accepts the JSON number grammar (including negative and exponent forms) and rejects locale or decorated formats such as decimal commas, percent signs, `NaN`, and `Infinity`.
 - Compare optional fields only when at least one launch provides them.
 - Report response shape changes when a field exists only in main or only in shadow.
+- Generate every `diffs[].id` as UUID v5 in the namespace of `metadata.requestId` from
+  `strategyName`, `path`, `type`, `category`, and `comparisonBasis`. Repeating the same
+  request payload with the same requestId therefore returns the same diff IDs.
 - Every public `diffs[]` entry contains a mandatory `deterministicSeverity`. Its value is `CRITICAL` for a hard-critical type/path or when a `CRITICAL` contract issue has the exact same path; all other individual diffs use `WARNING`. `INFO` means that there are no diffs and is used only at summary level.
 - A missing required field is therefore `CRITICAL` on either side (`main` or `shadow`). A missing optional field remains `WARNING`.
 - `summary.deterministicSeverity` is the maximum severity across the already-resolved diff severities and contract validation issues.
@@ -43,19 +51,19 @@ Example public diff:
 
 ```json
 {
-  "id": "D001",
+  "id": "15e9cb10-6e74-5853-a33d-bfd22a3ab8ab",
   "path": "strategyResponse.lgdData.lgd",
   "type": "FIELD_MISSING_IN_SHADOW",
   "category": "METRIC",
   "mainValue": 18.1,
-  "deterministicSeverity": "CRITICAL",
-  "description": "Field is present in main launch and absent in shadow launch."
+  "deterministicSeverity": "CRITICAL"
 }
 ```
 
 ## Agent Rules
 
 - The agent receives the same public `DiffEntry` objects after only large-value normalization, plus contract validation issues, touched field contract context, summary, and optional launch metadata. Normalization preserves `deterministicSeverity`.
+- `strategyName` is present only at the root of `AgentAnalysisInput`; it is not duplicated in `summary`.
 - The agent uses OpenAPI `description` plus `x-summary-guidance` to explain business meaning.
 - Java comparison owns deterministic facts, each `diffs[].deterministicSeverity`, and `summary.deterministicSeverity`; the agent owns final semantic severity in `agentAnalysis.overallSeverity`.
 - `summary.deterministicSeverity` is a preliminary guardrail, not the final business severity.
@@ -63,3 +71,7 @@ Example public diff:
 - The agent must not receive the full OpenAPI contract, compare raw launch JSON, or invent additional diffs.
 - The agent may describe model changes as a possible explanation for metric changes, not as proven root cause.
 - Shape, schema, type, and nullability issues must always be mentioned in analysis.
+- A failed LLM call returns only `status`, a stable `failureReason`, and a safe
+  `errorMessage`; deterministic facts and `summary.deterministicSeverity` remain available.
+- Token usage and model identity are operational data exposed through Prometheus,
+  not through the comparison response.

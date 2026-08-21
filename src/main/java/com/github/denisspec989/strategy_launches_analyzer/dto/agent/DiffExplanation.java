@@ -4,10 +4,12 @@ import com.fasterxml.jackson.annotation.JsonProperty;
 import com.fasterxml.jackson.annotation.JsonPropertyDescription;
 import com.github.denisspec989.strategy_launches_analyzer.dto.common.Severity;
 
+import java.util.UUID;
+
 public record DiffExplanation(
         @JsonProperty(required = true)
         @JsonPropertyDescription("Identifier of the deterministic diff being explained; must match a diffId present in the payload.")
-        String diffId,
+        UUID diffId,
 
         @JsonProperty(required = true)
         @JsonPropertyDescription("Dotted path of the diff, copied verbatim from the payload diff.")

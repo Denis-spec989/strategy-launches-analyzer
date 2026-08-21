@@ -3,6 +3,7 @@ package com.github.denisspec989.strategy_launches_analyzer.service.agent;
 import com.github.denisspec989.strategy_launches_analyzer.dto.agent.AgentFallbackReason;
 import com.github.denisspec989.strategy_launches_analyzer.dto.agent.GuardrailCorrection;
 import com.github.denisspec989.strategy_launches_analyzer.dto.agent.RepairableAgentResponseReason;
+import com.github.denisspec989.strategy_launches_analyzer.dto.agent.TokenUsage;
 
 import java.util.List;
 
@@ -20,10 +21,16 @@ public interface AgentMetrics {
             String strategy,
             AnalysisOutcome outcome,
             long durationNanos,
-            List<GuardrailCorrection> corrections
+            List<GuardrailCorrection> corrections,
+            TokenUsage tokenUsage
     );
 
-    void recordFallback(String strategy, AgentFallbackReason reason, long durationNanos);
+    void recordFallback(
+            String strategy,
+            AgentFallbackReason reason,
+            long durationNanos,
+            TokenUsage tokenUsage
+    );
 
     void recordRepair(String strategy, RepairableAgentResponseReason reason, boolean success);
 
@@ -44,12 +51,18 @@ public interface AgentMetrics {
                 String strategy,
                 AnalysisOutcome outcome,
                 long durationNanos,
-                List<GuardrailCorrection> corrections
+                List<GuardrailCorrection> corrections,
+                TokenUsage tokenUsage
         ) {
         }
 
         @Override
-        public void recordFallback(String strategy, AgentFallbackReason reason, long durationNanos) {
+        public void recordFallback(
+                String strategy,
+                AgentFallbackReason reason,
+                long durationNanos,
+                TokenUsage tokenUsage
+        ) {
         }
 
         @Override

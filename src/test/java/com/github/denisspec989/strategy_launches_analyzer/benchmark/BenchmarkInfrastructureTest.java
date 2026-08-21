@@ -13,6 +13,7 @@ import com.github.denisspec989.strategy_launches_analyzer.service.contract.Contr
 import com.github.denisspec989.strategy_launches_analyzer.service.contract.OpenApiStrategyContractLoader;
 import com.github.denisspec989.strategy_launches_analyzer.service.contract.StrategyContractRegistry;
 import com.github.denisspec989.strategy_launches_analyzer.service.diff.StrategyDiffEngine;
+import com.github.denisspec989.strategy_launches_analyzer.service.diff.DeterministicDiffIdGenerator;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
@@ -33,9 +34,9 @@ class BenchmarkInfrastructureTest {
     void offlineRunnerLoadsAllCasesGradesCandidatesAndSelectsQualityWinner() {
         StrategyContractRegistry registry = new StrategyContractRegistry(new OpenApiStrategyContractLoader());
         BenchmarkInputFactory inputFactory = new BenchmarkInputFactory(
-                new StrategyDiffEngine(new ContractValidator()), registry
+                new StrategyDiffEngine(new ContractValidator(), new DeterministicDiffIdGenerator()), registry
         );
-        Map<String, AgentAnalysisInput> inputsByCase = new HashMap<>();
+        Map<java.util.UUID, AgentAnalysisInput> inputsByCase = new HashMap<>();
         AgentModelClient client = (input, options) -> {
             AgentAnalysisInput firstInput = inputsByCase.putIfAbsent(input.metadata().requestId(), input);
             if (firstInput != null) {

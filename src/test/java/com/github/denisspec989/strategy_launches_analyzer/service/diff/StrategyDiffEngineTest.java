@@ -28,8 +28,13 @@ import org.junit.jupiter.api.Test;
 
 import java.math.BigDecimal;
 import java.util.List;
+import java.util.Map;
+import java.util.UUID;
 
+import static com.github.denisspec989.strategy_launches_analyzer.TestIds.OTHER_REQUEST_ID;
+import static com.github.denisspec989.strategy_launches_analyzer.TestIds.REQUEST_ID;
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 class StrategyDiffEngineTest {
     private final ObjectMapper objectMapper = new ObjectMapper();
@@ -39,7 +44,7 @@ class StrategyDiffEngineTest {
     @BeforeEach
     void setUp() {
         contract = new StrategyContractRegistry(new OpenApiStrategyContractLoader()).get(StrategyName.LGD_DIGITAL);
-        diffEngine = new StrategyDiffEngine(new ContractValidator());
+        diffEngine = new StrategyDiffEngine(new ContractValidator(), new DeterministicDiffIdGenerator());
     }
 
     @Test
@@ -49,8 +54,58 @@ class StrategyDiffEngineTest {
         assertDiffsMatchExpected(result.diffs(), "model-change");
         assertThat(result.contractValidation()).isEmpty();
         assertThat(result.diffs()).hasSize(3);
+        assertThat(result.diffs()).extracting(DiffEntry::id)
+                .doesNotContainNull()
+                .doesNotHaveDuplicates()
+                .allSatisfy(id -> {
+                    assertThat(id.version()).isEqualTo(5);
+                    assertThat(id.variant()).isEqualTo(2);
+                });
         assertThat(result.diffs().get(0).absoluteDelta()).isEqualByComparingTo(new BigDecimal("2.3"));
         assertThat(result.diffs().get(0).relativeDeltaPercent()).isEqualByComparingTo(new BigDecimal("12.7072"));
+    }
+
+    @Test
+    void diffIdsAreStableForSameRequestAndDifferentAcrossRequests() {
+        JsonNode main = TestFixtures.json(objectMapper, "fixtures/lgd-digital/model-change/main.json");
+        JsonNode shadow = TestFixtures.json(objectMapper, "fixtures/lgd-digital/model-change/shadow.json");
+
+        List<UUID> first = diffEngine.compare(contract, REQUEST_ID, main, shadow).diffs().stream()
+                .map(DiffEntry::id)
+                .toList();
+        List<UUID> repeated = diffEngine.compare(contract, REQUEST_ID, main, shadow).diffs().stream()
+                .map(DiffEntry::id)
+                .toList();
+        List<UUID> anotherRequest = diffEngine.compare(contract, OTHER_REQUEST_ID, main, shadow).diffs().stream()
+                .map(DiffEntry::id)
+                .toList();
+
+        assertThat(repeated).containsExactlyElementsOf(first);
+        assertThat(anotherRequest).doesNotContainAnyElementsOf(first);
+    }
+
+    @Test
+    void rejectsUuidCollisionAsInternalDiffEngineError() {
+        DeterministicDiffIdGenerator collidingGenerator = new DeterministicDiffIdGenerator() {
+            @Override
+            public UUID generate(
+                    UUID requestId,
+                    String strategyName,
+                    String path,
+                    DiffType type,
+                    DiffCategory category,
+                    ComparisonBasis comparisonBasis
+            ) {
+                return REQUEST_ID;
+            }
+        };
+        StrategyDiffEngine collidingEngine = new StrategyDiffEngine(new ContractValidator(), collidingGenerator);
+        JsonNode main = TestFixtures.json(objectMapper, "fixtures/lgd-digital/model-change/main.json");
+        JsonNode shadow = TestFixtures.json(objectMapper, "fixtures/lgd-digital/model-change/shadow.json");
+
+        assertThatThrownBy(() -> collidingEngine.compare(contract, REQUEST_ID, main, shadow))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessage("Deterministic diff ID collision detected.");
     }
 
     @Test
@@ -104,7 +159,7 @@ class StrategyDiffEngineTest {
         ((com.fasterxml.jackson.databind.node.ObjectNode) shadow.at("/strategyResponse/lgdData")).put("lgd", 18.1);
         ((com.fasterxml.jackson.databind.node.ObjectNode) shadow.at("/strategyResponse/lgdData")).put("lgdDt", 18.1);
 
-        DiffResult result = diffEngine.compare(contract, main, shadow);
+        DiffResult result = diffEngine.compare(contract, REQUEST_ID, main, shadow);
 
         assertThat(result.diffs()).isEmpty();
         assertThat(result.contractValidation()).isEmpty();
@@ -121,7 +176,7 @@ class StrategyDiffEngineTest {
             ObjectNode target = missingSide == LaunchSide.MAIN ? main : shadow;
             ((ObjectNode) target.at("/strategyResponse/lgdData")).remove("lgd");
 
-            DiffResult result = diffEngine.compare(contract, main, shadow);
+            DiffResult result = diffEngine.compare(contract, REQUEST_ID, main, shadow);
 
             assertThat(result.diffs()).singleElement().satisfies(diff -> {
                 DiffType expectedType = missingSide == LaunchSide.MAIN
@@ -141,7 +196,7 @@ class StrategyDiffEngineTest {
         ObjectNode shadowMissing = base.deepCopy();
         ((ObjectNode) mainMissing.at("/strategyResponse/lgdData")).remove("lgd");
         ((ObjectNode) shadowMissing.at("/strategyResponse/lgdData")).remove("lgd");
-        DiffResult bothMissing = diffEngine.compare(contract, mainMissing, shadowMissing);
+        DiffResult bothMissing = diffEngine.compare(contract, REQUEST_ID, mainMissing, shadowMissing);
 
         assertThat(bothMissing.diffs()).isEmpty();
         assertThat(bothMissing.contractValidation()).hasSize(2)
@@ -181,13 +236,52 @@ class StrategyDiffEngineTest {
                 objectMapper.createObjectNode()
         );
 
-        DiffResult result = diffEngine.compare(optionalContract, main, shadow);
+        DiffResult result = diffEngine.compare(optionalContract, REQUEST_ID, main, shadow);
 
         assertThat(result.contractValidation()).isEmpty();
         assertThat(result.diffs()).singleElement().satisfies(diff -> {
             assertThat(diff.type()).isEqualTo(DiffType.FIELD_MISSING_IN_SHADOW);
             assertThat(diff.deterministicSeverity()).isEqualTo(Severity.WARNING);
         });
+    }
+
+    @Test
+    void preservesRawJsonTypesInDiffsAndContractIssues() throws Exception {
+        ObjectNode main = (ObjectNode) TestFixtures.json(
+                objectMapper, "fixtures/lgd-digital/model-change/main.json"
+        );
+        ObjectNode shadow = main.deepCopy();
+        ObjectNode shadowResponse = (ObjectNode) shadow.path("strategyResponse");
+        shadowResponse.put("unknownNumber", 42.5);
+        shadowResponse.put("unknownString", "42.5");
+        shadowResponse.put("unknownBoolean", true);
+        shadowResponse.set("unknownObject", objectMapper.readTree("{\"nested\":1}"));
+        shadowResponse.set("unknownArray", objectMapper.readTree("[1,\"two\"]"));
+        shadowResponse.putNull("unknownNull");
+
+        DiffResult result = diffEngine.compare(contract, REQUEST_ID, main, shadow);
+        Map<String, JsonNode> diffValues = result.diffs().stream()
+                .filter(diff -> diff.path().contains("unknown"))
+                .collect(java.util.stream.Collectors.toMap(DiffEntry::path, DiffEntry::shadowValue));
+        Map<String, JsonNode> issueValues = result.contractValidation().stream()
+                .filter(issue -> issue.path().contains("unknown"))
+                .collect(java.util.stream.Collectors.toMap(
+                        com.github.denisspec989.strategy_launches_analyzer.dto.contract.ContractIssue::path,
+                        com.github.denisspec989.strategy_launches_analyzer.dto.contract.ContractIssue::actualValue
+                ));
+
+        assertOriginalTypes(diffValues);
+        assertOriginalTypes(issueValues);
+    }
+
+    private static void assertOriginalTypes(Map<String, JsonNode> values) {
+        assertThat(values).hasSize(6);
+        assertThat(values.get("strategyResponse.unknownNumber").isNumber()).isTrue();
+        assertThat(values.get("strategyResponse.unknownString").isTextual()).isTrue();
+        assertThat(values.get("strategyResponse.unknownBoolean").isBoolean()).isTrue();
+        assertThat(values.get("strategyResponse.unknownObject").isObject()).isTrue();
+        assertThat(values.get("strategyResponse.unknownArray").isArray()).isTrue();
+        assertThat(values.get("strategyResponse.unknownNull").isNull()).isTrue();
     }
 
     @Test
@@ -223,6 +317,7 @@ class StrategyDiffEngineTest {
         assertThat(result.diffs()).hasSize(2);
         assertThat(result.diffs()).extracting(DiffEntry::type)
                 .containsExactly(DiffType.TYPE_MISMATCH, DiffType.NUMERIC_VALUE_CHANGED);
+        assertThat(result.diffs()).extracting(DiffEntry::id).doesNotHaveDuplicates();
         DiffEntry numericDiff = result.diffs().get(1);
         assertThat(numericDiff.path()).isEqualTo("strategyResponse.lgdData.lgd");
         assertThat(numericDiff.absoluteDelta()).isEqualByComparingTo("2.3");
@@ -230,10 +325,9 @@ class StrategyDiffEngineTest {
         assertThat(numericDiff.comparisonBasis()).isEqualTo(ComparisonBasis.COERCED_NUMERIC);
         assertThat(numericDiff.mainValue().isNumber()).isTrue();
         assertThat(numericDiff.shadowValue().isTextual()).isTrue();
-        assertThat(numericDiff.description()).contains("contract type remains invalid");
+        assertThat(numericDiff.comparisonBasis()).isEqualTo(ComparisonBasis.COERCED_NUMERIC);
 
         ComparisonSummary summary = ComparisonSummary.from(
-                contract.strategyName(),
                 result.diffs(),
                 result.contractValidation()
         );
@@ -336,7 +430,7 @@ class StrategyDiffEngineTest {
     private DiffResult compareFixture(String name) {
         JsonNode main = TestFixtures.json(objectMapper, "fixtures/lgd-digital/%s/main.json".formatted(name));
         JsonNode shadow = TestFixtures.json(objectMapper, "fixtures/lgd-digital/%s/shadow.json".formatted(name));
-        return diffEngine.compare(contract, main, shadow);
+        return diffEngine.compare(contract, REQUEST_ID, main, shadow);
     }
 
     private DiffResult compareLgd(JsonNode mainLgd, JsonNode shadowLgd) {
@@ -344,7 +438,7 @@ class StrategyDiffEngineTest {
         JsonNode shadow = main.deepCopy();
         ((ObjectNode) main.at("/strategyResponse/lgdData")).set("lgd", mainLgd);
         ((ObjectNode) shadow.at("/strategyResponse/lgdData")).set("lgd", shadowLgd);
-        return diffEngine.compare(contract, main, shadow);
+        return diffEngine.compare(contract, REQUEST_ID, main, shadow);
     }
 
     private static JsonNode number(String value) {

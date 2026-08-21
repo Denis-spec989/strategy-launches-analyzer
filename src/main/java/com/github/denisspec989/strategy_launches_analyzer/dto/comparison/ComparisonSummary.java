@@ -6,7 +6,6 @@ import com.github.denisspec989.strategy_launches_analyzer.dto.contract.ContractI
 import java.util.List;
 
 public record ComparisonSummary(
-        String strategyName,
         int totalDiffs,
         int metricDiffs,
         int modelDiffs,
@@ -16,7 +15,7 @@ public record ComparisonSummary(
         boolean hasCriticalIssues,
         Severity deterministicSeverity
 ) {
-    public static ComparisonSummary from(String strategyName, List<DiffEntry> diffs, List<ContractIssue> issues) {
+    public static ComparisonSummary from(List<DiffEntry> diffs, List<ContractIssue> issues) {
         int metricDiffs = countByCategory(diffs, DiffCategory.METRIC);
         int modelDiffs = countByCategory(diffs, DiffCategory.MODEL);
         int calculationContextDiffs = countByCategory(diffs, DiffCategory.CALCULATION_CONTEXT);
@@ -25,7 +24,6 @@ public record ComparisonSummary(
         boolean hasCriticalIssues = deterministicSeverity == Severity.CRITICAL;
 
         return new ComparisonSummary(
-                strategyName,
                 diffs.size(),
                 metricDiffs,
                 modelDiffs,

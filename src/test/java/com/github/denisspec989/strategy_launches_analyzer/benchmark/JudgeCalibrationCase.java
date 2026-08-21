@@ -29,9 +29,6 @@ record JudgeCalibrationCase(
                 || input == null || expectations == null || anonymizedAnalysis == null || humanLabel == null) {
             throw new IllegalArgumentException("Calibration case is incomplete: " + id);
         }
-        if (anonymizedAnalysis.tokenUsage() != null && anonymizedAnalysis.tokenUsage().model() != null) {
-            throw new IllegalArgumentException("Calibration analysis must not expose model id: " + id);
-        }
         if (input.metadata() != null) {
             throw new IllegalArgumentException("Calibration input must not expose launch metadata: " + id);
         }

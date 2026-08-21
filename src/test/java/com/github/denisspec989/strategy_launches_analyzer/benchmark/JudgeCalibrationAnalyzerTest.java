@@ -102,7 +102,7 @@ class JudgeCalibrationAnalyzerTest {
     private static AgentAnalysisInput emptyInput() {
         return new AgentAnalysisInput(
                 "LGD_DIGITAL",
-                new ComparisonSummary("LGD_DIGITAL", 0, 0, 0, 0, 0, 0, false, Severity.INFO),
+                new ComparisonSummary(0, 0, 0, 0, 0, 0, false, Severity.INFO),
                 List.of(),
                 List.of(),
                 List.of(),
@@ -119,7 +119,7 @@ class JudgeCalibrationAnalyzerTest {
                 "Рисков нет.",
                 List.of(),
                 List.of(),
-                TokenUsage.zero(),
+                null,
                 null
         );
     }

@@ -27,6 +27,7 @@ import org.springframework.stereotype.Service;
 
 import java.time.Instant;
 import java.util.List;
+import java.util.UUID;
 import java.util.concurrent.Semaphore;
 
 @Service
@@ -85,24 +86,30 @@ public class CompareStrategyLaunchesUseCase {
         validateLaunchLimits(request.mainLaunch(), "mainLaunch");
         validateLaunchLimits(request.shadowLaunch(), "shadowLaunch");
         LaunchMetadata metadata = request.metadata();
-        String requestId = requestId(metadata);
+        UUID requestId = metadata.requestId();
         long startedAt = System.nanoTime();
         log.info(
                 "{} comparison request accepted: requestId={}, mainLaunchId={}, shadowLaunchId={}, "
-                        + "launchTimestamp={}, metadataAttributeCount={}, mainRootFieldCount={}, shadowRootFieldCount={}",
+                        + "mainLaunchDt={}, shadowLaunchDt={}, metadataAttributeCount={}, "
+                        + "mainRootFieldCount={}, shadowRootFieldCount={}",
                 contract.strategyName(),
                 requestId,
-                valueOrNotProvided(metadata == null ? null : metadata.mainLaunchId()),
-                valueOrNotProvided(metadata == null ? null : metadata.shadowLaunchId()),
-                valueOrNotProvided(metadata == null ? null : metadata.launchTimestamp()),
+                valueOrNotProvided(metadata.mainLaunchId()),
+                valueOrNotProvided(metadata.shadowLaunchId()),
+                metadata.mainLaunchDt(),
+                metadata.shadowLaunchDt(),
                 metadataAttributeCount(metadata),
                 rootFieldCount(request.mainLaunch(), contract.rootPath()),
                 rootFieldCount(request.shadowLaunch(), contract.rootPath())
         );
 
-        DiffResult diffResult = diffEngine.compare(contract, request.mainLaunch(), request.shadowLaunch());
+        DiffResult diffResult = diffEngine.compare(
+                contract,
+                requestId,
+                request.mainLaunch(),
+                request.shadowLaunch()
+        );
         ComparisonSummary summary = ComparisonSummary.from(
-                contract.strategyName(),
                 diffResult.diffs(),
                 diffResult.contractValidation()
         );
@@ -126,6 +133,7 @@ public class CompareStrategyLaunchesUseCase {
                 contract.strategyName(),
                 contract.version(),
                 Instant.now(),
+                metadata,
                 summary,
                 diffResult.diffs(),
                 diffResult.contractValidation(),
@@ -149,7 +157,7 @@ public class CompareStrategyLaunchesUseCase {
             CompareStrategyRequest request,
             DiffResult diffResult
     ) {
-        String requestId = requestId(request.metadata());
+        UUID requestId = request.metadata().requestId();
         long startedAt = System.nanoTime();
         log.info("{} agent analysis started: requestId={}, agentAnalyzer={}, deterministicSeverity={}, "
                         + "diffCount={}, contractIssueCount={}",
@@ -177,39 +185,31 @@ public class CompareStrategyLaunchesUseCase {
                         agentBulkhead.availablePermits());
                 return fallback(
                         contract.strategyName(),
-                        summary,
                         AgentFallbackReason.CAPACITY,
                         TokenUsage.zero(),
                         startedAt
                 );
             }
             AgentAnalysis analysis = agentAnalyzer.analyze(input);
-            TokenUsage tokenUsage = analysis.tokenUsage() == null ? TokenUsage.zero() : analysis.tokenUsage();
             log.info("{} agent analysis completed: requestId={}, status={}, overallSeverity={}, "
-                            + "recommendationCount={}, diffExplanationCount={}, inputTokens={}, outputTokens={}, "
-                            + "totalTokens={}, model={}, durationMs={}",
+                            + "recommendationCount={}, diffExplanationCount={}, durationMs={}",
                     contract.strategyName(),
                     requestId,
                     analysis.status(),
                     analysis.overallSeverity(),
                     analysis.recommendations() == null ? 0 : analysis.recommendations().size(),
                     analysis.diffExplanations() == null ? 0 : analysis.diffExplanations().size(),
-                    tokenUsage.inputTokens(),
-                    tokenUsage.outputTokens(),
-                    tokenUsage.totalTokens(),
-                    valueOrNotProvided(tokenUsage.model()),
                     elapsedMs(startedAt));
             return analysis;
         } catch (AgentExecutionFailureException ex) {
             log.error("{} agent analysis failed: requestId={}, reason={}, errorType={}",
-                    contract.strategyName(), requestId, ex.reason(), ex.getClass().getSimpleName());
-            return fallback(contract.strategyName(), summary, ex.reason(), ex.tokenUsage(), startedAt);
+                    contract.strategyName(), requestId, ex.reason(), ex.getClass().getSimpleName(), ex);
+            return fallback(contract.strategyName(), ex.reason(), ex.tokenUsage(), startedAt);
         } catch (RuntimeException ex) {
             log.error("{} agent analysis failed unexpectedly: requestId={}, errorType={}",
                     contract.strategyName(), requestId, ex.getClass().getSimpleName(), ex);
             return fallback(
                     contract.strategyName(),
-                    summary,
                     AgentFallbackReason.INTERNAL,
                     TokenUsage.zero(),
                     startedAt
@@ -223,22 +223,17 @@ public class CompareStrategyLaunchesUseCase {
 
     private AgentAnalysis fallback(
             String strategyName,
-            ComparisonSummary summary,
             AgentFallbackReason reason,
             TokenUsage tokenUsage,
             long startedAt
     ) {
         try {
-            agentMetrics.recordFallback(strategyName, reason, System.nanoTime() - startedAt);
+            agentMetrics.recordFallback(strategyName, reason, System.nanoTime() - startedAt, tokenUsage);
         } catch (RuntimeException ex) {
             log.warn("Agent fallback metrics recording failed: strategyName={}, reason={}, errorType={}",
                     strategyName, reason, ex.getClass().getSimpleName());
         }
-        return AgentAnalysis.failed(
-                "LLM-анализ недоступен.",
-                summary.deterministicSeverity(),
-                tokenUsage
-        );
+        return AgentAnalysis.failed(reason);
     }
 
     private List<ContractFieldContext> contractContext(StrategyContract contract, DiffResult diffResult) {
@@ -263,6 +258,18 @@ public class CompareStrategyLaunchesUseCase {
         }
         if (request.shadowLaunch() == null || request.shadowLaunch().isNull()) {
             throw new BadRequestException("shadowLaunch is required.");
+        }
+        if (request.metadata() == null) {
+            throw new BadRequestException("metadata is required.");
+        }
+        if (request.metadata().requestId() == null) {
+            throw new BadRequestException("metadata.requestId is required.");
+        }
+        if (request.metadata().mainLaunchDt() == null) {
+            throw new BadRequestException("metadata.mainLaunchDt is required.");
+        }
+        if (request.metadata().shadowLaunchDt() == null) {
+            throw new BadRequestException("metadata.shadowLaunchDt is required.");
         }
     }
 
@@ -292,13 +299,6 @@ public class CompareStrategyLaunchesUseCase {
         for (JsonNode child : node) {
             checkLaunchLimits(child, depth + 1, count, fieldName);
         }
-    }
-
-    private static String requestId(LaunchMetadata metadata) {
-        if (metadata == null || metadata.requestId() == null || metadata.requestId().isBlank()) {
-            return "not-provided";
-        }
-        return metadata.requestId();
     }
 
     private static Object valueOrNotProvided(Object value) {

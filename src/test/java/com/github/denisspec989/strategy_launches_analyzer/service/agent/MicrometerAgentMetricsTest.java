@@ -4,6 +4,7 @@ import com.github.denisspec989.strategy_launches_analyzer.dto.agent.AgentFallbac
 import com.github.denisspec989.strategy_launches_analyzer.dto.agent.GuardrailCorrection;
 import com.github.denisspec989.strategy_launches_analyzer.dto.agent.GuardrailCorrectionType;
 import com.github.denisspec989.strategy_launches_analyzer.dto.agent.RepairableAgentResponseReason;
+import com.github.denisspec989.strategy_launches_analyzer.dto.agent.TokenUsage;
 import com.github.denisspec989.strategy_launches_analyzer.service.contract.OpenApiStrategyContractLoader;
 import com.github.denisspec989.strategy_launches_analyzer.service.contract.StrategyContractRegistry;
 import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
@@ -11,6 +12,7 @@ import org.junit.jupiter.api.Test;
 
 import java.util.List;
 
+import static com.github.denisspec989.strategy_launches_analyzer.TestIds.D001;
 import static org.assertj.core.api.Assertions.assertThat;
 
 class MicrometerAgentMetricsTest {
@@ -32,11 +34,17 @@ class MicrometerAgentMetricsTest {
                 25_000_000L,
                 List.of(new GuardrailCorrection(
                         GuardrailCorrectionType.DIFF_SEVERITY_ESCALATED,
-                        "D001",
+                        D001,
                         "detail that must not become a tag"
-                ))
+                )),
+                new TokenUsage(11, 7, 18, 3L, 0L, MODEL)
         );
-        metrics.recordFallback(STRATEGY, AgentFallbackReason.CAPACITY, 10_000_000L);
+        metrics.recordFallback(
+                STRATEGY,
+                AgentFallbackReason.CAPACITY,
+                10_000_000L,
+                TokenUsage.zero()
+        );
 
         assertThat(counter(registry, "strategy.launches.agent.validation.failure",
                 "reason", "invalid_json")).isEqualTo(1.0);
@@ -55,6 +63,45 @@ class MicrometerAgentMetricsTest {
                 .tag("outcome", "repaired")
                 .timer()
                 .count()).isEqualTo(1);
+        assertThat(llmCounter(registry, "strategy.analysis.llm.input.tokens")).isEqualTo(11.0);
+        assertThat(llmCounter(registry, "strategy.analysis.llm.output.tokens")).isEqualTo(7.0);
+        assertThat(llmCounter(registry, "strategy.analysis.llm.requests", "outcome", "completed"))
+                .isEqualTo(1.0);
+        assertThat(llmCounter(registry, "strategy.analysis.llm.requests", "outcome", "failed"))
+                .isEqualTo(1.0);
+    }
+
+    @Test
+    void recordsTransportAndInternalFailuresWithConsumedTokens() {
+        SimpleMeterRegistry registry = new SimpleMeterRegistry();
+        MicrometerAgentMetrics metrics = metrics(registry);
+
+        metrics.recordFallback(
+                STRATEGY,
+                AgentFallbackReason.TRANSPORT,
+                1_000_000L,
+                new TokenUsage(4, 3, 7, 0L, 0L, "provider-reported-model")
+        );
+        metrics.recordFallback(
+                STRATEGY,
+                AgentFallbackReason.INTERNAL,
+                2_000_000L,
+                new TokenUsage(2, 1, 3, 0L, 0L, "another-provider-model")
+        );
+
+        assertThat(llmCounter(registry, "strategy.analysis.llm.requests", "outcome", "failed"))
+                .isEqualTo(2.0);
+        assertThat(llmCounter(registry, "strategy.analysis.llm.input.tokens")).isEqualTo(6.0);
+        assertThat(llmCounter(registry, "strategy.analysis.llm.output.tokens")).isEqualTo(4.0);
+        assertThat(registry.get("strategy.analysis.llm.requests")
+                .tag("model", MODEL)
+                .tag("strategy", STRATEGY)
+                .tag("outcome", "failed")
+                .counter()
+                .getId()
+                .getTags())
+                .extracting(tag -> tag.getKey())
+                .containsExactlyInAnyOrder("model", "strategy", "outcome");
     }
 
     @Test
@@ -66,6 +113,10 @@ class MicrometerAgentMetricsTest {
                 .tag("model", MODEL)
                 .tag("prompt_hash", PROMPT_HASH)
                 .tag("repair_prompt_hash", REPAIR_PROMPT_HASH)
+                .gauge()
+                .value()).isEqualTo(1.0);
+        assertThat(registry.get("strategy.analysis.llm.model.info")
+                .tag("model", MODEL)
                 .gauge()
                 .value()).isEqualTo(1.0);
         assertThat(registry.get("strategy.launches.contract.info")
@@ -92,6 +143,14 @@ class MicrometerAgentMetricsTest {
     private static double counter(SimpleMeterRegistry registry, String name, String... tags) {
         var search = registry.get(name).tag("strategy", STRATEGY).tag("model", MODEL)
                 .tag("prompt_hash", PROMPT_HASH);
+        for (int index = 0; index < tags.length; index += 2) {
+            search = search.tag(tags[index], tags[index + 1]);
+        }
+        return search.counter().count();
+    }
+
+    private static double llmCounter(SimpleMeterRegistry registry, String name, String... tags) {
+        var search = registry.get(name).tag("strategy", STRATEGY).tag("model", MODEL);
         for (int index = 0; index < tags.length; index += 2) {
             search = search.tag(tags[index], tags[index + 1]);
         }

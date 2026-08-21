@@ -2,6 +2,7 @@ package com.github.denisspec989.strategy_launches_analyzer.benchmark;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.github.denisspec989.strategy_launches_analyzer.dto.agent.AgentAnalysis;
 import com.github.denisspec989.strategy_launches_analyzer.dto.agent.AgentAnalysisInput;
 import com.github.denisspec989.strategy_launches_analyzer.dto.agent.AgentAnalysisStatus;
@@ -11,6 +12,7 @@ import com.github.denisspec989.strategy_launches_analyzer.service.contract.Contr
 import com.github.denisspec989.strategy_launches_analyzer.service.contract.OpenApiStrategyContractLoader;
 import com.github.denisspec989.strategy_launches_analyzer.service.contract.StrategyContractRegistry;
 import com.github.denisspec989.strategy_launches_analyzer.service.diff.StrategyDiffEngine;
+import com.github.denisspec989.strategy_launches_analyzer.service.diff.DeterministicDiffIdGenerator;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
@@ -21,6 +23,9 @@ import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.UUID;
+
+import static com.github.denisspec989.strategy_launches_analyzer.TestIds.D999;
 
 /** Builds the compact human-gold dataset from one real answer per checked eval scenario. */
 public final class JudgeCalibrationDatasetBuilder {
@@ -58,7 +63,7 @@ public final class JudgeCalibrationDatasetBuilder {
         Map<String, BenchmarkSampleResult> answers = readAnswers(objectMapper, benchmarkResults, model, repetition);
         BenchmarkCaseLoader loader = new BenchmarkCaseLoader(objectMapper);
         BenchmarkInputFactory inputFactory = new BenchmarkInputFactory(
-                new StrategyDiffEngine(new ContractValidator()),
+                new StrategyDiffEngine(new ContractValidator(), new DeterministicDiffIdGenerator()),
                 new StrategyContractRegistry(new OpenApiStrategyContractLoader())
         );
         List<BenchmarkCase> evalCases = loader.load(BenchmarkCaseLoader.DEFAULT_DATASET);
@@ -74,6 +79,7 @@ public final class JudgeCalibrationDatasetBuilder {
             if (answer == null || answer.finalAnalysis() == null) {
                 throw new IllegalStateException("Missing completed real answer for eval case " + evalCase.id());
             }
+            AgentAnalysisInput analysisInput = inputFactory.create(evalCase);
             JudgeCalibrationCase calibrationCase = new JudgeCalibrationCase(
                     JudgeCalibrationCase.SCHEMA_VERSION,
                     "real-" + evalCase.id(),
@@ -81,9 +87,12 @@ public final class JudgeCalibrationDatasetBuilder {
                     null,
                     "Реальный ответ на проверенный eval-сценарий " + evalCase.id() + ".",
                     evalCase.tags(),
-                    withoutMetadata(inputFactory.create(evalCase)),
+                    withoutMetadata(analysisInput),
                     evalCase.semantic(),
-                    normalizeContractTerminology(anonymize(answer.finalAnalysis())),
+                    normalizeContractTerminology(anonymize(remapLegacyDiffIds(
+                            answer.finalAnalysis(),
+                            analysisInput
+                    ))),
                     humanLabel(evalCase.id()),
                     null
             ).validatedForJudge();
@@ -111,7 +120,14 @@ public final class JudgeCalibrationDatasetBuilder {
                 continue;
             }
             String caseId = record.path("caseId").asText();
-            AgentAnalysis analysis = objectMapper.treeToValue(record.path("finalAnalysis"), AgentAnalysis.class);
+            ObjectNode analysisNode = record.path("finalAnalysis").deepCopy();
+            for (JsonNode explanation : analysisNode.path("diffExplanations")) {
+                JsonNode diffId = explanation.path("diffId");
+                if (diffId.isTextual() && !isUuid(diffId.asText())) {
+                    ((ObjectNode) explanation).put("diffId", legacyDiffId(diffId.asText()).toString());
+                }
+            }
+            AgentAnalysis analysis = objectMapper.treeToValue(analysisNode, AgentAnalysis.class);
             BenchmarkSampleResult sample = new BenchmarkSampleResult(
                     caseId,
                     List.of(),
@@ -153,9 +169,50 @@ public final class JudgeCalibrationDatasetBuilder {
                 analysis.technicalRisks(),
                 analysis.recommendations(),
                 analysis.diffExplanations(),
-                null,
+                analysis.failureReason(),
                 analysis.errorMessage()
         );
+    }
+
+    private static AgentAnalysis remapLegacyDiffIds(AgentAnalysis analysis, AgentAnalysisInput input) {
+        Map<UUID, UUID> actualByLegacyId = new LinkedHashMap<>();
+        for (int index = 0; index < input.diffs().size(); index++) {
+            actualByLegacyId.put(
+                    legacyDiffId("D%03d".formatted(index + 1)),
+                    input.diffs().get(index).id()
+            );
+        }
+        return new AgentAnalysis(
+                analysis.status(),
+                analysis.overallSeverity(),
+                analysis.summary(),
+                analysis.businessImpact(),
+                analysis.technicalRisks(),
+                analysis.recommendations(),
+                analysis.diffExplanations().stream()
+                        .map(item -> new DiffExplanation(
+                                actualByLegacyId.getOrDefault(item.diffId(), item.diffId()),
+                                item.path(),
+                                item.severity(),
+                                item.explanation()
+                        ))
+                        .toList(),
+                analysis.failureReason(),
+                analysis.errorMessage()
+        );
+    }
+
+    private static UUID legacyDiffId(String value) {
+        return UUID.nameUUIDFromBytes(("legacy-diff-" + value).getBytes(StandardCharsets.UTF_8));
+    }
+
+    private static boolean isUuid(String value) {
+        try {
+            UUID.fromString(value);
+            return true;
+        } catch (IllegalArgumentException ignored) {
+            return false;
+        }
     }
 
     private static AgentAnalysis normalizeContractTerminology(AgentAnalysis analysis) {
@@ -174,7 +231,7 @@ public final class JudgeCalibrationDatasetBuilder {
                                 normalizeContractTerminology(item.explanation())
                         ))
                         .toList(),
-                null,
+                analysis.failureReason(),
                 analysis.errorMessage()
         );
     }
@@ -253,7 +310,8 @@ public final class JudgeCalibrationDatasetBuilder {
                                 "Существенных технических рисков нет.",
                                 List.of("Продвигать shadow без дополнительных проверок."),
                                 List.of(new DiffExplanation(
-                                        "D001", "strategyResponse.lgdData.lgd", Severity.WARNING,
+                                        diffId(required, "strategyResponse.lgdData.lgd"),
+                                        "strategyResponse.lgdData.lgd", Severity.WARNING,
                                         "Необязательное поле отсутствует, изменение можно игнорировать."
                                 ))
                         ),
@@ -280,7 +338,8 @@ public final class JudgeCalibrationDatasetBuilder {
                                 "Технических рисков нет.",
                                 List.of("Подтвердить снижение и продвигать shadow."),
                                 List.of(new DiffExplanation(
-                                        "D001", "strategyResponse.lgdData.lgdDownturn", Severity.WARNING,
+                                        diffId(increase, "strategyResponse.lgdData.lgd"),
+                                        "strategyResponse.lgdData.lgdDownturn", Severity.WARNING,
                                         "Main уменьшился с 20.4 до 18.1."
                                 ))
                         ),
@@ -303,7 +362,7 @@ public final class JudgeCalibrationDatasetBuilder {
                                 "Обнаружен критический модельный риск.",
                                 List.of("Откатить новую модель."),
                                 List.of(new DiffExplanation(
-                                        "D999", "strategyResponse.lgdData.lgd", Severity.CRITICAL,
+                                        D999, "strategyResponse.lgdData.lgd", Severity.CRITICAL,
                                         "Выдуманное изменение доказано ошибкой обучения."
                                 ))
                         ),
@@ -434,6 +493,14 @@ public final class JudgeCalibrationDatasetBuilder {
             throw new IllegalStateException("Missing real calibration base case " + id);
         }
         return item;
+    }
+
+    private static UUID diffId(JudgeCalibrationCase calibrationCase, String path) {
+        return calibrationCase.input().diffs().stream()
+                .filter(diff -> path.equals(diff.path()))
+                .findFirst()
+                .orElseThrow(() -> new IllegalStateException("Missing diff path " + path))
+                .id();
     }
 
     private static AgentAnalysis analysis(

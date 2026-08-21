@@ -3,6 +3,7 @@ package com.github.denisspec989.strategy_launches_analyzer.service.agent;
 import com.github.denisspec989.strategy_launches_analyzer.dto.agent.AgentFallbackReason;
 import com.github.denisspec989.strategy_launches_analyzer.dto.agent.GuardrailCorrection;
 import com.github.denisspec989.strategy_launches_analyzer.dto.agent.RepairableAgentResponseReason;
+import com.github.denisspec989.strategy_launches_analyzer.dto.agent.TokenUsage;
 import com.github.denisspec989.strategy_launches_analyzer.service.contract.StrategyContract;
 import io.micrometer.core.instrument.Counter;
 import io.micrometer.core.instrument.Gauge;
@@ -21,6 +22,10 @@ public class MicrometerAgentMetrics implements AgentMetrics {
     private static final String VALIDATION_FAILURE_METRIC = "strategy.launches.agent.validation.failure";
     private static final String CORRECTION_METRIC = "strategy.launches.agent.guardrail.correction";
     private static final String DURATION_METRIC = "strategy.launches.agent.duration";
+    private static final String LLM_MODEL_INFO_METRIC = "strategy.analysis.llm.model.info";
+    private static final String LLM_INPUT_TOKENS_METRIC = "strategy.analysis.llm.input.tokens";
+    private static final String LLM_OUTPUT_TOKENS_METRIC = "strategy.analysis.llm.output.tokens";
+    private static final String LLM_REQUESTS_METRIC = "strategy.analysis.llm.requests";
 
     private final MeterRegistry registry;
     private final String model;
@@ -36,6 +41,9 @@ public class MicrometerAgentMetrics implements AgentMetrics {
         this.registry = registry;
         this.model = model;
         this.promptHash = promptHash;
+        Gauge.builder(LLM_MODEL_INFO_METRIC, () -> 1.0)
+                .tags("model", metricValue(model))
+                .register(registry);
         Gauge.builder("strategy.launches.agent.info", () -> 1.0)
                 .tags("model", model, "prompt_hash", promptHash, "repair_prompt_hash", repairPromptHash)
                 .register(registry);
@@ -49,12 +57,14 @@ public class MicrometerAgentMetrics implements AgentMetrics {
             String strategy,
             AnalysisOutcome outcome,
             long durationNanos,
-            List<GuardrailCorrection> corrections
+            List<GuardrailCorrection> corrections,
+            TokenUsage tokenUsage
     ) {
         Counter.builder(ANALYSIS_METRIC)
                 .tags(baseTags(strategy).and("outcome", outcome.metricValue()))
                 .register(registry)
                 .increment();
+        recordLlmUsage(strategy, "completed", tokenUsage);
         recordDuration(strategy, outcome.metricValue(), durationNanos);
         if (corrections != null) {
             corrections.forEach(correction -> Counter.builder(CORRECTION_METRIC)
@@ -65,7 +75,12 @@ public class MicrometerAgentMetrics implements AgentMetrics {
     }
 
     @Override
-    public void recordFallback(String strategy, AgentFallbackReason reason, long durationNanos) {
+    public void recordFallback(
+            String strategy,
+            AgentFallbackReason reason,
+            long durationNanos,
+            TokenUsage tokenUsage
+    ) {
         Counter.builder(ANALYSIS_METRIC)
                 .tags(baseTags(strategy).and("outcome", "fallback"))
                 .register(registry)
@@ -74,6 +89,7 @@ public class MicrometerAgentMetrics implements AgentMetrics {
                 .tags(baseTags(strategy).and("reason", reason.metricValue()))
                 .register(registry)
                 .increment();
+        recordLlmUsage(strategy, "failed", tokenUsage);
         recordDuration(strategy, "fallback", durationNanos);
     }
 
@@ -102,11 +118,35 @@ public class MicrometerAgentMetrics implements AgentMetrics {
                 .record(Duration.ofNanos(Math.max(0L, durationNanos)));
     }
 
+    private void recordLlmUsage(String strategy, String outcome, TokenUsage tokenUsage) {
+        Tags tags = Tags.of(
+                "model", metricValue(model),
+                "strategy", metricValue(strategy)
+        );
+        Counter.builder(LLM_REQUESTS_METRIC)
+                .tags(tags.and("outcome", outcome))
+                .register(registry)
+                .increment();
+        increment(LLM_INPUT_TOKENS_METRIC, tags, tokenUsage == null ? null : tokenUsage.inputTokens());
+        increment(LLM_OUTPUT_TOKENS_METRIC, tags, tokenUsage == null ? null : tokenUsage.outputTokens());
+    }
+
+    private void increment(String name, Tags tags, Number value) {
+        Counter.builder(name)
+                .tags(tags)
+                .register(registry)
+                .increment(value == null ? 0.0 : Math.max(0.0, value.doubleValue()));
+    }
+
     private Tags baseTags(String strategy) {
         return Tags.of(
-                "strategy", strategy == null ? "not-provided" : strategy,
-                "model", model,
+                "strategy", metricValue(strategy),
+                "model", metricValue(model),
                 "prompt_hash", promptHash
         );
+    }
+
+    private static String metricValue(String value) {
+        return value == null || value.isBlank() ? "not-provided" : value;
     }
 }

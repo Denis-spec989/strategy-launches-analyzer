@@ -10,8 +10,10 @@ import com.github.denisspec989.strategy_launches_analyzer.dto.common.Severity;
 import com.github.denisspec989.strategy_launches_analyzer.dto.comparison.ComparisonSummary;
 import org.junit.jupiter.api.Test;
 
+import java.time.Instant;
 import java.nio.file.Path;
 import java.util.List;
+import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -41,7 +43,7 @@ class JudgeCalibrationDatasetTest {
                 .hasSize(4);
         assertThat(cases).allMatch(item -> item.judgeGrade() == null);
         assertThat(cases).allMatch(item -> item.input().metadata() == null);
-        assertThat(cases).allMatch(item -> item.anonymizedAnalysis().tokenUsage() == null);
+        assertThat(cases).allMatch(item -> item.anonymizedAnalysis().failureReason() == null);
     }
 
     @Test
@@ -64,7 +66,14 @@ class JudgeCalibrationDatasetTest {
                 null,
                 "Сценарий",
                 List.of(),
-                input(new LaunchMetadata("request", "main", "shadow", null, null)),
+                input(new LaunchMetadata(
+                        UUID.fromString("11111111-1111-1111-1111-111111111111"),
+                        "main",
+                        "shadow",
+                        Instant.EPOCH,
+                        Instant.EPOCH,
+                        null
+                )),
                 new SemanticExpectations(List.of(), List.of(), List.of()),
                 analysis(),
                 label(true),
@@ -106,7 +115,7 @@ class JudgeCalibrationDatasetTest {
     private static AgentAnalysisInput input(LaunchMetadata metadata) {
         return new AgentAnalysisInput(
                 "LGD_DIGITAL",
-                new ComparisonSummary("LGD_DIGITAL", 0, 0, 0, 0, 0, 0, false, Severity.INFO),
+                new ComparisonSummary(0, 0, 0, 0, 0, 0, false, Severity.INFO),
                 List.of(),
                 List.of(),
                 List.of(),

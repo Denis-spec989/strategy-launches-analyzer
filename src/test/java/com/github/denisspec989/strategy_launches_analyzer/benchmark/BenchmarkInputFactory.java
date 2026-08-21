@@ -11,7 +11,10 @@ import com.github.denisspec989.strategy_launches_analyzer.service.contract.Strat
 import com.github.denisspec989.strategy_launches_analyzer.service.contract.StrategyContractRegistry;
 import com.github.denisspec989.strategy_launches_analyzer.service.diff.StrategyDiffEngine;
 
+import java.nio.charset.StandardCharsets;
+import java.time.Instant;
 import java.util.LinkedHashSet;
+import java.util.UUID;
 
 final class BenchmarkInputFactory {
     private final StrategyDiffEngine diffEngine;
@@ -23,10 +26,16 @@ final class BenchmarkInputFactory {
     }
 
     AgentAnalysisInput create(BenchmarkCase benchmarkCase) {
-        DiffResult result = diffEngine.compare(contract, benchmarkCase.mainLaunch(), benchmarkCase.shadowLaunch());
-        ComparisonSummary summary = ComparisonSummary.from(
-                contract.strategyName(), result.diffs(), result.contractValidation()
+        UUID requestId = UUID.nameUUIDFromBytes(
+                ("benchmark-" + benchmarkCase.id()).getBytes(StandardCharsets.UTF_8)
         );
+        DiffResult result = diffEngine.compare(
+                contract,
+                requestId,
+                benchmarkCase.mainLaunch(),
+                benchmarkCase.shadowLaunch()
+        );
+        ComparisonSummary summary = ComparisonSummary.from(result.diffs(), result.contractValidation());
         LinkedHashSet<String> touchedPaths = new LinkedHashSet<>();
         result.diffs().forEach(diff -> touchedPaths.add(diff.path()));
         result.contractValidation().forEach(issue -> touchedPaths.add(issue.path()));
@@ -39,7 +48,14 @@ final class BenchmarkInputFactory {
                         .filter(field -> touchedPaths.contains(field.path()))
                         .map(ContractFieldContext::from)
                         .toList(),
-                new LaunchMetadata("benchmark-" + benchmarkCase.id(), null, null, null, null)
+                new LaunchMetadata(
+                        requestId,
+                        null,
+                        null,
+                        Instant.EPOCH,
+                        Instant.EPOCH,
+                        null
+                )
         );
     }
 

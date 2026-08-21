@@ -26,7 +26,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
-import java.util.concurrent.atomic.AtomicInteger;
+import java.util.UUID;
 import java.util.regex.Pattern;
 
 @Component
@@ -38,22 +38,38 @@ public class StrategyDiffEngine {
     );
 
     private final ContractValidator contractValidator;
+    private final DeterministicDiffIdGenerator diffIdGenerator;
 
-    public DiffResult compare(StrategyContract contract, JsonNode mainLaunch, JsonNode shadowLaunch) {
-        AtomicInteger diffCounter = new AtomicInteger(1);
+    public DiffResult compare(
+            StrategyContract contract,
+            UUID requestId,
+            JsonNode mainLaunch,
+            JsonNode shadowLaunch
+    ) {
         List<DiffDraft> diffs = new ArrayList<>();
 
         for (ContractField field : contract.leafFields()) {
-            addKnownFieldDiff(mainLaunch, shadowLaunch, field, diffCounter, diffs);
+            addKnownFieldDiff(mainLaunch, shadowLaunch, field, diffs);
         }
-        addUnknownShapeDiffs(contract, mainLaunch, shadowLaunch, diffCounter, diffs);
+        addUnknownShapeDiffs(contract, mainLaunch, shadowLaunch, diffs);
 
         List<ContractIssue> issues = contractValidator.validateBoth(contract, mainLaunch, shadowLaunch);
         List<DiffEntry> resolvedDiffs = diffs.stream()
-                .map(diff -> diff.toEntry(DeterministicSeverityCalculator.resolveDiffSeverity(
-                        diff.type(), diff.path(), issues
-                )))
+                .map(diff -> diff.toEntry(
+                        diffIdGenerator.generate(
+                                requestId,
+                                contract.strategyName(),
+                                diff.path(),
+                                diff.type(),
+                                diff.category(),
+                                diff.comparisonBasis()
+                        ),
+                        DeterministicSeverityCalculator.resolveDiffSeverity(diff.type(), diff.path(), issues)
+                ))
                 .toList();
+        if (resolvedDiffs.stream().map(DiffEntry::id).distinct().count() != resolvedDiffs.size()) {
+            throw new IllegalStateException("Deterministic diff ID collision detected.");
+        }
         return new DiffResult(resolvedDiffs, issues);
     }
 
@@ -61,7 +77,6 @@ public class StrategyDiffEngine {
             JsonNode mainLaunch,
             JsonNode shadowLaunch,
             ContractField field,
-            AtomicInteger diffCounter,
             List<DiffDraft> diffs
     ) {
         JsonNode mainValue = JsonNodePath.at(mainLaunch, field.path());
@@ -74,29 +89,25 @@ public class StrategyDiffEngine {
         }
         if (!mainPresent) {
             diffs.add(diff(
-                    diffCounter,
                     field.path(),
                     DiffType.FIELD_ADDED_IN_SHADOW,
                     field.category(),
                     null,
                     shadowValue,
                     null,
-                    null,
-                    "Field is absent in main launch and present in shadow launch."
+                    null
             ));
             return;
         }
         if (!shadowPresent) {
             diffs.add(diff(
-                    diffCounter,
                     field.path(),
                     DiffType.FIELD_MISSING_IN_SHADOW,
                     field.category(),
                     mainValue,
                     null,
                     null,
-                    null,
-                    "Field is present in main launch and absent in shadow launch."
+                    null
             ));
             return;
         }
@@ -106,15 +117,13 @@ public class StrategyDiffEngine {
         if (mainValue.isNull() || shadowValue.isNull()) {
             DiffType diffType = field.nullable() ? valueChangedType(field.valueType()) : DiffType.NULLABILITY_VIOLATION;
             diffs.add(diff(
-                    diffCounter,
                     field.path(),
                     diffType,
                     field.category(),
                     mainValue,
                     shadowValue,
                     null,
-                    null,
-                    "One launch returned null while the other returned a value."
+                    null
             ));
             return;
         }
@@ -122,27 +131,25 @@ public class StrategyDiffEngine {
         if (!field.valueType().matches(mainValue) || !field.valueType().matches(shadowValue)) {
             if (!sameJsonValue(mainValue, shadowValue)) {
                 diffs.add(diff(
-                        diffCounter,
                         field.path(),
                         DiffType.TYPE_MISMATCH,
                         field.category(),
                         mainValue,
                         shadowValue,
                         null,
-                        null,
-                        "Field value or type differs and at least one launch violates the contract type."
+                        null
                 ));
             }
             if (field.valueType() == ContractValueType.NUMBER) {
-                addCoercedNumericDiff(mainValue, shadowValue, field, diffCounter, diffs);
+                addCoercedNumericDiff(mainValue, shadowValue, field, diffs);
             }
             return;
         }
 
         switch (field.valueType()) {
-            case NUMBER -> addNumericDiff(mainValue, shadowValue, field, diffCounter, diffs);
-            case STRING -> addTextDiff(mainValue, shadowValue, field, diffCounter, diffs);
-            case BOOLEAN -> addBooleanDiff(mainValue, shadowValue, field, diffCounter, diffs);
+            case NUMBER -> addNumericDiff(mainValue, shadowValue, field, diffs);
+            case STRING -> addTextDiff(mainValue, shadowValue, field, diffs);
+            case BOOLEAN -> addBooleanDiff(mainValue, shadowValue, field, diffs);
             case OBJECT -> {
                 // Object containers are validated through their declared child fields.
             }
@@ -153,7 +160,6 @@ public class StrategyDiffEngine {
             JsonNode mainValue,
             JsonNode shadowValue,
             ContractField field,
-            AtomicInteger diffCounter,
             List<DiffDraft> diffs
     ) {
         addNumericDiff(
@@ -162,7 +168,6 @@ public class StrategyDiffEngine {
                 mainValue.decimalValue(),
                 shadowValue.decimalValue(),
                 field,
-                diffCounter,
                 diffs,
                 null
         );
@@ -172,7 +177,6 @@ public class StrategyDiffEngine {
             JsonNode mainValue,
             JsonNode shadowValue,
             ContractField field,
-            AtomicInteger diffCounter,
             List<DiffDraft> diffs
     ) {
         Optional<BigDecimal> mainNumber = numericInterpretation(mainValue);
@@ -187,7 +191,6 @@ public class StrategyDiffEngine {
                 mainNumber.get(),
                 shadowNumber.get(),
                 field,
-                diffCounter,
                 diffs,
                 ComparisonBasis.COERCED_NUMERIC
         );
@@ -199,7 +202,6 @@ public class StrategyDiffEngine {
             BigDecimal mainNumber,
             BigDecimal shadowNumber,
             ContractField field,
-            AtomicInteger diffCounter,
             List<DiffDraft> diffs,
             ComparisonBasis comparisonBasis
     ) {
@@ -217,7 +219,6 @@ public class StrategyDiffEngine {
         }
 
         diffs.add(diff(
-                diffCounter,
                 field.path(),
                 DiffType.NUMERIC_VALUE_CHANGED,
                 field.category(),
@@ -225,10 +226,7 @@ public class StrategyDiffEngine {
                 shadowValue,
                 absoluteDelta,
                 relativeDeltaPercent,
-                comparisonBasis,
-                comparisonBasis == ComparisonBasis.COERCED_NUMERIC
-                        ? "Numeric value changed after unambiguous interpretation of a numeric string; contract type remains invalid."
-                        : "Numeric value changed in shadow launch."
+                comparisonBasis
         ));
     }
 
@@ -255,7 +253,6 @@ public class StrategyDiffEngine {
             JsonNode mainValue,
             JsonNode shadowValue,
             ContractField field,
-            AtomicInteger diffCounter,
             List<DiffDraft> diffs
     ) {
         if (mainValue.asText().equals(shadowValue.asText())) {
@@ -263,15 +260,13 @@ public class StrategyDiffEngine {
         }
 
         diffs.add(diff(
-                diffCounter,
                 field.path(),
                 DiffType.STRING_VALUE_CHANGED,
                 field.category(),
                 mainValue,
                 shadowValue,
                 null,
-                null,
-                "String value changed in shadow launch."
+                null
         ));
     }
 
@@ -279,7 +274,6 @@ public class StrategyDiffEngine {
             JsonNode mainValue,
             JsonNode shadowValue,
             ContractField field,
-            AtomicInteger diffCounter,
             List<DiffDraft> diffs
     ) {
         if (mainValue.asBoolean() == shadowValue.asBoolean()) {
@@ -287,15 +281,13 @@ public class StrategyDiffEngine {
         }
 
         diffs.add(diff(
-                diffCounter,
                 field.path(),
                 DiffType.BOOLEAN_VALUE_CHANGED,
                 field.category(),
                 mainValue,
                 shadowValue,
                 null,
-                null,
-                "Boolean value changed in shadow launch."
+                null
         ));
     }
 
@@ -303,7 +295,6 @@ public class StrategyDiffEngine {
             StrategyContract contract,
             JsonNode mainLaunch,
             JsonNode shadowLaunch,
-            AtomicInteger diffCounter,
             List<DiffDraft> diffs
     ) {
         Set<String> mainUnknownPaths = collectUnknownRootPaths(contract, mainLaunch);
@@ -311,29 +302,25 @@ public class StrategyDiffEngine {
 
         for (String shadowOnlyPath : difference(shadowUnknownPaths, mainUnknownPaths)) {
             diffs.add(diff(
-                    diffCounter,
                     shadowOnlyPath,
                     DiffType.FIELD_ADDED_IN_SHADOW,
                     DiffCategory.CONTRACT_TECHNICAL,
                     null,
                     JsonNodePath.at(shadowLaunch, shadowOnlyPath),
                     null,
-                    null,
-                    "Undeclared field is present only in shadow launch."
+                    null
             ));
         }
 
         for (String mainOnlyPath : difference(mainUnknownPaths, shadowUnknownPaths)) {
             diffs.add(diff(
-                    diffCounter,
                     mainOnlyPath,
                     DiffType.FIELD_ADDED_IN_MAIN,
                     DiffCategory.CONTRACT_TECHNICAL,
                     JsonNodePath.at(mainLaunch, mainOnlyPath),
                     null,
                     null,
-                    null,
-                    "Undeclared field is present only in main launch."
+                    null
             ));
         }
     }
@@ -394,18 +381,15 @@ public class StrategyDiffEngine {
     }
 
     private static DiffDraft diff(
-            AtomicInteger diffCounter,
             String path,
             DiffType type,
             DiffCategory category,
             JsonNode mainValue,
             JsonNode shadowValue,
             BigDecimal absoluteDelta,
-            BigDecimal relativeDeltaPercent,
-            String description
+            BigDecimal relativeDeltaPercent
     ) {
         return diff(
-                diffCounter,
                 path,
                 type,
                 category,
@@ -413,13 +397,11 @@ public class StrategyDiffEngine {
                 shadowValue,
                 absoluteDelta,
                 relativeDeltaPercent,
-                null,
-                description
+                null
         );
     }
 
     private static DiffDraft diff(
-            AtomicInteger diffCounter,
             String path,
             DiffType type,
             DiffCategory category,
@@ -427,11 +409,9 @@ public class StrategyDiffEngine {
             JsonNode shadowValue,
             BigDecimal absoluteDelta,
             BigDecimal relativeDeltaPercent,
-            ComparisonBasis comparisonBasis,
-            String description
+            ComparisonBasis comparisonBasis
     ) {
         return new DiffDraft(
-                "D%03d".formatted(diffCounter.getAndIncrement()),
                 path,
                 type,
                 category,
@@ -439,13 +419,11 @@ public class StrategyDiffEngine {
                 shadowValue,
                 absoluteDelta,
                 relativeDeltaPercent,
-                comparisonBasis,
-                description
+                comparisonBasis
         );
     }
 
     private record DiffDraft(
-            String id,
             String path,
             DiffType type,
             DiffCategory category,
@@ -453,10 +431,9 @@ public class StrategyDiffEngine {
             JsonNode shadowValue,
             BigDecimal absoluteDelta,
             BigDecimal relativeDeltaPercent,
-            ComparisonBasis comparisonBasis,
-            String description
+            ComparisonBasis comparisonBasis
     ) {
-        private DiffEntry toEntry(Severity deterministicSeverity) {
+        private DiffEntry toEntry(UUID id, Severity deterministicSeverity) {
             return new DiffEntry(
                     id,
                     path,
@@ -467,8 +444,7 @@ public class StrategyDiffEngine {
                     absoluteDelta,
                     relativeDeltaPercent,
                     comparisonBasis,
-                    deterministicSeverity,
-                    description
+                    deterministicSeverity
             );
         }
     }

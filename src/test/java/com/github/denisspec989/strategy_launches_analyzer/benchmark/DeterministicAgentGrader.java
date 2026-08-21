@@ -12,6 +12,7 @@ import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.UUID;
 
 final class DeterministicAgentGrader {
     private static final int MAX_RECOMMENDATIONS = 10;
@@ -92,11 +93,11 @@ final class DeterministicAgentGrader {
             AgentAnalysisInput input,
             List<String> violations
     ) {
-        Map<String, String> expected = new LinkedHashMap<>();
+        Map<UUID, String> expected = new LinkedHashMap<>();
         input.diffs().forEach(diff -> expected.put(diff.id(), diff.path()));
-        Map<String, Severity> floors = new LinkedHashMap<>();
+        Map<UUID, Severity> floors = new LinkedHashMap<>();
         input.diffs().forEach(diff -> floors.put(diff.id(), diff.deterministicSeverity()));
-        Set<String> covered = new LinkedHashSet<>();
+        Set<UUID> covered = new LinkedHashSet<>();
         if (explanations == null) {
             violations.add("diffExplanations is null");
         }
@@ -127,7 +128,7 @@ final class DeterministicAgentGrader {
             }
             requireNonBlank(explanation.explanation(), "explanation for " + explanation.diffId(), violations);
         }
-        Set<String> required = new LinkedHashSet<>(expected.keySet());
+        Set<UUID> required = new LinkedHashSet<>(expected.keySet());
         required.removeAll(covered);
         if (!required.isEmpty()) {
             violations.add("missing diff explanations: " + required);
