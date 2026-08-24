@@ -77,7 +77,7 @@ LLM получает только нормализованный `AgentAnalysisI
 ## Конвенции
 
 - **Стек:** Spring Boot 4.0.6, GigaChat Java SDK 0.1.22, provider-neutral Spring AI model 2.0.0-M8 только для `BeanOutputConverter`, Lombok. Используются имена стартеров Boot 4 `spring-boot-starter-webmvc` / `spring-boot-starter-webmvc-test`.
-- **Корень пакета:** `com.github.denisspec989.strategy_launches_analyzer` (подчёркивание — дефисное имя артефакта не является валидным пакетом; см. `HELP.md`).
+- **Корень пакета:** `ru.sberbank.strategy_launches_analyzer` (подчёркивание — дефисное имя артефакта не является валидным пакетом; см. `HELP.md`).
 - **DTO — это Java records** в `dto/` (сгруппированы `agent`/`api`/`comparison`/`contract`/`common`/`strategy`); логика — в `service/`.
 - **Язык:** весь user-facing текст анализа (`summary`, `businessImpact`, `technicalRisks`, `recommendations`, объяснения diff'ов) пишется на **русском** — навязывается `SYSTEM_PROMPT` и детерминированными русскими строками post-processing. Идентификаторы кода остаются на английском.
 - **Ошибки:** `ApiExceptionHandler` мапит `BadRequestException` и ошибки validation/deserialization → информативный 400 в `ErrorResponse(timestamp, status, error, message)`. Необработанные ошибки endpoint становятся безопасным 500; ошибки LLM штатно перехватываются внутри comparison pipeline и возвращаются как FAILED-анализ в HTTP 200.

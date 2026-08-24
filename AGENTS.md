@@ -2,7 +2,7 @@
 
 ## Project Structure & Module Organization
 
-This is a Java 21, Spring Boot 4 application built with Maven. Production code lives under `src/main/java/com/github/denisspec989/strategy_launches_analyzer`; keep controllers, services, configuration, exceptions, utilities, and DTO records in their existing packages. Runtime configuration and strategy payload contracts are in `src/main/resources`; the code-first public API contract is checked in under `docs/openapi/`. Tests mirror the production package tree under `src/test/java`. Reusable comparison fixtures live in `src/test/resources/fixtures/<strategy>/<scenario>/`, while model-evaluation datasets live in `src/test/resources/evals/`. Put design notes and request examples in `docs/`; generated artifacts belong in `target/`, never in source control.
+This is a Java 21, Spring Boot 4 application built with Maven. Production code lives under `src/main/java/ru/sberbank/strategy_launches_analyzer`; keep controllers, services, configuration, exceptions, utilities, and DTO records in their existing packages. Runtime configuration and strategy payload contracts are in `src/main/resources`; the code-first public API contract is checked in under `docs/openapi/`. Tests mirror the production package tree under `src/test/java`. Reusable comparison fixtures live in `src/test/resources/fixtures/<strategy>/<scenario>/`, while model-evaluation datasets live in `src/test/resources/evals/`. Put design notes and request examples in `docs/`; generated artifacts belong in `target/`, never in source control.
 
 ## Build, Test, and Development Commands
 
@@ -17,7 +17,7 @@ Use the checked-in Maven wrapper (Windows examples below; substitute `./mvnw` on
 
 ## Coding Style & Naming Conventions
 
-Use four-space indentation in Java, one public type per file, and standard Java naming: `PascalCase` types, `camelCase` members, and `UPPER_SNAKE_CASE` constants. Keep the package root exactly `com.github.denisspec989.strategy_launches_analyzer`. Prefer records for DTOs and constructor injection for Spring dependencies. Place deterministic comparison rules in `service/diff`; LLM output must not override deterministic severity. No formatter or linter is configured, so match surrounding imports, braces, and wrapping.
+Use four-space indentation in Java, one public type per file, and standard Java naming: `PascalCase` types, `camelCase` members, and `UPPER_SNAKE_CASE` constants. Keep the package root exactly `ru.sberbank.strategy_launches_analyzer`. Prefer records for DTOs and constructor injection for Spring dependencies. Place deterministic comparison rules in `service/diff`; LLM output must not override deterministic severity. No formatter or linter is configured, so match surrounding imports, braces, and wrapping.
 
 ## Testing Guidelines
 

@@ -14,7 +14,7 @@ Project documentation:
 
 The following was discovered as part of building this project:
 
-* The original package name 'com.github.denisspec989.strategy-launches-analyzer' is invalid and this project uses 'com.github.denisspec989.strategy_launches_analyzer' instead.
+* The original package name 'ru.sberbank.strategy-launches-analyzer' is invalid and this project uses 'ru.sberbank.strategy_launches_analyzer' instead.
 
 ## Getting Started
 

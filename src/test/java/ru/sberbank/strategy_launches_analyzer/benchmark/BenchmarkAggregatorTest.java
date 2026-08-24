@@ -1,0 +1,252 @@
+package ru.sberbank.strategy_launches_analyzer.benchmark;
+
+import ru.sberbank.strategy_launches_analyzer.dto.agent.AgentAnalysis;
+import ru.sberbank.strategy_launches_analyzer.dto.agent.AgentAnalysisStatus;
+import ru.sberbank.strategy_launches_analyzer.dto.agent.AgentModelCallResult;
+import ru.sberbank.strategy_launches_analyzer.dto.agent.GuardrailCorrection;
+import ru.sberbank.strategy_launches_analyzer.dto.agent.GuardrailCorrectionType;
+import ru.sberbank.strategy_launches_analyzer.dto.agent.StructuredAgentAnalysis;
+import ru.sberbank.strategy_launches_analyzer.dto.agent.TokenUsage;
+import ru.sberbank.strategy_launches_analyzer.dto.common.Severity;
+import org.junit.jupiter.api.Test;
+
+import java.util.List;
+import java.util.ArrayList;
+
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.within;
+
+class BenchmarkAggregatorTest {
+    private final BenchmarkAggregator aggregator = new BenchmarkAggregator();
+
+    @Test
+    void semanticScoreUsesConfiguredQualityWeights() {
+        SemanticGrade grade = new SemanticGrade(1.0, 0.8, 0.6, 0.4, 0.2, true, List.of(), 0.0, List.of())
+                .validatedAndReweighted();
+
+        assertThat(grade.overallScore()).isCloseTo(0.70, within(1e-9));
+    }
+
+    @Test
+    void qualityTieUsesCorrectionsLatencyTokensAndModelIdInOrder() {
+        List<String> models = List.of("model-a", "model-b", "model-c", "model-d", "model-e");
+        BenchmarkSummary summary = aggregator.summarize("run", models, List.of(
+                success("model-a", 0.90, 0, 100, 20),
+                success("model-b", 0.91, 1, 10, 5),
+                success("model-c", 0.90, 0, 50, 30),
+                success("model-d", 0.90, 0, 50, 10),
+                success("model-e", 0.90, 0, 50, 10)
+        ), 1);
+
+        assertThat(summary.winner()).isEqualTo("model-d");
+        assertThat(summary.incomplete()).isFalse();
+    }
+
+    @Test
+    void unavailableModelDoesNotStopOthersButPreventsSelectionWithOnlyOneCompleteCandidate() {
+        BenchmarkSummary summary = aggregator.summarize("run", List.of("available", "missing"), List.of(
+                success("available", 0.90, 0, 10, 10),
+                failure("missing", BenchmarkSampleStatus.CALL_FAILED, null)
+        ), 1);
+
+        assertThat(summary.winner()).isNull();
+        assertThat(summary.globalIssues()).anyMatch(issue -> issue.contains("Fewer than two"));
+        assertThat(summary.models()).filteredOn(model -> model.model().equals("missing"))
+                .allMatch(model -> !model.eligible());
+    }
+
+    @Test
+    void judgeFailureDisablesWinnerEvenWhenCandidateCallsSucceeded() {
+        AgentModelCallResult call = call("model-a", 10, 10);
+        BenchmarkSummary summary = aggregator.summarize("run", List.of("model-a", "model-b"), List.of(
+                failure("model-a", BenchmarkSampleStatus.JUDGE_FAILED, call),
+                failure("model-b", BenchmarkSampleStatus.JUDGE_FAILED, call("model-b", 10, 10))
+        ), 1);
+
+        assertThat(summary.winner()).isNull();
+        assertThat(summary.globalIssues()).anyMatch(issue -> issue.contains("judge call failed"));
+    }
+
+    @Test
+    void rawNonComplianceDoesNotExcludeSafeFinalAnswer() {
+        DeterministicGrade rawFailure = new DeterministicGrade(
+                false, false, List.of("missing diff"), List.of("English narrative"), 1, 0
+        );
+        DeterministicGrade finalPass = new DeterministicGrade(true, false, List.of(),
+                List.of("English narrative"), 1, 1);
+        SemanticGrade safe = semanticGrade(0.90, true);
+        BenchmarkSampleResult sample = new BenchmarkSampleResult(
+                "case", List.of(), "model", 1, BenchmarkSampleStatus.SUCCESS,
+                call("model", 10, 10), rawFailure, finalAnalysis(), List.of(), finalPass, safe, null
+        );
+
+        ModelBenchmarkSummary model = aggregator.summarize("run", List.of("model", "peer"), List.of(
+                sample,
+                success("peer", 0.90, 0, 10, 10)
+        ), 1).models().get(0);
+
+        assertThat(model.rawComplianceRate()).isZero();
+        assertThat(model.finalHardPassRate()).isEqualTo(1.0);
+        assertThat(model.semanticSafetyPassRate()).isEqualTo(1.0);
+        assertThat(model.eligible()).isTrue();
+    }
+
+    @Test
+    void semanticSafetyFailureExcludesOtherwiseHighScoringAnswer() {
+        BenchmarkSampleResult unsafe = success("model", 0.95, 0, 10, 10, false);
+
+        ModelBenchmarkSummary model = aggregator.summarize("run", List.of("model", "peer"), List.of(
+                unsafe,
+                success("peer", 0.90, 0, 10, 10)
+        ), 1).models().get(0);
+
+        assertThat(model.semanticSafetyPassRate()).isZero();
+        assertThat(model.eligible()).isFalse();
+        assertThat(model.exclusionReasons()).anyMatch(reason -> reason.contains("semantic safety"));
+    }
+
+    @Test
+    void confirmedSafetyThresholdAcceptsExactlyNinetyFivePercentAndRejectsBelowIt() {
+        List<BenchmarkSampleResult> atThreshold = samples("model", 20, 1, false);
+        List<BenchmarkSampleResult> peer = samples("peer", 20, 0, false);
+
+        ModelBenchmarkSummary accepted = aggregator.summarize(
+                "run", List.of("model", "peer"), concat(atThreshold, peer), 20
+        ).models().get(0);
+        ModelBenchmarkSummary rejected = aggregator.summarize(
+                "run", List.of("model", "peer"), concat(samples("model", 20, 2, false), peer), 20
+        ).models().get(0);
+
+        assertThat(accepted.semanticSafetyPassRate()).isEqualTo(0.95);
+        assertThat(accepted.eligible()).isTrue();
+        assertThat(rejected.semanticSafetyPassRate()).isEqualTo(0.90);
+        assertThat(rejected.eligible()).isFalse();
+    }
+
+    @Test
+    void disputedPrimarySafetyFailureIsReportedForReviewButNotCountedAsConfirmedUnsafe() {
+        List<BenchmarkSampleResult> results = samples("model", 20, 1, true);
+        ModelBenchmarkSummary model = aggregator.summarize(
+                "run", List.of("model", "peer"), concat(results, samples("peer", 20, 0, false)), 20
+        ).models().get(0);
+
+        assertThat(model.primarySemanticSafetyPassRate()).isEqualTo(0.95);
+        assertThat(model.semanticSafetyPassRate()).isEqualTo(1.0);
+        assertThat(model.safetyNeedsReviewCount()).isEqualTo(1);
+        assertThat(model.eligible()).isTrue();
+    }
+
+    private static List<BenchmarkSampleResult> samples(
+            String model,
+            int count,
+            int primaryFailures,
+            boolean disputeFailures
+    ) {
+        List<BenchmarkSampleResult> results = new ArrayList<>();
+        for (int index = 0; index < count; index++) {
+            boolean primarySafe = index >= primaryFailures;
+            SemanticGrade grade = semanticGrade(0.95, primarySafe);
+            SafetyAdjudication adjudication = primarySafe ? null : disputeFailures
+                    ? new SafetyAdjudication(SafetyAdjudicationStatus.NEEDS_REVIEW, List.of(), "Спорная неточность.")
+                    : new SafetyAdjudication(SafetyAdjudicationStatus.CONFIRMED_UNSAFE,
+                    List.of("Подтвержденное нарушение."), "Материальная ошибка.");
+            DeterministicGrade pass = new DeterministicGrade(true, true, List.of(), List.of(), 0, 0);
+            results.add(new BenchmarkSampleResult(
+                    "case-" + index, List.of(), model, 1, BenchmarkSampleStatus.SUCCESS,
+                    call(model, 10, 10), pass, finalAnalysis(), List.of(), pass, grade, adjudication, null
+            ));
+        }
+        return results;
+    }
+
+    private static List<BenchmarkSampleResult> concat(
+            List<BenchmarkSampleResult> first,
+            List<BenchmarkSampleResult> second
+    ) {
+        List<BenchmarkSampleResult> result = new ArrayList<>(first);
+        result.addAll(second);
+        return result;
+    }
+
+    private static BenchmarkSampleResult success(
+            String model,
+            double semanticScore,
+            int corrections,
+            long latencyMs,
+            int outputTokens
+    ) {
+        return success(model, semanticScore, corrections, latencyMs, outputTokens, true);
+    }
+
+    private static BenchmarkSampleResult success(
+            String model,
+            double semanticScore,
+            int corrections,
+            long latencyMs,
+            int outputTokens,
+            boolean safetyPass
+    ) {
+        DeterministicGrade pass = new DeterministicGrade(true, true, List.of(), List.of(), 0, 0);
+        List<GuardrailCorrection> correctionList = corrections == 0
+                ? List.of()
+                : List.of(new GuardrailCorrection(
+                        GuardrailCorrectionType.OVERALL_SEVERITY_CHANGED, null, "corrected"
+                ));
+        SemanticGrade grade = semanticGrade(semanticScore, safetyPass);
+        return new BenchmarkSampleResult(
+                "case", List.of(), model, 1, BenchmarkSampleStatus.SUCCESS,
+                call(model, latencyMs, outputTokens), pass, finalAnalysis(), correctionList, pass, grade, null
+        );
+    }
+
+    private static SemanticGrade semanticGrade(double score, boolean safetyPass) {
+        return new SemanticGrade(
+                score, score, score, score, score,
+                safetyPass, safetyPass ? List.of() : List.of("unsafe"), score, List.of()
+        ).validatedAndReweighted();
+    }
+
+    private static BenchmarkSampleResult failure(
+            String model,
+            BenchmarkSampleStatus status,
+            AgentModelCallResult call
+    ) {
+        DeterministicGrade pass = new DeterministicGrade(true, true, List.of(), List.of(), 0, 0);
+        return new BenchmarkSampleResult(
+                "case", List.of(), model, 1, status, call,
+                call == null ? null : pass,
+                call == null ? null : finalAnalysis(),
+                List.of(),
+                call == null ? null : pass,
+                null,
+                "expected failure"
+        );
+    }
+
+    private static AgentModelCallResult call(String model, long latencyMs, int outputTokens) {
+        StructuredAgentAnalysis raw = new StructuredAgentAnalysis(
+                Severity.INFO, "Итог", "Влияние", "Риски", List.of("Проверить"), List.of()
+        );
+        return new AgentModelCallResult(
+                raw,
+                new TokenUsage(100, outputTokens, 100 + outputTokens, 0L, 0L, model),
+                model,
+                model,
+                latencyMs
+        );
+    }
+
+    private static AgentAnalysis finalAnalysis() {
+        return new AgentAnalysis(
+                AgentAnalysisStatus.COMPLETED,
+                Severity.INFO,
+                "Итог",
+                "Влияние",
+                "Риски",
+                List.of("Проверить"),
+                List.of(),
+                null,
+                null
+        );
+    }
+}

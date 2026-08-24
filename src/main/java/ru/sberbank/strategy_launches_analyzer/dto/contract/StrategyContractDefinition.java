@@ -1,0 +1,11 @@
+package ru.sberbank.strategy_launches_analyzer.dto.contract;
+
+import java.util.List;
+
+public record StrategyContractDefinition(
+        String strategyName,
+        String version,
+        String rootPath,
+        List<ContractField> fields
+) {
+}
