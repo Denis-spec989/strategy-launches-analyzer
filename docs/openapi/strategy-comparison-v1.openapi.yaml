@@ -25,27 +25,18 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/CompareStrategyResponse"
-                additionalProperties:
-                  default: ""
-                default: ""
         "400":
           description: Request validation failed.
           content:
             application/json:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
-                additionalProperties:
-                  default: ""
-                default: ""
         "500":
           description: Unexpected server error.
           content:
             application/json:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
-                additionalProperties:
-                  default: ""
-                default: ""
 components:
   schemas:
     CompareStrategyRequest:
@@ -73,7 +64,6 @@ components:
         requestId:
           type: string
           format: uuid
-          default: ""
           pattern: "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
         mainLaunchId:
           type: string
@@ -94,7 +84,6 @@ components:
       - requestId
       - shadowLaunchDt
     AgentAnalysis:
-      default: null
       description: LLM analysis. The response shape depends on status.
       discriminator:
         propertyName: status
@@ -111,10 +100,8 @@ components:
         analyzedAt:
           type: string
           format: date-time
-          default: ""
         metadata:
           $ref: "#/components/schemas/LaunchMetadata"
-          default: ""
         summary:
           $ref: "#/components/schemas/ComparisonSummary"
         diffs:
@@ -128,8 +115,14 @@ components:
         agentAnalysis:
           $ref: "#/components/schemas/AgentAnalysis"
       required:
+      - agentAnalysis
       - analyzedAt
+      - contractValidation
+      - contractVersion
+      - diffs
       - metadata
+      - strategyName
+      - summary
     ComparisonSummary:
       type: object
       properties:
@@ -159,40 +152,41 @@ components:
           - INFO
           - WARNING
           - CRITICAL
+      required:
+      - calculationContextDiffs
+      - contractTechnicalDiffs
+      - contractValidationIssues
+      - deterministicSeverity
+      - hasCriticalIssues
+      - metricDiffs
+      - modelDiffs
+      - totalDiffs
     CompletedAgentAnalysis:
       type: object
-      default: null
       description: Successful LLM analysis.
       properties:
         status:
           type: string
-          default: ""
           enum:
           - COMPLETED
         overallSeverity:
           type: string
-          default: ""
           enum:
           - INFO
           - WARNING
           - CRITICAL
         summary:
           type: string
-          default: ""
         businessImpact:
           type: string
-          default: ""
         technicalRisks:
           type: string
-          default: ""
         recommendations:
           type: array
-          default: ""
           items:
             type: string
         diffExplanations:
           type: array
-          default: ""
           items:
             $ref: "#/components/schemas/DiffExplanation"
       required:
@@ -236,13 +230,21 @@ components:
           $ref: "#/components/schemas/JsonNode"
         message:
           type: string
+      required:
+      - actual
+      - expected
+      - id
+      - message
+      - path
+      - severity
+      - side
+      - type
     DiffEntry:
       type: object
       properties:
         id:
           type: string
           format: uuid
-          default: ""
         path:
           type: string
         type:
@@ -279,11 +281,14 @@ components:
         deterministicSeverity:
           type: string
           enum:
-          - INFO
           - WARNING
           - CRITICAL
       required:
+      - category
+      - deterministicSeverity
       - id
+      - path
+      - type
     DiffExplanation:
       type: object
       properties:
@@ -307,17 +312,14 @@ components:
       - severity
     FailedAgentAnalysis:
       type: object
-      default: null
       description: Safe public description of an LLM analysis failure.
       properties:
         status:
           type: string
-          default: ""
           enum:
           - FAILED
         failureReason:
           type: string
-          default: ""
           enum:
           - CAPACITY
           - TRANSPORT
@@ -326,7 +328,6 @@ components:
           - INTERNAL
         errorMessage:
           type: string
-          default: ""
       required:
       - errorMessage
       - failureReason
@@ -344,3 +345,8 @@ components:
           type: string
         message:
           type: string
+      required:
+      - error
+      - message
+      - status
+      - timestamp

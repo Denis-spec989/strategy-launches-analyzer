@@ -2,7 +2,7 @@
 
 ## Project Structure & Module Organization
 
-This is a Java 21, Spring Boot 4 application built with Maven. Production code lives under `src/main/java/com/github/denisspec989/strategy_launches_analyzer`; keep controllers, services, configuration, exceptions, utilities, and DTO records in their existing packages. Runtime configuration and the OpenAPI contract are in `src/main/resources`. Tests mirror the production package tree under `src/test/java`. Reusable comparison fixtures live in `src/test/resources/fixtures/<strategy>/<scenario>/`, while model-evaluation datasets live in `src/test/resources/evals/`. Put design notes and request examples in `docs/`; generated artifacts belong in `target/`, never in source control.
+This is a Java 21, Spring Boot 4 application built with Maven. Production code lives under `src/main/java/com/github/denisspec989/strategy_launches_analyzer`; keep controllers, services, configuration, exceptions, utilities, and DTO records in their existing packages. Runtime configuration and strategy payload contracts are in `src/main/resources`; the code-first public API contract is checked in under `docs/openapi/`. Tests mirror the production package tree under `src/test/java`. Reusable comparison fixtures live in `src/test/resources/fixtures/<strategy>/<scenario>/`, while model-evaluation datasets live in `src/test/resources/evals/`. Put design notes and request examples in `docs/`; generated artifacts belong in `target/`, never in source control.
 
 ## Build, Test, and Development Commands
 
@@ -12,6 +12,7 @@ Use the checked-in Maven wrapper (Windows examples below; substitute `./mvnw` on
 - `.\mvnw.cmd test -Dtest=StrategyDiffEngineTest` runs one test class.
 - `.\mvnw.cmd clean package` compiles, tests, and creates the application artifact.
 - `.\mvnw.cmd spring-boot:run` starts the service and requires the GigaChat environment variables described in `docs/gigachat-configuration.md`.
+- `.\mvnw.cmd verify -Popenapi -DskipTests` regenerates the checked-in public API specification; run regular tests again afterwards.
 - `.\mvnw.cmd verify -Pbenchmark` runs the paid model benchmark. Read `docs/model-benchmark.md` first; benchmark, judge-calibration, and rejudge profiles require a configured GigaChat connection.
 
 ## Coding Style & Naming Conventions

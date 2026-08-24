@@ -1,18 +1,27 @@
 package com.github.denisspec989.strategy_launches_analyzer.dto.comparison;
 
+import com.fasterxml.jackson.annotation.JsonProperty;
 import com.github.denisspec989.strategy_launches_analyzer.dto.common.Severity;
 import com.github.denisspec989.strategy_launches_analyzer.dto.contract.ContractIssue;
 
 import java.util.List;
 
 public record ComparisonSummary(
+        @JsonProperty(required = true)
         int totalDiffs,
+        @JsonProperty(required = true)
         int metricDiffs,
+        @JsonProperty(required = true)
         int modelDiffs,
+        @JsonProperty(required = true)
         int calculationContextDiffs,
+        @JsonProperty(required = true)
         int contractTechnicalDiffs,
+        @JsonProperty(required = true)
         int contractValidationIssues,
+        @JsonProperty(required = true)
         boolean hasCriticalIssues,
+        @JsonProperty(required = true)
         Severity deterministicSeverity
 ) {
     public static ComparisonSummary from(List<DiffEntry> diffs, List<ContractIssue> issues) {

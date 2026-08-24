@@ -1,5 +1,6 @@
 package com.github.denisspec989.strategy_launches_analyzer.dto.agent;
 
+import com.fasterxml.jackson.annotation.JsonProperty;
 import com.github.denisspec989.strategy_launches_analyzer.dto.common.Severity;
 import io.swagger.v3.oas.annotations.media.Schema;
 
@@ -7,19 +8,20 @@ import java.util.List;
 
 @Schema(name = "CompletedAgentAnalysis", description = "Successful LLM analysis.")
 public record CompletedAgentAnalysisSchema(
-        @Schema(requiredMode = Schema.RequiredMode.REQUIRED, allowableValues = "COMPLETED")
+        @JsonProperty(required = true)
+        @Schema(allowableValues = "COMPLETED")
         AgentAnalysisStatus status,
-        @Schema(requiredMode = Schema.RequiredMode.REQUIRED)
+        @JsonProperty(required = true)
         Severity overallSeverity,
-        @Schema(requiredMode = Schema.RequiredMode.REQUIRED)
+        @JsonProperty(required = true)
         String summary,
-        @Schema(requiredMode = Schema.RequiredMode.REQUIRED)
+        @JsonProperty(required = true)
         String businessImpact,
-        @Schema(requiredMode = Schema.RequiredMode.REQUIRED)
+        @JsonProperty(required = true)
         String technicalRisks,
-        @Schema(requiredMode = Schema.RequiredMode.REQUIRED)
+        @JsonProperty(required = true)
         List<String> recommendations,
-        @Schema(requiredMode = Schema.RequiredMode.REQUIRED)
+        @JsonProperty(required = true)
         List<DiffExplanation> diffExplanations
 ) {
 }

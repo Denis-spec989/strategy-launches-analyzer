@@ -1,14 +1,16 @@
 package com.github.denisspec989.strategy_launches_analyzer.dto.agent;
 
+import com.fasterxml.jackson.annotation.JsonProperty;
 import io.swagger.v3.oas.annotations.media.Schema;
 
 @Schema(name = "FailedAgentAnalysis", description = "Safe public description of an LLM analysis failure.")
 public record FailedAgentAnalysisSchema(
-        @Schema(requiredMode = Schema.RequiredMode.REQUIRED, allowableValues = "FAILED")
+        @JsonProperty(required = true)
+        @Schema(allowableValues = "FAILED")
         AgentAnalysisStatus status,
-        @Schema(requiredMode = Schema.RequiredMode.REQUIRED)
+        @JsonProperty(required = true)
         AgentFallbackReason failureReason,
-        @Schema(requiredMode = Schema.RequiredMode.REQUIRED)
+        @JsonProperty(required = true)
         String errorMessage
 ) {
 }

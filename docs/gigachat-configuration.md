@@ -61,3 +61,18 @@ $env:GIGACHAT_TRUST_STORE_PASSWORD="<truststore-password>"
 Неактивную ветку задавать не нужно. Например, при `user-password` приложение не проверяет пути и пароли PKCS12. При неполной выбранной ветке, неизвестном scope, неверном URL, отсутствующем файле, модели или auth mode контекст завершается с ошибкой до первого сетевого вызова.
 
 Секреты и PKCS12-файлы нельзя сохранять в репозитории. После локального запуска удалите чувствительные переменные окружения из текущей PowerShell-сессии.
+
+## Наблюдаемость LLM
+
+Prometheus endpoint доступен по `/actuator/prometheus`; `/v3/api-docs` в обычном runtime отключён. Основные публичные серии потребления LLM:
+
+| Серия | Labels | Семантика |
+| --- | --- | --- |
+| `strategy_analysis_llm_model_info` | `model` | Текущая настроенная модель; значение gauge всегда `1` |
+| `strategy_analysis_llm_input_tokens_total` | `model`, `strategy` | Суммарные входные токены основной и repair-попытки |
+| `strategy_analysis_llm_output_tokens_total` | `model`, `strategy` | Суммарные выходные токены основной и repair-попытки |
+| `strategy_analysis_llm_requests_total` | `model`, `strategy`, `outcome` | Логический анализ: `completed` после обычного или repaired-успеха, `failed` при fallback |
+
+Capacity-fallback учитывается как `failed` с нулевым потреблением токенов. Дополнительно сохраняются низкокардинальные серии `strategy_launches_agent_analysis_total`, `strategy_launches_agent_fallback_total`, `strategy_launches_agent_repair_total`, `strategy_launches_agent_validation_failure_total`, `strategy_launches_agent_guardrail_correction_total`, timer-семейство `strategy_launches_agent_duration_seconds_*`, `strategy_launches_agent_info` и `strategy_launches_contract_info`.
+
+В labels намеренно отсутствуют `requestId`, exception type, сообщения, path, diff ID и другие высококардинальные значения. Полная техническая причина сбоя записывается в лог со stack trace и `requestId`; публичный FAILED-анализ содержит только безопасную категорию и описание.

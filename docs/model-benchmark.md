@@ -254,7 +254,9 @@ Benchmark предназначен для практического решен�
 
 При существенном изменении production prompt, guardrails, контракта или задач агента необходимо обновить сценарии и провести новый benchmark. При добавлении новых моделей достаточно нового benchmark на неизменном dataset и с актуальной калибровкой judge.
 
-## Полный результат GigaChat от 17 августа 2026 года
+## Исторический полный результат GigaChat от 17 августа 2026 года
+
+Этот run выполнен до перехода `diffs[].id` и `diffExplanations[].diffId` на UUID и до изменения production structured-output schema и calibration dataset. Поэтому результат сохраняется только как история и не является основанием выбора модели для текущего контракта. Перед следующим выбором модели необходимы human-проверка изменённого calibration dataset, новая платная judge-калибровка и новый полный benchmark.
 
 Run `20260817-135524-754` сравнил все пять доступных chat-моделей по 57 samples. Primary judge — `GigaChat-3-Ultra`, alternate rejudge — `GigaChat-3.5-432B-A28B`. Candidate-вызовы при rejudge не повторялись. После resume временных timeout и одного judge connection reset оба отчёта выбрали **`GigaChat-3-Ultra`**.
 
@@ -268,12 +270,12 @@ Run `20260817-135524-754` сравнил все пять доступных chat
 
 Ultra и 3.5 прошли все gates. Разница semantic mean между ними меньше tie tolerance `0.02`: primary judge дала немного более высокий mean модели 3.5, alternate judge — Ultra. У обеих одинаковая доля Java-коррекций, поэтому primary tie-break выбрал Ultra по меньшей p95 latency; alternate report также выбрал Ultra. Это согласованный практический winner, но не большой смысловой отрыв.
 
-Полные локальные отчёты:
+Отчёты были созданы в перечисленных ниже `target/`-каталогах и не хранятся в Git, поэтому в свежем checkout они отсутствуют:
 
 - `target/benchmark/20260817-135524-754/`;
 - `target/benchmark-rejudge/20260817-135524-754-GigaChat-3.5-432B-A28B-cfbe947f85b9/`.
 
-## Результат shortlist GigaChat от 14 августа 2026 года
+## Исторический результат shortlist GigaChat от 14 августа 2026 года
 
 Автоматический run `20260814-130936-671` использовал primary judge `GigaChat-3-Ultra` и alternate judge `GigaChat-3.5-432B-A28B`. Обе judge-модели прошли human-калибровку на 27 кейсах с нулём unsafe false negatives и agreement 100%. Средний MAE составил `0.09185` для Ultra и `0.09259` для 3.5, поэтому Ultra выбрана primary judge.
 
@@ -286,7 +288,7 @@ Pilot оставил финалистами `GigaChat-3-Ultra` и `GigaChat-3-Pr
 
 Три failure относятся не к сети, а к нарушению production-контракта `diffExplanations`: лишние, пустые или неизвестные diff ID/path. Поэтому итоговый `decision.json` имеет статус `REVIEW_REQUIRED`, а production-модель автоматически не выбрана. Ultra показала лучшее смысловое качество, Pro — лучшую надёжность structured результата и существенно меньшую задержку; ослабление 100% gate постфактум не выполнялось.
 
-Полные локальные отчёты находятся в `target/model-selection/runs/20260814-130936-671/`.
+Локальные отчёты создавались в `target/model-selection/runs/20260814-130936-671/` и не хранятся в Git.
 
 ## Исторический OpenAI baseline от 13 августа 2026 года
 

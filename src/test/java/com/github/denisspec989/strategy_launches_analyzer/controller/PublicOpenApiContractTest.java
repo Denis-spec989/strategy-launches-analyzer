@@ -63,6 +63,8 @@ class PublicOpenApiContractTest {
         JsonNode diff = schemas.path("DiffEntry").path("properties");
         JsonNode diffExplanation = schemas.path("DiffExplanation").path("properties");
         JsonNode summary = schemas.path("ComparisonSummary").path("properties");
+        JsonNode errorResponse = schemas.path("ErrorResponse");
+        JsonNode contractIssue = schemas.path("ContractIssue");
 
         assertThat(specification.path("info").path("version").asText()).isEqualTo("1.0.0");
         assertThat(specification.path("paths").fieldNames()).toIterable()
@@ -70,11 +72,21 @@ class PublicOpenApiContractTest {
         assertThat(metadata.path("required")).extracting(JsonNode::asText)
                 .containsExactlyInAnyOrder("requestId", "mainLaunchDt", "shadowLaunchDt");
         assertThat(metadata.path("properties").path("requestId").path("format").asText()).isEqualTo("uuid");
+        assertThat(metadata.path("properties").path("requestId").has("default")).isFalse();
         assertThat(metadata.path("properties").path("mainLaunchDt").path("format").asText())
                 .isEqualTo("date-time");
         assertThat(schemas.path("CompareStrategyResponse").path("required"))
                 .extracting(JsonNode::asText)
-                .contains("analyzedAt", "metadata");
+                .containsExactlyInAnyOrder(
+                        "strategyName",
+                        "contractVersion",
+                        "analyzedAt",
+                        "metadata",
+                        "summary",
+                        "diffs",
+                        "contractValidation",
+                        "agentAnalysis"
+                );
         assertThat(agentAnalysis.path("oneOf")).hasSize(2);
         assertThat(agentAnalysis.path("discriminator").path("propertyName").asText()).isEqualTo("status");
         assertThat(completedAnalysis.path("properties").has("failureReason")).isFalse();
@@ -88,13 +100,32 @@ class PublicOpenApiContractTest {
                 .containsExactlyInAnyOrder("status", "failureReason", "errorMessage");
         assertThat(specification.toString()).doesNotContain("tokenUsage", "responseSchemaVersion", "diagnostics");
         assertThat(summary.has("strategyName")).isFalse();
+        assertThat(schemas.path("ComparisonSummary").path("required"))
+                .extracting(JsonNode::asText)
+                .containsExactlyInAnyOrder(
+                        "totalDiffs",
+                        "metricDiffs",
+                        "modelDiffs",
+                        "calculationContextDiffs",
+                        "contractTechnicalDiffs",
+                        "contractValidationIssues",
+                        "hasCriticalIssues",
+                        "deterministicSeverity"
+                );
         assertThat(diff.path("id").path("format").asText()).isEqualTo("uuid");
         assertThat(schemas.path("DiffEntry").path("required")).extracting(JsonNode::asText)
-                .contains("id");
+                .containsExactlyInAnyOrder("id", "path", "type", "category", "deterministicSeverity");
+        assertThat(diff.path("deterministicSeverity").path("enum")).extracting(JsonNode::asText)
+                .containsExactly("WARNING", "CRITICAL");
         assertThat(diffExplanation.path("diffId").path("format").asText()).isEqualTo("uuid");
+        assertThat(contractIssue.path("required")).extracting(JsonNode::asText)
+                .containsExactlyInAnyOrder("id", "side", "path", "type", "severity", "expected", "actual", "message");
+        assertThat(errorResponse.path("required")).extracting(JsonNode::asText)
+                .containsExactlyInAnyOrder("timestamp", "status", "error", "message");
         assertThat(diff.has("description")).isFalse();
         assertThat(diff.has("field")).isFalse();
         assertThat(diff.has("relatedContractIssueIds")).isFalse();
         assertThat(agentAnalysis.path("properties").isMissingNode()).isTrue();
+        assertThat(specification.toString()).doesNotContain("\"default\"");
     }
 }

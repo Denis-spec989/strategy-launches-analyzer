@@ -1,4 +1,3 @@
-HELP.md
 target/
 /benchmarks/
 .mvn/wrapper/maven-wrapper.jar

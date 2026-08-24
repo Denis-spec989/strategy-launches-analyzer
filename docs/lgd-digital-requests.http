@@ -436,12 +436,18 @@ Content-Type: application/json
         "defaultValueReason": "LGD_CALCULATION_FOR_FZHN"
       }
     }
+  },
+  "metadata": {
+    "requestId": "00000000-0000-0000-0000-000000000008",
+    "mainLaunchDt": "2026-06-04T18:00:00Z",
+    "shadowLaunchDt": "2026-06-04T18:01:00Z"
   }
 }
 
 
 ### 9. Bad request (400): тело не является валидным JSON
-# Ожидаемо: 400, ErrorResponse{status:400, message:"Request body must be valid JSON."}.
+# Ожидаемо: 400, message начинается с "Malformed JSON at line 4, column 1:";
+# после двоеточия возвращается исходное описание ошибки Jackson без stack trace.
 POST {{baseUrl}}/api/v1/strategies/compare
 Content-Type: application/json
 

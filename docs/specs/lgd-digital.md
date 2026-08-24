@@ -62,7 +62,7 @@ Example public diff:
 
 ## Agent Rules
 
-- The agent receives the same public `DiffEntry` objects after only large-value normalization, plus contract validation issues, touched field contract context, summary, and optional launch metadata. Normalization preserves `deterministicSeverity`.
+- The agent receives an isolated projection of the public `DiffEntry` objects, plus contract validation issues, touched field contract context, summary, and launch metadata without client-supplied `attributes`. Every object/array value is replaced with a compact `object(size=N): ...` or `array(size=N): ...` descriptor whose preview is capped at 200 characters. Scalar values and `deterministicSeverity` are preserved. This normalization applies only to the LLM input; the public response retains the original `JsonNode` values and the complete echoed metadata.
 - `strategyName` is present only at the root of `AgentAnalysisInput`; it is not duplicated in `summary`.
 - The agent uses OpenAPI `description` plus `x-summary-guidance` to explain business meaning.
 - Java comparison owns deterministic facts, each `diffs[].deterministicSeverity`, and `summary.deterministicSeverity`; the agent owns final semantic severity in `agentAnalysis.overallSeverity`.
