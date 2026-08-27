@@ -37,20 +37,17 @@ components:
                   description: "LGD-потери при дефолте (%)"
                   x-diff-category: METRIC
                   x-unit: percent
-                  x-summary-guidance: "Если поле изменилось, объяснить как изменение процента LGD-потерь при дефолте и указать направление изменения."
                 lgdModel:
                   type: string
                   nullable: true
                   description: "Модель расчета"
                   x-diff-category: MODEL
-                  x-summary-guidance: "Если поле изменилось, указать, что shadow использует другую модель расчета; не называть это доказанной причиной изменения метрик без дополнительных данных."
                 lgdDt:
                   type: number
                   format: double
                   description: "LGD при экономическом спаде (%)"
                   x-diff-category: METRIC
                   x-unit: percent
-                  x-summary-guidance: "Если поле изменилось, объяснить как изменение LGD в сценарии экономического спада и указать направление изменения."
             calculationInfo:
               type: object
               additionalProperties: false
@@ -67,24 +64,19 @@ components:
                   type: string
                   description: "Режим расчета - 'Сделка' или 'Мониторинг'"
                   x-diff-category: CONTRACT_TECHNICAL
-                  x-summary-guidance: "Если поле изменилось, оценить риск изменения режима расчета и возможной регрессии констант или маппинга."
                 type:
                   type: string
                   description: "Тип расчета - пакетный расчет в ПИМ, или онлайн"
                   x-diff-category: CONTRACT_TECHNICAL
-                  x-summary-guidance: "Если поле изменилось, оценить риск изменения типа расчета и возможной регрессии интеграционного режима."
                 scenario:
                   type: string
                   description: "Сценарий расчета"
                   x-diff-category: CALCULATION_CONTEXT
-                  x-summary-guidance: "Если поле изменилось, объяснить это как изменение сценария расчета, влияющего на интерпретацию результата."
                 usedDefaultValue:
                   type: boolean
                   description: "Признак автоматического присвоения константы в ЦКП - да/нет"
                   x-diff-category: CALCULATION_CONTEXT
-                  x-summary-guidance: "Если поле изменилось, указать, что изменился факт автоматического присвоения константы."
                 defaultValueReason:
                   type: string
                   description: "Причина автоматического присвоения константы"
                   x-diff-category: CALCULATION_CONTEXT
-                  x-summary-guidance: "Если поле изменилось, указать, что изменилась причина автоматического присвоения константы."

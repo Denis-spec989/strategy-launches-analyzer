@@ -1,0 +1,32 @@
+{
+  "diffs" : [ {
+    "id" : "96493f77-fd8d-580c-a543-9f388de18b49",
+    "path" : "strategyResponse.lgdData.lgd",
+    "type" : "NULLABILITY_VIOLATION",
+    "category" : "METRIC",
+    "mainValue" : 18.1,
+    "shadowValue" : null,
+    "deterministicSeverity" : "CRITICAL"
+  } ],
+  "contractValidation" : [ {
+    "id" : "C001",
+    "side" : "SHADOW",
+    "path" : "strategyResponse.lgdData.lgd",
+    "type" : "NULLABILITY_VIOLATION",
+    "severity" : "CRITICAL",
+    "expected" : "number, 1..1",
+    "actual" : "null",
+    "actualValue" : null,
+    "message" : "Field is null, but null is not allowed by the contract."
+  } ],
+  "summary" : {
+    "totalDiffs" : 1,
+    "metricDiffs" : 1,
+    "modelDiffs" : 0,
+    "calculationContextDiffs" : 0,
+    "contractTechnicalDiffs" : 0,
+    "contractValidationIssues" : 1,
+    "hasCriticalIssues" : true,
+    "deterministicSeverity" : "CRITICAL"
+  }
+}

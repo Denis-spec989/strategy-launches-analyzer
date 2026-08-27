@@ -1,0 +1,32 @@
+{
+  "diffs" : [ {
+    "id" : "72d38146-b8f9-5aeb-83bd-35bfb3acc2ca",
+    "path" : "strategyResponse.lgdData.lgd",
+    "type" : "NUMERIC_VALUE_CHANGED",
+    "category" : "METRIC",
+    "mainValue" : 0,
+    "shadowValue" : 5,
+    "absoluteDelta" : 5,
+    "deterministicSeverity" : "WARNING"
+  }, {
+    "id" : "c6fb1dc2-ee05-5aa2-9a72-0734c9fe8229",
+    "path" : "strategyResponse.lgdData.lgdDt",
+    "type" : "NUMERIC_VALUE_CHANGED",
+    "category" : "METRIC",
+    "mainValue" : 0,
+    "shadowValue" : 5,
+    "absoluteDelta" : 5,
+    "deterministicSeverity" : "WARNING"
+  } ],
+  "contractValidation" : [ ],
+  "summary" : {
+    "totalDiffs" : 2,
+    "metricDiffs" : 2,
+    "modelDiffs" : 0,
+    "calculationContextDiffs" : 0,
+    "contractTechnicalDiffs" : 0,
+    "contractValidationIssues" : 0,
+    "hasCriticalIssues" : false,
+    "deterministicSeverity" : "WARNING"
+  }
+}

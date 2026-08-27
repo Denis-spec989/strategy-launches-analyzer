@@ -60,18 +60,13 @@ Example public diff:
 }
 ```
 
-## Agent Rules
+## Response Contract
 
-- The agent receives an isolated projection of the public `DiffEntry` objects, plus contract validation issues, touched field contract context, summary, and launch metadata without client-supplied `attributes`. Every object/array value is replaced with a compact `object(size=N): ...` or `array(size=N): ...` descriptor whose preview is capped at 200 characters. Scalar values and `deterministicSeverity` are preserved. This normalization applies only to the LLM input; the public response retains the original `JsonNode` values and the complete echoed metadata.
-- `strategyName` is present only at the root of `AgentAnalysisInput`; it is not duplicated in `summary`.
-- The agent uses OpenAPI `description` plus `x-summary-guidance` to explain business meaning.
-- Java comparison owns deterministic facts, each `diffs[].deterministicSeverity`, and `summary.deterministicSeverity`; the agent owns final semantic severity in `agentAnalysis.overallSeverity`.
-- `summary.deterministicSeverity` is a preliminary guardrail, not the final business severity.
-- `agentAnalysis.diffExplanations[].severity` is the model/final explanation severity and guardrails never allow it below the corresponding public `diffs[].deterministicSeverity`.
-- The agent must not receive the full OpenAPI contract, compare raw launch JSON, or invent additional diffs.
-- The agent may describe model changes as a possible explanation for metric changes, not as proven root cause.
-- Shape, schema, type, and nullability issues must always be mentioned in analysis.
-- A failed LLM call returns only `status`, a stable `failureReason`, and a safe
-  `errorMessage`; deterministic facts and `summary.deterministicSeverity` remain available.
-- Token usage and model identity are operational data exposed through Prometheus,
-  not through the comparison response.
+The response contains the resolved strategy and contract version, comparison timestamp,
+echoed metadata, aggregate summary, deterministic diffs, and contract validation issues.
+`summary.deterministicSeverity` is the final aggregate severity for the comparison. Raw
+scalar, object, array, and null values are preserved in public diff and validation fields.
+
+The current v1 response no longer contains a separate semantic-analysis section. This is
+a deliberate breaking change for consumers of the earlier v1 response shape; the endpoint
+path remains `POST /api/v1/strategies/compare`.

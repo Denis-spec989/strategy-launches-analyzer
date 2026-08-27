@@ -1,0 +1,31 @@
+{
+  "diffs" : [ {
+    "id" : "a0fcb546-7b3b-50d9-87d9-91f163472107",
+    "path" : "strategyResponse.calculationInfo.usingCollateral",
+    "type" : "FIELD_ADDED_IN_SHADOW",
+    "category" : "CONTRACT_TECHNICAL",
+    "shadowValue" : "4",
+    "deterministicSeverity" : "WARNING"
+  } ],
+  "contractValidation" : [ {
+    "id" : "C001",
+    "side" : "SHADOW",
+    "path" : "strategyResponse.calculationInfo.usingCollateral",
+    "type" : "UNKNOWN_FIELD",
+    "severity" : "WARNING",
+    "expected" : "field declared in LGD_DIGITAL contract",
+    "actual" : "string",
+    "actualValue" : "4",
+    "message" : "Field is not declared in the LGD_DIGITAL contract."
+  } ],
+  "summary" : {
+    "totalDiffs" : 1,
+    "metricDiffs" : 0,
+    "modelDiffs" : 0,
+    "calculationContextDiffs" : 0,
+    "contractTechnicalDiffs" : 1,
+    "contractValidationIssues" : 1,
+    "hasCriticalIssues" : false,
+    "deterministicSeverity" : "WARNING"
+  }
+}

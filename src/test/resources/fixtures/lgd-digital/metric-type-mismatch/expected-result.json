@@ -1,0 +1,43 @@
+{
+  "diffs" : [ {
+    "id" : "b6d390d1-7da4-582d-a322-0099e629a286",
+    "path" : "strategyResponse.lgdData.lgd",
+    "type" : "TYPE_MISMATCH",
+    "category" : "METRIC",
+    "mainValue" : 18.1,
+    "shadowValue" : "20.4",
+    "deterministicSeverity" : "CRITICAL"
+  }, {
+    "id" : "eebf110c-a40e-5451-bc51-7a86d96e1399",
+    "path" : "strategyResponse.lgdData.lgd",
+    "type" : "NUMERIC_VALUE_CHANGED",
+    "category" : "METRIC",
+    "mainValue" : 18.1,
+    "shadowValue" : "20.4",
+    "absoluteDelta" : 2.3,
+    "relativeDeltaPercent" : 12.7072,
+    "comparisonBasis" : "COERCED_NUMERIC",
+    "deterministicSeverity" : "CRITICAL"
+  } ],
+  "contractValidation" : [ {
+    "id" : "C001",
+    "side" : "SHADOW",
+    "path" : "strategyResponse.lgdData.lgd",
+    "type" : "TYPE_MISMATCH",
+    "severity" : "CRITICAL",
+    "expected" : "number, 1..1",
+    "actual" : "string",
+    "actualValue" : "20.4",
+    "message" : "Field type does not match the LGD_DIGITAL contract."
+  } ],
+  "summary" : {
+    "totalDiffs" : 2,
+    "metricDiffs" : 2,
+    "modelDiffs" : 0,
+    "calculationContextDiffs" : 0,
+    "contractTechnicalDiffs" : 0,
+    "contractValidationIssues" : 1,
+    "hasCriticalIssues" : true,
+    "deterministicSeverity" : "CRITICAL"
+  }
+}

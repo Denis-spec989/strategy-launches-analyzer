@@ -26,7 +26,6 @@ public class OpenApiStrategyContractLoader {
     private static final String EXT_STRATEGY_NAME = "x-strategy-name";
     private static final String EXT_DIFF_CATEGORY = "x-diff-category";
     private static final String EXT_UNIT = "x-unit";
-    private static final String EXT_SUMMARY_GUIDANCE = "x-summary-guidance";
 
     private final ObjectMapper objectMapper;
 
@@ -97,8 +96,7 @@ public class OpenApiStrategyContractLoader {
                 objectSchema.path("nullable").asBoolean(false),
                 DiffCategory.valueOf(requiredText(objectSchema, EXT_DIFF_CATEGORY, path + "." + EXT_DIFF_CATEGORY)),
                 optionalText(objectSchema, "description"),
-                optionalText(objectSchema, EXT_UNIT),
-                optionalText(objectSchema, EXT_SUMMARY_GUIDANCE)
+                optionalText(objectSchema, EXT_UNIT)
         ));
 
         if (valueType != ContractValueType.OBJECT) {

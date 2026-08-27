@@ -4,7 +4,6 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import ru.sberbank.strategy_launches_analyzer.TestFixtures;
 import ru.sberbank.strategy_launches_analyzer.dto.strategy.StrategyName;
-import ru.sberbank.strategy_launches_analyzer.service.agent.AgentAnalyzer;
 import lombok.AccessLevel;
 import lombok.RequiredArgsConstructor;
 import org.junit.jupiter.api.Test;
@@ -12,10 +11,7 @@ import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
-import org.springframework.boot.test.context.TestConfiguration;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
-import org.springframework.context.annotation.Bean;
-import org.springframework.context.annotation.Primary;
 import org.springframework.http.MediaType;
 import org.springframework.test.web.servlet.MockMvc;
 
@@ -26,15 +22,7 @@ import static org.hamcrest.Matchers.everyItem;
 import static org.hamcrest.Matchers.matchesPattern;
 import static org.hamcrest.Matchers.startsWith;
 
-@SpringBootTest(properties = {
-        "strategy-launches-analyzer.agent.gigachat.auth-mode=user-password",
-        "strategy-launches-analyzer.agent.gigachat.model=test-model",
-        "strategy-launches-analyzer.agent.gigachat.user-password.api-url=https://api.example/v1",
-        "strategy-launches-analyzer.agent.gigachat.user-password.auth-api-url=https://auth.example/v1",
-        "strategy-launches-analyzer.agent.gigachat.user-password.username=test-user",
-        "strategy-launches-analyzer.agent.gigachat.user-password.password=test-password",
-        "strategy-launches-analyzer.agent.gigachat.user-password.scope=GIGACHAT_API_PERS"
-})
+@SpringBootTest
 @AutoConfigureMockMvc
 @RequiredArgsConstructor(access = AccessLevel.PACKAGE, onConstructor_ = @Autowired)
 class StrategyComparisonControllerTest {
@@ -42,7 +30,7 @@ class StrategyComparisonControllerTest {
     private final ObjectMapper objectMapper;
 
     @Test
-    void returnsDeterministicFallbackWhenAgentFails() throws Exception {
+    void returnsDeterministicComparison() throws Exception {
         mockMvc.perform(post("/api/v1/strategies/compare")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(requestBody("model-change")))
@@ -54,17 +42,6 @@ class StrategyComparisonControllerTest {
                 .andExpect(jsonPath("$.diffs[*].id", everyItem(matchesPattern(
                         "^[0-9a-f]{8}-[0-9a-f]{4}-5[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
                 ))))
-                .andExpect(jsonPath("$.agentAnalysis.status").value("FAILED"))
-                .andExpect(jsonPath("$.agentAnalysis.failureReason").value("INTERNAL"))
-                .andExpect(jsonPath("$.agentAnalysis.errorMessage")
-                        .value("LLM-анализ не выполнен: внутренняя ошибка обработки."))
-                .andExpect(jsonPath("$.agentAnalysis.overallSeverity").doesNotExist())
-                .andExpect(jsonPath("$.agentAnalysis.summary").doesNotExist())
-                .andExpect(jsonPath("$.agentAnalysis.businessImpact").doesNotExist())
-                .andExpect(jsonPath("$.agentAnalysis.technicalRisks").doesNotExist())
-                .andExpect(jsonPath("$.agentAnalysis.recommendations").doesNotExist())
-                .andExpect(jsonPath("$.agentAnalysis.diffExplanations").doesNotExist())
-                .andExpect(jsonPath("$.agentAnalysis.tokenUsage").doesNotExist())
                 .andExpect(jsonPath("$.metadata.requestId").value("11111111-1111-1111-1111-111111111111"))
                 .andExpect(jsonPath("$.metadata.mainLaunchDt").value("2026-06-04T11:00:00Z"))
                 .andExpect(jsonPath("$.metadata.shadowLaunchDt").value("2026-06-04T11:01:00Z"))
@@ -248,14 +225,4 @@ class StrategyComparisonControllerTest {
         return metadata;
     }
 
-    @TestConfiguration
-    static class ThrowingAgentConfiguration {
-        @Bean
-        @Primary
-        AgentAnalyzer throwingAgentAnalyzer() {
-            return input -> {
-                throw new IllegalStateException("model unavailable");
-            };
-        }
-    }
 }

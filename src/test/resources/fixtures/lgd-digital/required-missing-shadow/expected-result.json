@@ -1,0 +1,30 @@
+{
+  "diffs" : [ {
+    "id" : "850f6e25-a1a4-5881-99d3-a197057e2525",
+    "path" : "strategyResponse.lgdData.lgd",
+    "type" : "FIELD_MISSING_IN_SHADOW",
+    "category" : "METRIC",
+    "mainValue" : 18.1,
+    "deterministicSeverity" : "CRITICAL"
+  } ],
+  "contractValidation" : [ {
+    "id" : "C001",
+    "side" : "SHADOW",
+    "path" : "strategyResponse.lgdData.lgd",
+    "type" : "REQUIRED_FIELD_MISSING",
+    "severity" : "CRITICAL",
+    "expected" : "number, 1..1",
+    "actual" : "missing",
+    "message" : "Required field is missing."
+  } ],
+  "summary" : {
+    "totalDiffs" : 1,
+    "metricDiffs" : 1,
+    "modelDiffs" : 0,
+    "calculationContextDiffs" : 0,
+    "contractTechnicalDiffs" : 0,
+    "contractValidationIssues" : 1,
+    "hasCriticalIssues" : true,
+    "deterministicSeverity" : "CRITICAL"
+  }
+}

@@ -29,8 +29,6 @@
 	<properties>
 		<java.version>21</java.version>
 		<lombok.version>1.18.46</lombok.version>
-		<spring-ai.version>2.0.0-M8</spring-ai.version>
-		<gigachat-java.version>0.1.22</gigachat-java.version>
 		<springdoc-openapi.version>3.0.3</springdoc-openapi.version>
 	</properties>
 	<dependencies>
@@ -45,15 +43,6 @@
 		<dependency>
 			<groupId>org.springframework.boot</groupId>
 			<artifactId>spring-boot-starter-validation</artifactId>
-		</dependency>
-		<dependency>
-			<groupId>org.springframework.ai</groupId>
-			<artifactId>spring-ai-model</artifactId>
-		</dependency>
-		<dependency>
-			<groupId>chat.giga</groupId>
-			<artifactId>gigachat-java</artifactId>
-			<version>${gigachat-java.version}</version>
 		</dependency>
 		<dependency>
 			<groupId>com.fasterxml.jackson.dataformat</groupId>
@@ -85,17 +74,6 @@
 			<scope>test</scope>
 		</dependency>
 	</dependencies>
-	<dependencyManagement>
-		<dependencies>
-			<dependency>
-				<groupId>org.springframework.ai</groupId>
-				<artifactId>spring-ai-bom</artifactId>
-				<version>${spring-ai.version}</version>
-				<type>pom</type>
-				<scope>import</scope>
-			</dependency>
-		</dependencies>
-	</dependencyManagement>
 
 	<build>
 		<plugins>
@@ -128,7 +106,7 @@
 						<groupId>org.springframework.boot</groupId>
 						<artifactId>spring-boot-maven-plugin</artifactId>
 						<configuration>
-							<jvmArguments>-Dspring.application.admin.enabled=true -Dserver.port=18080 -Dspringdoc.api-docs.enabled=true -Dstrategy-launches-analyzer.agent.gigachat.auth-mode=user-password -Dstrategy-launches-analyzer.agent.gigachat.model=openapi-model -Dstrategy-launches-analyzer.agent.gigachat.user-password.api-url=http://127.0.0.1:18081/v1 -Dstrategy-launches-analyzer.agent.gigachat.user-password.auth-api-url=http://127.0.0.1:18081/auth -Dstrategy-launches-analyzer.agent.gigachat.user-password.username=openapi -Dstrategy-launches-analyzer.agent.gigachat.user-password.password=openapi -Dstrategy-launches-analyzer.agent.gigachat.user-password.scope=GIGACHAT_API_PERS</jvmArguments>
+							<jvmArguments>-Dspring.application.admin.enabled=true -Dserver.port=18080 -Dspringdoc.api-docs.enabled=true</jvmArguments>
 						</configuration>
 						<executions>
 							<execution>
@@ -160,234 +138,6 @@
 							<outputFileName>strategy-comparison-v1.openapi.yaml</outputFileName>
 							<failOnError>true</failOnError>
 						</configuration>
-					</plugin>
-				</plugins>
-			</build>
-		</profile>
-		<profile>
-			<id>judge-selection</id>
-			<properties>
-				<model-selection.judge-models>GigaChat-3-Ultra,GigaChat-3.5-432B-A28B</model-selection.judge-models>
-				<model-selection.calibration-dataset>src/test/resources/evals/judge-calibration/v2/calibration-cases.jsonl</model-selection.calibration-dataset>
-				<model-selection.judge-output>target/model-selection/judges</model-selection.judge-output>
-			</properties>
-			<build>
-				<plugins>
-					<plugin>
-						<groupId>org.apache.maven.plugins</groupId>
-						<artifactId>maven-failsafe-plugin</artifactId>
-						<version>3.5.5</version>
-						<configuration>
-							<includes><include>**/JudgeSelectionIT.java</include></includes>
-							<systemPropertyVariables>
-								<model-selection.judge-models>${model-selection.judge-models}</model-selection.judge-models>
-								<model-selection.calibration-dataset>${model-selection.calibration-dataset}</model-selection.calibration-dataset>
-								<model-selection.judge-output>${model-selection.judge-output}</model-selection.judge-output>
-							</systemPropertyVariables>
-						</configuration>
-						<executions>
-							<execution><goals><goal>integration-test</goal><goal>verify</goal></goals></execution>
-						</executions>
-					</plugin>
-				</plugins>
-			</build>
-		</profile>
-		<profile>
-			<id>model-selection</id>
-			<properties>
-				<model-selection.candidate-models>GigaChat-2-Max,GigaChat-3-Lightning,GigaChat-3-Pro,GigaChat-3-Ultra,GigaChat-3.5-432B-A28B</model-selection.candidate-models>
-				<model-selection.judge-selection-report>target/model-selection/judges/selection.json</model-selection.judge-selection-report>
-				<model-selection.output-base>target/model-selection/runs</model-selection.output-base>
-				<model-selection.resume-from></model-selection.resume-from>
-				<model-selection.pilot-repetitions>1</model-selection.pilot-repetitions>
-				<model-selection.full-repetitions>3</model-selection.full-repetitions>
-				<model-selection.finalists>3</model-selection.finalists>
-				<model-selection.shuffle-seed>42</model-selection.shuffle-seed>
-				<model-selection.minimum-semantic-gap>0.02</model-selection.minimum-semantic-gap>
-			</properties>
-			<build>
-				<plugins>
-					<plugin>
-						<groupId>org.apache.maven.plugins</groupId>
-						<artifactId>maven-failsafe-plugin</artifactId>
-						<version>3.5.5</version>
-						<configuration>
-							<includes><include>**/AutomatedModelSelectionIT.java</include></includes>
-							<systemPropertyVariables>
-								<model-selection.candidate-models>${model-selection.candidate-models}</model-selection.candidate-models>
-								<model-selection.judge-selection-report>${model-selection.judge-selection-report}</model-selection.judge-selection-report>
-								<model-selection.output-base>${model-selection.output-base}</model-selection.output-base>
-								<model-selection.resume-from>${model-selection.resume-from}</model-selection.resume-from>
-								<model-selection.pilot-repetitions>${model-selection.pilot-repetitions}</model-selection.pilot-repetitions>
-								<model-selection.full-repetitions>${model-selection.full-repetitions}</model-selection.full-repetitions>
-								<model-selection.finalists>${model-selection.finalists}</model-selection.finalists>
-								<model-selection.shuffle-seed>${model-selection.shuffle-seed}</model-selection.shuffle-seed>
-								<model-selection.minimum-semantic-gap>${model-selection.minimum-semantic-gap}</model-selection.minimum-semantic-gap>
-							</systemPropertyVariables>
-						</configuration>
-						<executions>
-							<execution><goals><goal>integration-test</goal><goal>verify</goal></goals></execution>
-						</executions>
-					</plugin>
-				</plugins>
-			</build>
-		</profile>
-		<profile>
-			<id>benchmark</id>
-			<properties>
-				<benchmark.models></benchmark.models>
-				<benchmark.judge-model></benchmark.judge-model>
-				<benchmark.repetitions>3</benchmark.repetitions>
-				<benchmark.concurrency>1</benchmark.concurrency>
-				<benchmark.shuffle-seed>42</benchmark.shuffle-seed>
-				<benchmark.resume-from></benchmark.resume-from>
-				<benchmark.judge-calibration-report>target/judge-calibration/v2/report.json</benchmark.judge-calibration-report>
-				<benchmark.judge-calibration-dataset>src/test/resources/evals/judge-calibration/v2/calibration-cases.jsonl</benchmark.judge-calibration-dataset>
-			</properties>
-			<build>
-				<plugins>
-					<plugin>
-						<groupId>org.apache.maven.plugins</groupId>
-						<artifactId>maven-failsafe-plugin</artifactId>
-						<version>3.5.5</version>
-						<configuration>
-							<includes>
-								<include>**/AgentBenchmarkIT.java</include>
-							</includes>
-							<systemPropertyVariables>
-								<benchmark.models>${benchmark.models}</benchmark.models>
-								<benchmark.judge-model>${benchmark.judge-model}</benchmark.judge-model>
-								<benchmark.repetitions>${benchmark.repetitions}</benchmark.repetitions>
-								<benchmark.concurrency>${benchmark.concurrency}</benchmark.concurrency>
-								<benchmark.shuffle-seed>${benchmark.shuffle-seed}</benchmark.shuffle-seed>
-								<benchmark.resume-from>${benchmark.resume-from}</benchmark.resume-from>
-								<benchmark.judge-calibration-report>${benchmark.judge-calibration-report}</benchmark.judge-calibration-report>
-								<benchmark.judge-calibration-dataset>${benchmark.judge-calibration-dataset}</benchmark.judge-calibration-dataset>
-							</systemPropertyVariables>
-						</configuration>
-						<executions>
-							<execution>
-								<goals>
-									<goal>integration-test</goal>
-									<goal>verify</goal>
-								</goals>
-							</execution>
-						</executions>
-					</plugin>
-				</plugins>
-			</build>
-		</profile>
-		<profile>
-			<id>judge-calibration</id>
-			<properties>
-				<judge-calibration.dataset>src/test/resources/evals/judge-calibration/v2/calibration-cases.jsonl</judge-calibration.dataset>
-				<judge-calibration.results>target/judge-calibration/v2/results.jsonl</judge-calibration.results>
-				<judge-calibration.judge-model></judge-calibration.judge-model>
-			</properties>
-			<build>
-				<plugins>
-					<plugin>
-						<groupId>org.apache.maven.plugins</groupId>
-						<artifactId>maven-failsafe-plugin</artifactId>
-						<version>3.5.5</version>
-						<configuration>
-							<includes>
-								<include>**/JudgeCalibrationIT.java</include>
-							</includes>
-							<systemPropertyVariables>
-								<judge-calibration.dataset>${judge-calibration.dataset}</judge-calibration.dataset>
-								<judge-calibration.results>${judge-calibration.results}</judge-calibration.results>
-								<judge-calibration.judge-model>${judge-calibration.judge-model}</judge-calibration.judge-model>
-							</systemPropertyVariables>
-						</configuration>
-						<executions>
-							<execution>
-								<goals>
-									<goal>integration-test</goal>
-									<goal>verify</goal>
-								</goals>
-							</execution>
-						</executions>
-					</plugin>
-				</plugins>
-			</build>
-		</profile>
-		<profile>
-			<id>benchmark-rejudge</id>
-			<properties>
-				<benchmark-rejudge.source>target/benchmark/20260813-120114-018</benchmark-rejudge.source>
-				<benchmark-rejudge.judge-model></benchmark-rejudge.judge-model>
-				<benchmark-rejudge.judge-calibration-report>target/judge-calibration/v2/report.json</benchmark-rejudge.judge-calibration-report>
-				<benchmark-rejudge.judge-calibration-dataset>src/test/resources/evals/judge-calibration/v2/calibration-cases.jsonl</benchmark-rejudge.judge-calibration-dataset>
-			</properties>
-			<build>
-				<plugins>
-					<plugin>
-						<groupId>org.apache.maven.plugins</groupId>
-						<artifactId>maven-failsafe-plugin</artifactId>
-						<version>3.5.5</version>
-						<configuration>
-							<includes><include>**/BenchmarkRejudgeIT.java</include></includes>
-							<systemPropertyVariables>
-								<benchmark-rejudge.source>${benchmark-rejudge.source}</benchmark-rejudge.source>
-								<benchmark-rejudge.judge-model>${benchmark-rejudge.judge-model}</benchmark-rejudge.judge-model>
-								<benchmark-rejudge.judge-calibration-report>${benchmark-rejudge.judge-calibration-report}</benchmark-rejudge.judge-calibration-report>
-								<benchmark-rejudge.judge-calibration-dataset>${benchmark-rejudge.judge-calibration-dataset}</benchmark-rejudge.judge-calibration-dataset>
-							</systemPropertyVariables>
-						</configuration>
-						<executions>
-							<execution><goals><goal>integration-test</goal><goal>verify</goal></goals></execution>
-						</executions>
-					</plugin>
-				</plugins>
-			</build>
-		</profile>
-		<profile>
-			<id>gigachat-certificate-smoke</id>
-			<build>
-				<plugins>
-					<plugin>
-						<groupId>org.apache.maven.plugins</groupId>
-						<artifactId>maven-failsafe-plugin</artifactId>
-						<version>3.5.5</version>
-						<configuration>
-							<includes>
-								<include>**/GigaChatCertificateSmokeIT.java</include>
-							</includes>
-						</configuration>
-						<executions>
-							<execution>
-								<goals>
-									<goal>integration-test</goal>
-									<goal>verify</goal>
-								</goals>
-							</execution>
-						</executions>
-					</plugin>
-				</plugins>
-			</build>
-		</profile>
-		<profile>
-			<id>gigachat-user-password-smoke</id>
-			<build>
-				<plugins>
-					<plugin>
-						<groupId>org.apache.maven.plugins</groupId>
-						<artifactId>maven-failsafe-plugin</artifactId>
-						<version>3.5.5</version>
-						<configuration>
-							<includes>
-								<include>**/GigaChatUserPasswordSmokeIT.java</include>
-							</includes>
-						</configuration>
-						<executions>
-							<execution>
-								<goals>
-									<goal>integration-test</goal>
-									<goal>verify</goal>
-								</goals>
-							</execution>
-						</executions>
 					</plugin>
 				</plugins>
 			</build>

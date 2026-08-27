@@ -1,0 +1,22 @@
+{
+  "diffs" : [ {
+    "id" : "a7c02fec-84f4-590b-af71-611f0a1af582",
+    "path" : "strategyResponse.calculationInfo.type",
+    "type" : "STRING_VALUE_CHANGED",
+    "category" : "CONTRACT_TECHNICAL",
+    "mainValue" : "ONLINE",
+    "shadowValue" : "BATCH",
+    "deterministicSeverity" : "CRITICAL"
+  } ],
+  "contractValidation" : [ ],
+  "summary" : {
+    "totalDiffs" : 1,
+    "metricDiffs" : 0,
+    "modelDiffs" : 0,
+    "calculationContextDiffs" : 0,
+    "contractTechnicalDiffs" : 1,
+    "contractValidationIssues" : 0,
+    "hasCriticalIssues" : true,
+    "deterministicSeverity" : "CRITICAL"
+  }
+}

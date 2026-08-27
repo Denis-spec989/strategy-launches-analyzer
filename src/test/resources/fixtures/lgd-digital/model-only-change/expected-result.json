@@ -1,0 +1,42 @@
+{
+  "diffs" : [ {
+    "id" : "72d38146-b8f9-5aeb-83bd-35bfb3acc2ca",
+    "path" : "strategyResponse.lgdData.lgd",
+    "type" : "NUMERIC_VALUE_CHANGED",
+    "category" : "METRIC",
+    "mainValue" : 18.1,
+    "shadowValue" : 20.4,
+    "absoluteDelta" : 2.3,
+    "relativeDeltaPercent" : 12.7072,
+    "deterministicSeverity" : "WARNING"
+  }, {
+    "id" : "92e23cc4-037f-5bc8-8d08-9ec0bfa6e659",
+    "path" : "strategyResponse.lgdData.lgdModel",
+    "type" : "STRING_VALUE_CHANGED",
+    "category" : "MODEL",
+    "mainValue" : "Корпоративные клиенты 2022",
+    "shadowValue" : "Корпоративные клиенты 2023",
+    "deterministicSeverity" : "WARNING"
+  }, {
+    "id" : "c6fb1dc2-ee05-5aa2-9a72-0734c9fe8229",
+    "path" : "strategyResponse.lgdData.lgdDt",
+    "type" : "NUMERIC_VALUE_CHANGED",
+    "category" : "METRIC",
+    "mainValue" : 18.1,
+    "shadowValue" : 20.4,
+    "absoluteDelta" : 2.3,
+    "relativeDeltaPercent" : 12.7072,
+    "deterministicSeverity" : "WARNING"
+  } ],
+  "contractValidation" : [ ],
+  "summary" : {
+    "totalDiffs" : 3,
+    "metricDiffs" : 2,
+    "modelDiffs" : 1,
+    "calculationContextDiffs" : 0,
+    "contractTechnicalDiffs" : 0,
+    "contractValidationIssues" : 0,
+    "hasCriticalIssues" : false,
+    "deterministicSeverity" : "WARNING"
+  }
+}

@@ -3,8 +3,7 @@
 ###############################################################################
 # Примеры запросов к LGD_DIGITAL: POST {{baseUrl}}/api/v1/strategies/compare
 #
-# Что учитывать после доработок (детерминированная часть ответа предсказуема,
-# текст бизнес-анализа генерирует LLM):
+# Что учитывать при интерпретации детерминированного ответа:
 # - Трассируемость ответа: contractVersion ("v1"), analyzedAt и исходная metadata.
 #   requestId — обязательный canonical UUID; mainLaunchDt и shadowLaunchDt —
 #   обязательные ISO-8601 даты запусков. Отчёты за период строятся по mainLaunchDt.
@@ -15,19 +14,12 @@
 #   CALCULATION_CONTEXT); сумма по категориям сходится с totalDiffs.
 # - Severity-гейт: hard-critical diff (путь .mode/.type, TYPE_MISMATCH,
 #   NULLABILITY_VIOLATION, отсутствие required-поля) и любой CRITICAL
-#   contract issue форсят agentAnalysis.overallSeverity = CRITICAL; LLM может
-#   только повысить severity, понизить детерминированный CRITICAL — не может.
-# - Изоляция входа LLM: metadata.attributes в модель НЕ передаются, но без
-#   изменений возвращаются клиенту; сырые object/array-значения незадекларированных полей
-#   уходят в LLM компактным дескриптором "object(size=N): ...", а в ответе API
-#   сохраняются как есть.
+#   contract issue определяют итоговый `summary.deterministicSeverity = CRITICAL`.
+# - metadata.attributes без изменений возвращаются клиенту; сырые object/array-
+#   значения незадекларированных полей сохраняются в diff и contractValidation.
 # - Лимиты тела запроса: > 5000 узлов JSON или глубина вложенности > 20 → 400
 #   (BadRequest). Примеры с такими телами здесь не приводятся из-за объёма.
-# - Вызов LLM: основная попытка и максимум одна repair-попытка; HTTP-клиент
-#   ждёт итоговый ответ до 3 минут.
-#   При переполнении одновременных
-#   вызовов агента (> 20) response остаётся 200, но agentAnalysis содержит
-#   status=FAILED, failureReason=CAPACITY и безопасный errorMessage.
+# - Ответ не зависит от внешних сервисов и полностью формируется локальными правилами.
 ###############################################################################
 
 
@@ -36,8 +28,7 @@
 # Ожидаемо в ответе: каждый diffs[].deterministicSeverity = WARNING,
 # summary.deterministicSeverity = WARNING,
 # contractVersion = "v1", analyzedAt заполнен.
-# attributes присутствуют в запросе, но в промпт LLM не попадают.
-# @timeout 3 m
+# attributes присутствуют в запросе и возвращаются в metadata ответа.
 POST {{baseUrl}}/api/v1/strategies/compare
 Content-Type: application/json
 
@@ -92,7 +83,6 @@ Content-Type: application/json
 # lgdData идентичны; меняются scenario, usedDefaultValue, defaultValueReason.
 # Ожидаемо: summary.calculationContextDiffs = 3, totalDiffs = 3,
 # deterministicSeverity = WARNING (hard-critical нет).
-# @timeout 3 m
 POST {{baseUrl}}/api/v1/strategies/compare
 Content-Type: application/json
 
@@ -144,7 +134,6 @@ Content-Type: application/json
 # usingCollateral нет в контракте (additionalProperties: false).
 # Ожидаемо: diff FIELD_ADDED_IN_SHADOW (CONTRACT_TECHNICAL) + UNKNOWN_FIELD
 # (WARNING) в contractValidation; deterministicSeverity = WARNING.
-# @timeout 3 m
 POST {{baseUrl}}/api/v1/strategies/compare
 Content-Type: application/json
 
@@ -193,13 +182,11 @@ Content-Type: application/json
 }
 
 
-### 4. Незадекларированное вложенное object-поле (проверка изоляции входа LLM)
+### 4. Незадекларированное вложенное object-поле
 # shadow добавляет calculationInfo.debugInfo = {...}. В ответе API diff.shadowValue
-# и contractValidation[].actualValue содержат сырой объект, а в промпт LLM уходит
-# только компактный дескриптор вида "object(size=2): {...}".
+# и contractValidation[].actualValue содержат исходный объект.
 # Ожидаемо: FIELD_ADDED_IN_SHADOW (CONTRACT_TECHNICAL) + UNKNOWN_FIELD (WARNING),
 # deterministicSeverity = WARNING.
-# @timeout 3 m
 POST {{baseUrl}}/api/v1/strategies/compare
 Content-Type: application/json
 
@@ -256,9 +243,8 @@ Content-Type: application/json
 
 ### 5. Регрессия режима расчёта (.mode) — HARD-CRITICAL
 # mode: DEAL -> PORTFOLIO. Путь оканчивается на .mode → hard-critical.
-# Ожидаемо: deterministicSeverity = CRITICAL и agentAnalysis.overallSeverity =
-# CRITICAL (LLM не может понизить); diff по .mode объяснён как CRITICAL.
-# @timeout 3 m
+# Ожидаемо: `diffs[].deterministicSeverity` и `summary.deterministicSeverity`
+# равны CRITICAL.
 POST {{baseUrl}}/api/v1/strategies/compare
 Content-Type: application/json
 
@@ -312,9 +298,7 @@ Content-Type: application/json
 # absoluteDelta = 2.3 и relativeDeltaPercent = 12.7072, а также CRITICAL
 # contract issue (required-поле с неверным типом) →
 # TYPE_MISMATCH и NUMERIC_VALUE_CHANGED получают diffs[].deterministicSeverity = CRITICAL
-# по exact-path связи с CRITICAL contract issue; summary.deterministicSeverity = CRITICAL,
-# overallSeverity = CRITICAL.
-# @timeout 3 m
+# по exact-path связи с CRITICAL contract issue; summary.deterministicSeverity = CRITICAL.
 POST {{baseUrl}}/api/v1/strategies/compare
 Content-Type: application/json
 
@@ -364,8 +348,7 @@ Content-Type: application/json
 
 ### 7. Идентичные запуски — severity INFO
 # Диффов и contract issues нет. Ожидаемо: totalDiffs = 0,
-# deterministicSeverity = INFO. LLM всё равно вызывается (short-circuit не вводился).
-# @timeout 3 m
+# deterministicSeverity = INFO.
 POST {{baseUrl}}/api/v1/strategies/compare
 Content-Type: application/json
 

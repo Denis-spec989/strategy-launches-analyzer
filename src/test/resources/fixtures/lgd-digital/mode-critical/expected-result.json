@@ -1,0 +1,22 @@
+{
+  "diffs" : [ {
+    "id" : "b1399ba3-f3c4-5eab-bf76-61b8f17692ee",
+    "path" : "strategyResponse.calculationInfo.mode",
+    "type" : "STRING_VALUE_CHANGED",
+    "category" : "CONTRACT_TECHNICAL",
+    "mainValue" : "DEAL",
+    "shadowValue" : "DEA",
+    "deterministicSeverity" : "CRITICAL"
+  } ],
+  "contractValidation" : [ ],
+  "summary" : {
+    "totalDiffs" : 1,
+    "metricDiffs" : 0,
+    "modelDiffs" : 0,
+    "calculationContextDiffs" : 0,
+    "contractTechnicalDiffs" : 1,
+    "contractValidationIssues" : 0,
+    "hasCriticalIssues" : true,
+    "deterministicSeverity" : "CRITICAL"
+  }
+}

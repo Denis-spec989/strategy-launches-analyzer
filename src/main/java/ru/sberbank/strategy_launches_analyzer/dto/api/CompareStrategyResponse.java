@@ -3,7 +3,6 @@ package ru.sberbank.strategy_launches_analyzer.dto.api;
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonFormat;
 import com.fasterxml.jackson.annotation.JsonProperty;
-import ru.sberbank.strategy_launches_analyzer.dto.agent.AgentAnalysis;
 import ru.sberbank.strategy_launches_analyzer.dto.comparison.ComparisonSummary;
 import ru.sberbank.strategy_launches_analyzer.dto.contract.ContractIssue;
 import ru.sberbank.strategy_launches_analyzer.dto.comparison.DiffEntry;
@@ -26,8 +25,6 @@ public record CompareStrategyResponse(
         @JsonProperty(required = true)
         List<DiffEntry> diffs,
         @JsonProperty(required = true)
-        List<ContractIssue> contractValidation,
-        @JsonProperty(required = true)
-        AgentAnalysis agentAnalysis
+        List<ContractIssue> contractValidation
 ) {
 }

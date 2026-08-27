@@ -1,0 +1,14 @@
+{
+  "diffs" : [ ],
+  "contractValidation" : [ ],
+  "summary" : {
+    "totalDiffs" : 0,
+    "metricDiffs" : 0,
+    "modelDiffs" : 0,
+    "calculationContextDiffs" : 0,
+    "contractTechnicalDiffs" : 0,
+    "contractValidationIssues" : 0,
+    "hasCriticalIssues" : false,
+    "deterministicSeverity" : "INFO"
+  }
+}

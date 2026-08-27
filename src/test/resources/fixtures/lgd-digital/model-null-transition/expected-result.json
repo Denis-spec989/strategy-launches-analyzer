@@ -1,0 +1,22 @@
+{
+  "diffs" : [ {
+    "id" : "92e23cc4-037f-5bc8-8d08-9ec0bfa6e659",
+    "path" : "strategyResponse.lgdData.lgdModel",
+    "type" : "STRING_VALUE_CHANGED",
+    "category" : "MODEL",
+    "mainValue" : null,
+    "shadowValue" : "Корпоративные клиенты 2023",
+    "deterministicSeverity" : "WARNING"
+  } ],
+  "contractValidation" : [ ],
+  "summary" : {
+    "totalDiffs" : 1,
+    "metricDiffs" : 0,
+    "modelDiffs" : 1,
+    "calculationContextDiffs" : 0,
+    "contractTechnicalDiffs" : 0,
+    "contractValidationIssues" : 0,
+    "hasCriticalIssues" : false,
+    "deterministicSeverity" : "WARNING"
+  }
+}

@@ -30,7 +30,7 @@ public class StrategyComparisonController {
     @ApiResponses({
             @ApiResponse(
                     responseCode = "200",
-                    description = "Comparison completed; deterministic results are returned even if LLM analysis failed.",
+                    description = "Deterministic comparison completed.",
                     content = @Content(schema = @Schema(implementation = CompareStrategyResponse.class))
             ),
             @ApiResponse(

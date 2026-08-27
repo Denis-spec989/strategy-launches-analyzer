@@ -1,8 +1,0 @@
-{
-  "overallSeverity": "WARNING",
-  "mustMention": [
-    "usingCollateral is not declared in the contract",
-    "unknown field",
-    "shape or serialization change"
-  ]
-}

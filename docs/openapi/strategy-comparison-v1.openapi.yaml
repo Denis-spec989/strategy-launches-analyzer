@@ -19,8 +19,7 @@ paths:
         required: true
       responses:
         "200":
-          description: Comparison completed; deterministic results are returned even
-            if LLM analysis failed.
+          description: Deterministic comparison completed.
           content:
             application/json:
               schema:
@@ -83,13 +82,6 @@ components:
       - mainLaunchDt
       - requestId
       - shadowLaunchDt
-    AgentAnalysis:
-      description: LLM analysis. The response shape depends on status.
-      discriminator:
-        propertyName: status
-      oneOf:
-      - $ref: "#/components/schemas/CompletedAgentAnalysis"
-      - $ref: "#/components/schemas/FailedAgentAnalysis"
     CompareStrategyResponse:
       type: object
       properties:
@@ -112,10 +104,7 @@ components:
           type: array
           items:
             $ref: "#/components/schemas/ContractIssue"
-        agentAnalysis:
-          $ref: "#/components/schemas/AgentAnalysis"
       required:
-      - agentAnalysis
       - analyzedAt
       - contractValidation
       - contractVersion
@@ -161,42 +150,6 @@ components:
       - metricDiffs
       - modelDiffs
       - totalDiffs
-    CompletedAgentAnalysis:
-      type: object
-      description: Successful LLM analysis.
-      properties:
-        status:
-          type: string
-          enum:
-          - COMPLETED
-        overallSeverity:
-          type: string
-          enum:
-          - INFO
-          - WARNING
-          - CRITICAL
-        summary:
-          type: string
-        businessImpact:
-          type: string
-        technicalRisks:
-          type: string
-        recommendations:
-          type: array
-          items:
-            type: string
-        diffExplanations:
-          type: array
-          items:
-            $ref: "#/components/schemas/DiffExplanation"
-      required:
-      - businessImpact
-      - diffExplanations
-      - overallSeverity
-      - recommendations
-      - status
-      - summary
-      - technicalRisks
     ContractIssue:
       type: object
       properties:
@@ -289,49 +242,6 @@ components:
       - id
       - path
       - type
-    DiffExplanation:
-      type: object
-      properties:
-        diffId:
-          type: string
-          format: uuid
-        path:
-          type: string
-        severity:
-          type: string
-          enum:
-          - INFO
-          - WARNING
-          - CRITICAL
-        explanation:
-          type: string
-      required:
-      - diffId
-      - explanation
-      - path
-      - severity
-    FailedAgentAnalysis:
-      type: object
-      description: Safe public description of an LLM analysis failure.
-      properties:
-        status:
-          type: string
-          enum:
-          - FAILED
-        failureReason:
-          type: string
-          enum:
-          - CAPACITY
-          - TRANSPORT
-          - RESPONSE_INVALID
-          - REPAIR_EXHAUSTED
-          - INTERNAL
-        errorMessage:
-          type: string
-      required:
-      - errorMessage
-      - failureReason
-      - status
     ErrorResponse:
       type: object
       properties:

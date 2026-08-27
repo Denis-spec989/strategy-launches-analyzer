@@ -86,7 +86,6 @@ class StrategyContractRegistryTest {
                     assertThat(field.category()).isEqualTo(DiffCategory.METRIC);
                     assertThat(field.description()).isEqualTo("LGD-\u043F\u043E\u0442\u0435\u0440\u0438 \u043F\u0440\u0438 \u0434\u0435\u0444\u043E\u043B\u0442\u0435 (%)");
                     assertThat(field.unit()).isEqualTo("percent");
-                    assertThat(field.summaryGuidance()).contains("LGD-\u043F\u043E\u0442\u0435\u0440\u044C");
                 });
         assertThat(contract.field("strategyResponse.lgdData.lgdModel"))
                 .get()

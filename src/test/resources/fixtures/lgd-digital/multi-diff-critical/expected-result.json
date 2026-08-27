@@ -1,0 +1,101 @@
+{
+  "diffs" : [ {
+    "id" : "b6d390d1-7da4-582d-a322-0099e629a286",
+    "path" : "strategyResponse.lgdData.lgd",
+    "type" : "TYPE_MISMATCH",
+    "category" : "METRIC",
+    "mainValue" : 18.1,
+    "shadowValue" : "24.7",
+    "deterministicSeverity" : "CRITICAL"
+  }, {
+    "id" : "eebf110c-a40e-5451-bc51-7a86d96e1399",
+    "path" : "strategyResponse.lgdData.lgd",
+    "type" : "NUMERIC_VALUE_CHANGED",
+    "category" : "METRIC",
+    "mainValue" : 18.1,
+    "shadowValue" : "24.7",
+    "absoluteDelta" : 6.6,
+    "relativeDeltaPercent" : 36.4641,
+    "comparisonBasis" : "COERCED_NUMERIC",
+    "deterministicSeverity" : "CRITICAL"
+  }, {
+    "id" : "92e23cc4-037f-5bc8-8d08-9ec0bfa6e659",
+    "path" : "strategyResponse.lgdData.lgdModel",
+    "type" : "STRING_VALUE_CHANGED",
+    "category" : "MODEL",
+    "mainValue" : "Корпоративные клиенты 2022",
+    "shadowValue" : "Корпоративные клиенты 2024",
+    "deterministicSeverity" : "WARNING"
+  }, {
+    "id" : "c6fb1dc2-ee05-5aa2-9a72-0734c9fe8229",
+    "path" : "strategyResponse.lgdData.lgdDt",
+    "type" : "NUMERIC_VALUE_CHANGED",
+    "category" : "METRIC",
+    "mainValue" : 18.1,
+    "shadowValue" : 26.2,
+    "absoluteDelta" : 8.1,
+    "relativeDeltaPercent" : 44.7514,
+    "deterministicSeverity" : "WARNING"
+  }, {
+    "id" : "b1399ba3-f3c4-5eab-bf76-61b8f17692ee",
+    "path" : "strategyResponse.calculationInfo.mode",
+    "type" : "STRING_VALUE_CHANGED",
+    "category" : "CONTRACT_TECHNICAL",
+    "mainValue" : "DEAL",
+    "shadowValue" : "PORTFOLIO",
+    "deterministicSeverity" : "CRITICAL"
+  }, {
+    "id" : "a7c02fec-84f4-590b-af71-611f0a1af582",
+    "path" : "strategyResponse.calculationInfo.type",
+    "type" : "STRING_VALUE_CHANGED",
+    "category" : "CONTRACT_TECHNICAL",
+    "mainValue" : "ONLINE",
+    "shadowValue" : "BATCH",
+    "deterministicSeverity" : "CRITICAL"
+  }, {
+    "id" : "42d42bf3-4831-5c26-a87f-e67d9cebd182",
+    "path" : "strategyResponse.calculationInfo.scenario",
+    "type" : "STRING_VALUE_CHANGED",
+    "category" : "CALCULATION_CONTEXT",
+    "mainValue" : "LGD_CALCULATION_FOR_FZHN",
+    "shadowValue" : "LGD_CALCULATION_DEFAULT",
+    "deterministicSeverity" : "WARNING"
+  }, {
+    "id" : "98bfb047-611a-5f70-85ea-192bb609eb06",
+    "path" : "strategyResponse.calculationInfo.usedDefaultValue",
+    "type" : "BOOLEAN_VALUE_CHANGED",
+    "category" : "CALCULATION_CONTEXT",
+    "mainValue" : true,
+    "shadowValue" : false,
+    "deterministicSeverity" : "WARNING"
+  }, {
+    "id" : "a309f83f-d033-51cb-98e3-278bc426aec6",
+    "path" : "strategyResponse.calculationInfo.defaultValueReason",
+    "type" : "STRING_VALUE_CHANGED",
+    "category" : "CALCULATION_CONTEXT",
+    "mainValue" : "LGD_CALCULATION_FOR_FZHN",
+    "shadowValue" : "MANUAL_OVERRIDE",
+    "deterministicSeverity" : "WARNING"
+  } ],
+  "contractValidation" : [ {
+    "id" : "C001",
+    "side" : "SHADOW",
+    "path" : "strategyResponse.lgdData.lgd",
+    "type" : "TYPE_MISMATCH",
+    "severity" : "CRITICAL",
+    "expected" : "number, 1..1",
+    "actual" : "string",
+    "actualValue" : "24.7",
+    "message" : "Field type does not match the LGD_DIGITAL contract."
+  } ],
+  "summary" : {
+    "totalDiffs" : 9,
+    "metricDiffs" : 3,
+    "modelDiffs" : 1,
+    "calculationContextDiffs" : 3,
+    "contractTechnicalDiffs" : 2,
+    "contractValidationIssues" : 1,
+    "hasCriticalIssues" : true,
+    "deterministicSeverity" : "CRITICAL"
+  }
+}

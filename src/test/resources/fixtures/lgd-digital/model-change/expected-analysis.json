@@ -1,8 +1,0 @@
-{
-  "overallSeverity": "WARNING",
-  "mustMention": [
-    "different LGD model",
-    "LGD metric delta",
-    "possible explanation, not proven root cause"
-  ]
-}

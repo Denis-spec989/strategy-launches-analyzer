@@ -222,7 +222,6 @@ class StrategyDiffEngineTest {
                                 false,
                                 DiffCategory.MODEL,
                                 "Optional test field.",
-                                null,
                                 null
                         ))
                 )

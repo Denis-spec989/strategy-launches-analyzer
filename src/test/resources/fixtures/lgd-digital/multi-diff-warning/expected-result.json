@@ -1,0 +1,66 @@
+{
+  "diffs" : [ {
+    "id" : "72d38146-b8f9-5aeb-83bd-35bfb3acc2ca",
+    "path" : "strategyResponse.lgdData.lgd",
+    "type" : "NUMERIC_VALUE_CHANGED",
+    "category" : "METRIC",
+    "mainValue" : 18.1,
+    "shadowValue" : 24.7,
+    "absoluteDelta" : 6.6,
+    "relativeDeltaPercent" : 36.4641,
+    "deterministicSeverity" : "WARNING"
+  }, {
+    "id" : "92e23cc4-037f-5bc8-8d08-9ec0bfa6e659",
+    "path" : "strategyResponse.lgdData.lgdModel",
+    "type" : "STRING_VALUE_CHANGED",
+    "category" : "MODEL",
+    "mainValue" : "Корпоративные клиенты 2022",
+    "shadowValue" : "Корпоративные клиенты 2024",
+    "deterministicSeverity" : "WARNING"
+  }, {
+    "id" : "c6fb1dc2-ee05-5aa2-9a72-0734c9fe8229",
+    "path" : "strategyResponse.lgdData.lgdDt",
+    "type" : "NUMERIC_VALUE_CHANGED",
+    "category" : "METRIC",
+    "mainValue" : 18.1,
+    "shadowValue" : 26.2,
+    "absoluteDelta" : 8.1,
+    "relativeDeltaPercent" : 44.7514,
+    "deterministicSeverity" : "WARNING"
+  }, {
+    "id" : "42d42bf3-4831-5c26-a87f-e67d9cebd182",
+    "path" : "strategyResponse.calculationInfo.scenario",
+    "type" : "STRING_VALUE_CHANGED",
+    "category" : "CALCULATION_CONTEXT",
+    "mainValue" : "LGD_CALCULATION_FOR_FZHN",
+    "shadowValue" : "LGD_CALCULATION_DEFAULT",
+    "deterministicSeverity" : "WARNING"
+  }, {
+    "id" : "98bfb047-611a-5f70-85ea-192bb609eb06",
+    "path" : "strategyResponse.calculationInfo.usedDefaultValue",
+    "type" : "BOOLEAN_VALUE_CHANGED",
+    "category" : "CALCULATION_CONTEXT",
+    "mainValue" : true,
+    "shadowValue" : false,
+    "deterministicSeverity" : "WARNING"
+  }, {
+    "id" : "a309f83f-d033-51cb-98e3-278bc426aec6",
+    "path" : "strategyResponse.calculationInfo.defaultValueReason",
+    "type" : "STRING_VALUE_CHANGED",
+    "category" : "CALCULATION_CONTEXT",
+    "mainValue" : "LGD_CALCULATION_FOR_FZHN",
+    "shadowValue" : "MANUAL_OVERRIDE",
+    "deterministicSeverity" : "WARNING"
+  } ],
+  "contractValidation" : [ ],
+  "summary" : {
+    "totalDiffs" : 6,
+    "metricDiffs" : 2,
+    "modelDiffs" : 1,
+    "calculationContextDiffs" : 3,
+    "contractTechnicalDiffs" : 0,
+    "contractValidationIssues" : 0,
+    "hasCriticalIssues" : false,
+    "deterministicSeverity" : "WARNING"
+  }
+}
