@@ -23,7 +23,7 @@ public class PublicApiDocumentationConfiguration {
         return new OpenAPI()
                 .info(new Info()
                         .title("Strategy Launches Analyzer API")
-                        .version("1.0.0"))
+                        .version("1.1.0"))
                 .servers(List.of(new Server().url("/")));
     }
 

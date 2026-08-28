@@ -13,6 +13,7 @@ Use the checked-in Maven wrapper (Windows examples below; substitute `./mvnw` on
 - `.\mvnw.cmd clean package` compiles, tests, and creates the application artifact.
 - `.\mvnw.cmd spring-boot:run` starts the service without external service credentials.
 - `.\mvnw.cmd verify -Popenapi -DskipTests` regenerates the checked-in public API specification; run regular tests again afterwards.
+- `.\mvnw.cmd verify -Pbatch-load` runs the local 1000-pair batch SLA check.
 
 ## Coding Style & Naming Conventions
 

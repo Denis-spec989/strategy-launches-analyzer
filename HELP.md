@@ -1,12 +1,15 @@
 # Strategy Launches Analyzer
 
 Spring Boot service for deterministic comparison of main and shadow strategy launches.
-The public endpoint is `POST /api/v1/strategies/compare`.
+The service exposes the ready single-pair endpoint `POST /api/v1/strategies/compare`
+and the independent NDJSON batch endpoint `POST /api/v1/strategies/compare/batch`.
 
 Project documentation:
 
 * [LGD_DIGITAL request examples](docs/lgd-digital-requests.http)
 * [LGD_DIGITAL comparison rules](docs/specs/lgd-digital.md)
+* [Batch comparison and XLSX report](docs/batch-comparison.md)
+* [Batch HTTP example](docs/batch-comparison-requests.http)
 * [Public OpenAPI](docs/openapi/strategy-comparison-v1.openapi.yaml)
 
 ## Development
@@ -17,5 +20,6 @@ The project requires Java 21 and uses the checked-in Maven wrapper.
 * `.\mvnw.cmd clean package` builds the application artifact.
 * `.\mvnw.cmd spring-boot:run` starts the service without external service credentials.
 * `.\mvnw.cmd verify -Popenapi -DskipTests` regenerates the checked-in public API specification.
+* `.\mvnw.cmd verify -Pbatch-load` runs the local 1000-pair SLA check without external services.
 
 The Java package root is `ru.sberbank.strategy_launches_analyzer`.

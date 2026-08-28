@@ -53,9 +53,26 @@ class PublicOpenApiContractTest {
         JsonNode errorResponse = schemas.path("ErrorResponse");
         JsonNode contractIssue = schemas.path("ContractIssue");
 
-        assertThat(specification.path("info").path("version").asText()).isEqualTo("1.0.0");
+        assertThat(specification.path("info").path("version").asText()).isEqualTo("1.1.0");
         assertThat(specification.path("paths").fieldNames()).toIterable()
-                .containsExactly("/api/v1/strategies/compare");
+                .containsExactlyInAnyOrder(
+                        "/api/v1/strategies/compare",
+                        "/api/v1/strategies/compare/batch"
+                );
+        JsonNode batchPost = specification.path("paths")
+                .path("/api/v1/strategies/compare/batch")
+                .path("post");
+        assertThat(batchPost.path("requestBody").path("content").has("application/x-ndjson")).isTrue();
+        assertThat(batchPost.path("responses").path("200").path("content")
+                .path("application/zip").path("schema").path("format").asText()).isEqualTo("binary");
+        JsonNode batchResponseHeaders = batchPost.path("responses").path("200").path("headers");
+        assertThat(batchResponseHeaders.path("X-Batch-Id").path("schema").path("format").asText())
+                .isEqualTo("uuid");
+        assertThat(batchResponseHeaders.has("Content-Disposition")).isTrue();
+        assertThat(batchPost.path("responses").path("400").path("content").has("application/json"))
+                .isTrue();
+        assertThat(batchPost.path("responses").fieldNames()).toIterable()
+                .containsExactlyInAnyOrder("200", "400", "413", "429", "500", "503", "507");
         assertThat(metadata.path("required")).extracting(JsonNode::asText)
                 .containsExactlyInAnyOrder("requestId", "mainLaunchDt", "shadowLaunchDt");
         assertThat(metadata.path("properties").path("requestId").path("format").asText()).isEqualTo("uuid");

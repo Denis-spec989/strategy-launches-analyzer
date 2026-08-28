@@ -1,0 +1,9 @@
+@baseUrl = http://localhost:8080
+
+### Batch comparison: one completed item and one item-level parsing error
+POST {{baseUrl}}/api/v1/strategies/compare/batch
+Content-Type: application/x-ndjson
+Accept: application/zip
+
+{"strategy":"LGD_DIGITAL","mainLaunch":{"strategyResponse":{"lgdData":{"lgd":18.1,"lgdModel":"Corporate clients 2022","lgdDt":18.1},"calculationInfo":{"mode":"DEAL","type":"ONLINE","scenario":"LGD_CALCULATION_FOR_FZHN","usedDefaultValue":true,"defaultValueReason":"LGD_CALCULATION_FOR_FZHN"}}},"shadowLaunch":{"strategyResponse":{"lgdData":{"lgd":20.4,"lgdModel":"Corporate clients 2023","lgdDt":20.4},"calculationInfo":{"mode":"DEAL","type":"ONLINE","scenario":"LGD_CALCULATION_FOR_FZHN","usedDefaultValue":true,"defaultValueReason":"LGD_CALCULATION_FOR_FZHN"}}},"metadata":{"requestId":"00000000-0000-0000-0000-000000000101","mainLaunchId":"MAIN-101","shadowLaunchId":"SHADOW-101","mainLaunchDt":"2026-06-04T11:00:00Z","shadowLaunchDt":"2026-06-04T11:01:00Z"}}
+{"strategy":"LGD_DIGITAL","mainLaunch":

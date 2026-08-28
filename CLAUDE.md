@@ -2,7 +2,7 @@
 
 ## Назначение
 
-REST-сервис детерминированно сравнивает main- и shadow-запуски риск-стратегии. Единственный endpoint — `POST /api/v1/strategies/compare`; поле `strategy` в теле выбирает контракт. Ответ содержит метаданные контракта и запроса, агрегированный summary, список diff и результаты contract validation.
+REST-сервис детерминированно сравнивает main- и shadow-запуски риск-стратегии. Готовый одиночный endpoint `POST /api/v1/strategies/compare` принимает JSON; новый независимый endpoint `POST /api/v1/strategies/compare/batch` принимает до 1000 JSON-запросов в NDJSON и возвращает ZIP с XLSX-отчётом, полными результатами и manifest. Поле `strategy` в каждом запросе выбирает контракт.
 
 ## Основной поток
 
@@ -14,6 +14,12 @@ REST-сервис детерминированно сравнивает main- и
 4. Строит `ComparisonSummary` и возвращает `CompareStrategyResponse`.
 
 Внешние сервисы и учетные данные для обработки запроса не нужны.
+
+## Пакетное сравнение
+
+`BatchCompareStrategiesUseCase` читает NDJSON потоково, ограничивает размер строки, запроса и число пар, а валидные элементы передаёт без преобразования в существующий `CompareStrategyLaunchesUseCase.compare`. Обработка выполняется с ограниченным параллелизмом, результаты записываются строго в исходном порядке. Item-level ошибки включаются в отчёт и не прерывают пакет.
+
+Пакет обрабатывается синхронно без БД. ZIP содержит `manifest.json`, полный `results.ndjson` и человекочитаемый `report.xlsx`. Успешные пары без diff и без нарушений контракта сохраняются в `results.ndjson`, но исключаются из XLSX; ошибки и пары с отличиями остаются в XLSX. Технический `requestId` хранится в `results.ndjson` и логах, но не выводится на листы XLSX. Версия контракта и metadata attributes также остаются только в полном NDJSON и не перегружают лист `Сводка`. Временные файлы принадлежат приложению и удаляются после завершения отдачи ответа. Формат, лимиты, runtime-настройки и рекомендации для OpenShift описаны в `docs/batch-comparison.md`.
 
 ## Контракты стратегий
 
@@ -39,15 +45,16 @@ REST-сервис детерминированно сравнивает main- и
 
 ## Public API и observability
 
-Code-first спецификация фиксируется в `docs/openapi/strategy-comparison-v1.openapi.yaml`. После изменений DTO/контроллера выполни `.\mvnw.cmd verify -Popenapi -DskipTests`, затем `.\mvnw.cmd test`.
+Code-first спецификация v1.1.0 фиксируется в `docs/openapi/strategy-comparison-v1.openapi.yaml`. После изменений DTO/контроллера выполни `.\mvnw.cmd verify -Popenapi -DskipTests`, затем `.\mvnw.cmd test`.
 
-Runtime публикует health/readiness/liveness и Prometheus. Собственная gauge `strategy.launches.contract.info` содержит tags `strategy` и `contract_version`. Другие Actuator endpoints и runtime OpenAPI по умолчанию закрыты.
+Runtime публикует health/readiness/liveness и Prometheus. Собственная gauge `strategy.launches.contract.info` содержит tags `strategy` и `contract_version`. Batch-метрики покрывают активные пакеты, outcomes, item status/severity, duration, входные/выходные байты и ошибки очистки без высококардинальных tags. Другие Actuator endpoints и runtime OpenAPI по умолчанию закрыты.
 
 ## Тесты
 
 - `StrategyDiffEngineTest` и `ContractValidationTest` проверяют точечные правила.
 - `DeterministicComparisonFixturesTest` сравнивает полные результаты сценариев из `src/test/resources/fixtures/` с `expected-result.json`.
 - Controller и OpenAPI contract tests фиксируют публичный response, validation errors и checked-in спецификацию.
+- Batch parser, use-case/controller и report tests проверяют лимиты, частичные ошибки, порядок, XLSX/ZIP, очистку и timeout.
 - Spring context test запускается без внешней конфигурации.
 
-Используй Java 21 и checked-in Maven wrapper. Полный локальный прогон: `.\mvnw.cmd clean package`.
+Используй Java 21 и checked-in Maven wrapper. Полный локальный прогон: `.\mvnw.cmd clean package`. Локальная неплатная проверка 1000 пар запускается через `.\mvnw.cmd verify -Pbatch-load`.

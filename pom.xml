@@ -29,6 +29,7 @@
 	<properties>
 		<java.version>21</java.version>
 		<lombok.version>1.18.46</lombok.version>
+		<poi.version>5.5.1</poi.version>
 		<springdoc-openapi.version>3.0.3</springdoc-openapi.version>
 	</properties>
 	<dependencies>
@@ -55,6 +56,11 @@
 		<dependency>
 			<groupId>io.micrometer</groupId>
 			<artifactId>micrometer-registry-prometheus</artifactId>
+		</dependency>
+		<dependency>
+			<groupId>org.apache.poi</groupId>
+			<artifactId>poi-ooxml</artifactId>
+			<version>${poi.version}</version>
 		</dependency>
 		<dependency>
 			<groupId>org.springdoc</groupId>
@@ -98,6 +104,30 @@
 	</build>
 
 	<profiles>
+		<profile>
+			<id>batch-load</id>
+			<build>
+				<plugins>
+					<plugin>
+						<groupId>org.apache.maven.plugins</groupId>
+						<artifactId>maven-failsafe-plugin</artifactId>
+						<executions>
+							<execution>
+								<goals>
+									<goal>integration-test</goal>
+									<goal>verify</goal>
+								</goals>
+							</execution>
+						</executions>
+						<configuration>
+							<includes>
+								<include>**/BatchComparisonLoadIT.java</include>
+							</includes>
+						</configuration>
+					</plugin>
+				</plugins>
+			</build>
+		</profile>
 		<profile>
 			<id>openapi</id>
 			<build>

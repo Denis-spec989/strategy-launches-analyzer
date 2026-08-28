@@ -7,7 +7,21 @@ spring:
     codecs:
       preferred-json-mapper: jackson2
   lifecycle:
-    timeout-per-shutdown-phase: 70s
+    timeout-per-shutdown-phase: 210s
+
+strategy-launches-analyzer:
+  batch:
+    max-items: 1000
+    max-line-bytes: 5242880
+    max-request-bytes: 536870912
+    parallelism: 4
+    max-in-flight: 8
+    max-concurrent-batches: 1
+    hard-timeout: 3m
+    temp-directory: ${java.io.tmpdir}/strategy-comparison-batches
+    min-free-space-bytes: 1073741824
+    xlsx-rows-per-sheet: 1000000
+    xlsx-cell-preview-chars: 2000
 
 management:
   endpoints:
