@@ -38,5 +38,5 @@ public record BatchManifest(
         @JsonProperty(required = true)
         List<BatchManifestFile> files
 ) {
-    public static final String CURRENT_FORMAT_VERSION = "1.3";
+    public static final String CURRENT_FORMAT_VERSION = "1.4";
 }

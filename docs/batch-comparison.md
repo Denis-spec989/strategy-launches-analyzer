@@ -25,15 +25,17 @@ occurrences are reported as `DUPLICATE_REQUEST_ID`.
 A successful request returns `200 application/zip`, `X-Batch-Id`, and an
 attachment named `strategy-comparison-<batchId>.zip` with three entries:
 
-* `manifest.json` contains format version `1.3`, batch timestamps, processing
+* `manifest.json` contains format version `1.4`, batch timestamps, processing
   counters, `unchangedItems`/`reportedItems`, report severity aggregates, total
   diff and validation counts, and SHA-256/size for the report and NDJSON result.
 * `results.ndjson` contains one `BatchItemResult` per input item. A completed
   result contains the unchanged `CompareStrategyResponse`; a failed result
   contains an error code and safe message. This file is the complete audit trail,
   including successfully compared pairs with no differences.
-* `report.xlsx` contains the Russian-language sheets `Сводка`, `Диффы N`,
-  `Валидация N`, `Ошибки`, and `О запуске`. Detailed sheets are split after
+* `report.xlsx` contains the Russian-language sheets `Сводка`, `Различия N`,
+  `Ошибки контракта N`, `Ошибки`, and `О запуске`. Every row on `Различия N`
+  and `Ошибки контракта N` includes `Shadow launch ID` for direct correlation
+  with the shadow launch. Detailed sheets are split after
   1,000,000 data rows. JSON cell previews are limited to 2000 characters;
   complete values remain in `results.ndjson`. A successful pair is omitted from
   every XLSX data sheet when it has both zero diffs and zero contract-validation

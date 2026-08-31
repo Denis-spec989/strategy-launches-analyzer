@@ -87,7 +87,7 @@ class BatchStrategyComparisonControllerTest {
         assertThat(entries).containsOnlyKeys("manifest.json", "report.xlsx", "results.ndjson");
 
         JsonNode manifest = objectMapper.readTree(entries.get("manifest.json"));
-        assertThat(manifest.path("formatVersion").asText()).isEqualTo("1.3");
+        assertThat(manifest.path("formatVersion").asText()).isEqualTo("1.4");
         assertThat(manifest.path("inputItems").asInt()).isEqualTo(3);
         assertThat(manifest.path("completedItems").asInt()).isEqualTo(1);
         assertThat(manifest.path("failedItems").asInt()).isEqualTo(2);
@@ -117,11 +117,17 @@ class BatchStrategyComparisonControllerTest {
                     .isEqualTo("MAIN-1");
             assertThat(headers(workbook, "Сводка"))
                     .doesNotContain("Request ID", "Версия контракта", "Атрибуты");
-            assertThat(headers(workbook, "Диффы 1")).doesNotContain("Request ID");
-            assertThat(headers(workbook, "Валидация 1")).doesNotContain("Request ID");
+            assertThat(headers(workbook, "Различия 1"))
+                    .containsSequence("№", "Shadow launch ID", "Diff ID")
+                    .doesNotContain("Request ID");
+            assertThat(headers(workbook, "Ошибки контракта 1"))
+                    .containsSequence("№", "Shadow launch ID", "Issue ID")
+                    .doesNotContain("Request ID");
             assertThat(headers(workbook, "Ошибки")).doesNotContain("Request ID");
-            assertThat(workbook.getSheet("Диффы 1").getLastRowNum()).isEqualTo(2);
-            assertThat(workbook.getSheet("Диффы 2").getLastRowNum()).isEqualTo(1);
+            assertThat(workbook.getSheet("Различия 1").getLastRowNum()).isEqualTo(2);
+            assertThat(workbook.getSheet("Различия 2").getLastRowNum()).isEqualTo(1);
+            assertShadowLaunchIds(workbook, "Различия 1", "SHADOW-1");
+            assertShadowLaunchIds(workbook, "Различия 2", "SHADOW-1");
             assertThat(workbook.getSheet("Ошибки").getLastRowNum()).isEqualTo(2);
             assertThat(workbook.getSheet("О запуске")).isNotNull();
         }
@@ -137,6 +143,31 @@ class BatchStrategyComparisonControllerTest {
         assertThat(meterRegistry.find("strategy.launches.batch.input.bytes").summary()).isNotNull();
         assertThat(meterRegistry.find("strategy.launches.batch.output.bytes").summary()).isNotNull();
         assertThat(meterRegistry.find("strategy.launches.batch.temp.cleanup.failures").counter()).isNotNull();
+    }
+
+    @Test
+    void linksContractErrorsToShadowLaunchInExcel() throws Exception {
+        String request = requestBody(
+                "55555555-5555-5555-5555-555555555555",
+                "fixtures/lgd-digital/required-missing-shadow/shadow.json"
+        );
+
+        byte[] archive = mockMvc.perform(post("/api/v1/strategies/compare/batch")
+                        .contentType(BatchStrategyComparisonController.NDJSON_MEDIA_TYPE)
+                        .content(request))
+                .andExpect(status().isOk())
+                .andReturn()
+                .getResponse()
+                .getContentAsByteArray();
+
+        try (XSSFWorkbook workbook = new XSSFWorkbook(new ByteArrayInputStream(
+                unzip(archive).get("report.xlsx")
+        ))) {
+            assertThat(headers(workbook, "Ошибки контракта 1"))
+                    .containsSequence("№", "Shadow launch ID", "Issue ID");
+            assertThat(workbook.getSheet("Ошибки контракта 1").getLastRowNum()).isPositive();
+            assertShadowLaunchIds(workbook, "Ошибки контракта 1", "SHADOW-1");
+        }
     }
 
     @Test
@@ -355,5 +386,16 @@ class BatchStrategyComparisonControllerTest {
         List<String> headers = new ArrayList<>();
         workbook.getSheet(sheetName).getRow(0).forEach(cell -> headers.add(cell.getStringCellValue()));
         return headers;
+    }
+
+    private static void assertShadowLaunchIds(
+            XSSFWorkbook workbook,
+            String sheetName,
+            String expectedShadowLaunchId
+    ) {
+        for (int rowIndex = 1; rowIndex <= workbook.getSheet(sheetName).getLastRowNum(); rowIndex++) {
+            assertThat(workbook.getSheet(sheetName).getRow(rowIndex).getCell(1).getStringCellValue())
+                    .isEqualTo(expectedShadowLaunchId);
+        }
     }
 }

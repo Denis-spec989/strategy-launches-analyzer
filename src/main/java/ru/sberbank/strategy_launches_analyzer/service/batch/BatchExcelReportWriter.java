@@ -43,11 +43,11 @@ public final class BatchExcelReportWriter implements AutoCloseable {
             "Analyzed at"
     };
     private static final String[] DIFF_HEADERS = {
-            "№", "Diff ID", "JSON path", "Тип", "Категория", "Severity",
+            "№", "Shadow launch ID", "Diff ID", "JSON path", "Тип", "Категория", "Severity",
             "Main value", "Shadow value", "Absolute delta", "Relative delta, %", "Основание сравнения"
     };
     private static final String[] VALIDATION_HEADERS = {
-            "№", "Issue ID", "Сторона", "JSON path", "Тип", "Severity",
+            "№", "Shadow launch ID", "Issue ID", "Сторона", "JSON path", "Тип", "Severity",
             "Ожидалось", "Получено", "Фактическое значение", "Сообщение"
     };
     private static final String[] ERROR_HEADERS = {
@@ -95,8 +95,8 @@ public final class BatchExcelReportWriter implements AutoCloseable {
         warningStyle = createSeverityStyle(IndexedColors.LIGHT_YELLOW);
         criticalStyle = createSeverityStyle(IndexedColors.ROSE);
         summarySheet = createTableSheet("Сводка", SUMMARY_HEADERS, summaryWidths());
-        diffSheet = createTableSheet("Диффы 1", DIFF_HEADERS, diffWidths());
-        validationSheet = createTableSheet("Валидация 1", VALIDATION_HEADERS, validationWidths());
+        diffSheet = createTableSheet("Различия 1", DIFF_HEADERS, diffWidths());
+        validationSheet = createTableSheet("Ошибки контракта 1", VALIDATION_HEADERS, validationWidths());
         errorsSheet = createTableSheet("Ошибки", ERROR_HEADERS, errorWidths());
     }
 
@@ -176,11 +176,12 @@ public final class BatchExcelReportWriter implements AutoCloseable {
     private void writeDiff(BatchItemResult result, DiffEntry diff) {
         if (diffRows >= properties.getXlsxRowsPerSheet()) {
             diffRows = 0;
-            diffSheet = createTableSheet("Диффы " + (++diffSheetNumber), DIFF_HEADERS, diffWidths());
+            diffSheet = createTableSheet("Различия " + (++diffSheetNumber), DIFF_HEADERS, diffWidths());
         }
         Row row = diffSheet.createRow(++diffRows);
         int column = 0;
         writeNumber(row, column++, result.sequence());
+        writeText(row, column++, result.response().metadata().shadowLaunchId());
         writeText(row, column++, value(diff.id()));
         writeText(row, column++, diff.path());
         writeText(row, column++, value(diff.type()));
@@ -197,7 +198,7 @@ public final class BatchExcelReportWriter implements AutoCloseable {
         if (validationRows >= properties.getXlsxRowsPerSheet()) {
             validationRows = 0;
             validationSheet = createTableSheet(
-                    "Валидация " + (++validationSheetNumber),
+                    "Ошибки контракта " + (++validationSheetNumber),
                     VALIDATION_HEADERS,
                     validationWidths()
             );
@@ -205,6 +206,7 @@ public final class BatchExcelReportWriter implements AutoCloseable {
         Row row = validationSheet.createRow(++validationRows);
         int column = 0;
         writeNumber(row, column++, result.sequence());
+        writeText(row, column++, result.response().metadata().shadowLaunchId());
         writeText(row, column++, issue.id());
         writeText(row, column++, value(issue.side()));
         writeText(row, column++, issue.path());
@@ -371,11 +373,11 @@ public final class BatchExcelReportWriter implements AutoCloseable {
     }
 
     private static int[] diffWidths() {
-        return widths(10, 38, 48, 28, 24, 12, 60, 60, 20, 20, 24);
+        return widths(10, 22, 38, 48, 28, 24, 12, 60, 60, 20, 20, 24);
     }
 
     private static int[] validationWidths() {
-        return widths(10, 44, 12, 48, 28, 12, 32, 32, 60, 70);
+        return widths(10, 22, 44, 12, 48, 28, 12, 32, 32, 60, 70);
     }
 
     private static int[] errorWidths() {
