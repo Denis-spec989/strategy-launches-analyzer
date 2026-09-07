@@ -2,7 +2,7 @@
 
 `POST /api/v1/strategies/compare/batch` compares from 1 to 1000 independent
 main/shadow launch pairs without a database. The existing single-pair endpoint
-`POST /api/v1/strategies/compare` has a separate contract and is unchanged.
+`POST /api/v1/strategies/compare` uses the same `CompareStrategyRequest` contract.
 
 ## Request
 
@@ -12,13 +12,15 @@ only at the beginning of the stream. The configured defaults are 1000 items,
 5 MiB per line, and 512 MiB for the complete request.
 
 ```text
-{"strategy":"LGD_DIGITAL","mainLaunch":{"strategyResponse":{"lgdData":{"lgd":18.1},"calculationInfo":{}}},"shadowLaunch":{"strategyResponse":{"lgdData":{"lgd":20.4},"calculationInfo":{}}},"metadata":{"requestId":"00000000-0000-0000-0000-000000000001","mainLaunchDt":"2026-06-04T11:00:00Z","shadowLaunchDt":"2026-06-04T11:01:00Z"}}
-{"strategy":"LGD_DIGITAL","mainLaunch":{"strategyResponse":{"lgdData":{"lgd":18.1},"calculationInfo":{}}},"shadowLaunch":{"strategyResponse":{"lgdData":{"lgd":18.1},"calculationInfo":{}}},"metadata":{"requestId":"00000000-0000-0000-0000-000000000002","mainLaunchDt":"2026-06-04T12:00:00Z","shadowLaunchDt":"2026-06-04T12:01:00Z"}}
+{"strategy":"LGD_DIGITAL","mainLaunch":{"strategyResponse":{"lgdData":{"lgd":18.1},"calculationInfo":{}}},"shadowLaunch":{"strategyResponse":{"lgdData":{"lgd":20.4},"calculationInfo":{}}},"metadata":{"requestId":"00000000-0000-0000-0000-000000000001","mainStrategyVersion":"main-v1","shadowStrategyVersion":"shadow-v2","mainLaunchDt":"2026-06-04T11:00:00Z","shadowLaunchDt":"2026-06-04T11:01:00Z"}}
+{"strategy":"LGD_DIGITAL","mainLaunch":{"strategyResponse":{"lgdData":{"lgd":18.1},"calculationInfo":{}}},"shadowLaunch":{"strategyResponse":{"lgdData":{"lgd":18.1},"calculationInfo":{}}},"metadata":{"requestId":"00000000-0000-0000-0000-000000000002","mainStrategyVersion":"main-v1","shadowStrategyVersion":"shadow-v2","mainLaunchDt":"2026-06-04T12:00:00Z","shadowLaunchDt":"2026-06-04T12:01:00Z"}}
 ```
 
 Items are processed with bounded parallelism but written in input order. The
 first occurrence of `metadata.requestId` is processed normally; subsequent
 occurrences are reported as `DUPLICATE_REQUEST_ID`.
+`metadata.mainStrategyVersion` and `metadata.shadowStrategyVersion` are required,
+non-blank identifiers of the actual strategy versions used by the two launches.
 
 ## Response archive
 
@@ -34,8 +36,9 @@ attachment named `strategy-comparison-<batchId>.zip` with three entries:
   including successfully compared pairs with no differences.
 * `report.xlsx` contains the Russian-language sheets `Сводка`, `Различия N`,
   `Ошибки контракта N`, `Ошибки`, and `О запуске`. Every row on `Различия N`
-  and `Ошибки контракта N` includes `Shadow launch ID` for direct correlation
-  with the shadow launch. Detailed sheets are split after
+  and `Ошибки контракта N` includes the shadow launch ID and both strategy
+  versions for direct filtering. Diff IDs remain in `results.ndjson` and are
+  intentionally omitted from the human-readable report. Detailed sheets are split after
   1,000,000 data rows. JSON cell previews are limited to 2000 characters;
   complete values remain in `results.ndjson`. A successful pair is omitted from
   every XLSX data sheet when it has both zero diffs and zero contract-validation
@@ -44,7 +47,8 @@ attachment named `strategy-comparison-<batchId>.zip` with three entries:
   Technical `requestId` values are intentionally omitted from all XLSX sheets;
   they remain available in `results.ndjson` for machine correlation and audit.
   Contract version and metadata attributes are also omitted from the human-readable
-  summary and remain available in each complete NDJSON response.
+  summary and remain available in each complete NDJSON response. Strategy versions
+  are shown on `Сводка`, `Различия N`, and `Ошибки контракта N`.
 
 Malformed or invalid individual lines do not fail the archive. They receive
 status `FAILED`; successfully compared items receive `COMPLETED`. An archive

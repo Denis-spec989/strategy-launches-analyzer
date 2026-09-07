@@ -70,6 +70,42 @@ class CompareStrategyLaunchesUseCaseTest {
                 .hasMessageContaining("nesting depth");
     }
 
+    @Test
+    void rejectsMissingEmptyAndBlankStrategyVersions() {
+        CompareStrategyLaunchesUseCase useCase =
+                new CompareStrategyLaunchesUseCase(diffEngine, registry, 100_000, 100);
+        CompareStrategyRequest valid = request("model-change");
+        for (String fieldName : new String[]{"mainStrategyVersion", "shadowStrategyVersion"}) {
+            for (String invalidValue : new String[]{null, "", "  "}) {
+                LaunchMetadata metadata = valid.metadata();
+                LaunchMetadata invalidMetadata = new LaunchMetadata(
+                        metadata.requestId(),
+                        metadata.mainLaunchId(),
+                        metadata.shadowLaunchId(),
+                        fieldName.equals("mainStrategyVersion")
+                                ? invalidValue
+                                : metadata.mainStrategyVersion(),
+                        fieldName.equals("shadowStrategyVersion")
+                                ? invalidValue
+                                : metadata.shadowStrategyVersion(),
+                        metadata.mainLaunchDt(),
+                        metadata.shadowLaunchDt(),
+                        metadata.attributes()
+                );
+                CompareStrategyRequest invalid = new CompareStrategyRequest(
+                        valid.strategy(),
+                        valid.mainLaunch(),
+                        valid.shadowLaunch(),
+                        invalidMetadata
+                );
+
+                assertThatThrownBy(() -> useCase.compare(invalid))
+                        .isInstanceOf(BadRequestException.class)
+                        .hasMessage("metadata.%s is required.".formatted(fieldName));
+            }
+        }
+    }
+
     private CompareStrategyRequest request(String fixture) {
         JsonNode main = TestFixtures.json(objectMapper, "fixtures/lgd-digital/%s/main.json".formatted(fixture));
         JsonNode shadow = TestFixtures.json(objectMapper, "fixtures/lgd-digital/%s/shadow.json".formatted(fixture));
@@ -77,6 +113,8 @@ class CompareStrategyLaunchesUseCaseTest {
                 UUID.fromString("11111111-1111-1111-1111-111111111111"),
                 "MAIN-1",
                 "SHADOW-1",
+                "main-v1",
+                "shadow-v2",
                 Instant.parse("2026-06-04T11:00:00Z"),
                 Instant.parse("2026-06-04T11:01:00Z"),
                 java.util.Map.of("source", "test")

@@ -43,6 +43,8 @@ class StrategyComparisonControllerTest {
                         "^[0-9a-f]{8}-[0-9a-f]{4}-5[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
                 ))))
                 .andExpect(jsonPath("$.metadata.requestId").value("11111111-1111-1111-1111-111111111111"))
+                .andExpect(jsonPath("$.metadata.mainStrategyVersion").value("main-v1"))
+                .andExpect(jsonPath("$.metadata.shadowStrategyVersion").value("shadow-v2"))
                 .andExpect(jsonPath("$.metadata.mainLaunchDt").value("2026-06-04T11:00:00Z"))
                 .andExpect(jsonPath("$.metadata.shadowLaunchDt").value("2026-06-04T11:01:00Z"))
                 .andExpect(jsonPath("$.metadata.attributes.environment").value("test"))
@@ -134,6 +136,21 @@ class StrategyComparisonControllerTest {
                 .andExpect(jsonPath("$.message").value("metadata.requestId is required."));
     }
 
+    @Test
+    void rejectsMissingEmptyAndBlankStrategyVersions() throws Exception {
+        for (String fieldName : new String[]{"mainStrategyVersion", "shadowStrategyVersion"}) {
+            ObjectNode missingBody = objectMapper.readValue(requestBody("model-change"), ObjectNode.class);
+            ((ObjectNode) missingBody.path("metadata")).remove(fieldName);
+            assertInvalidStrategyVersion(missingBody, fieldName);
+
+            for (String invalidValue : new String[]{"", "  "}) {
+                ObjectNode blankBody = objectMapper.readValue(requestBody("model-change"), ObjectNode.class);
+                ((ObjectNode) blankBody.path("metadata")).put(fieldName, invalidValue);
+                assertInvalidStrategyVersion(blankBody, fieldName);
+            }
+        }
+    }
+
     @ParameterizedTest
     @ValueSource(strings = {
             "not-a-uuid",
@@ -214,11 +231,21 @@ class StrategyComparisonControllerTest {
         return objectMapper.writeValueAsString(body);
     }
 
+    private void assertInvalidStrategyVersion(ObjectNode body, String fieldName) throws Exception {
+        mockMvc.perform(post("/api/v1/strategies/compare")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(body)))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.message").value("metadata.%s is required.".formatted(fieldName)));
+    }
+
     private ObjectNode validMetadata() {
         ObjectNode metadata = objectMapper.createObjectNode()
                 .put("requestId", "11111111-1111-1111-1111-111111111111")
                 .put("mainLaunchId", "MAIN-1")
                 .put("shadowLaunchId", "SHADOW-1")
+                .put("mainStrategyVersion", "main-v1")
+                .put("shadowStrategyVersion", "shadow-v2")
                 .put("mainLaunchDt", "2026-06-04T14:00:00+03:00")
                 .put("shadowLaunchDt", "2026-06-04T14:01:00+03:00");
         metadata.set("attributes", objectMapper.createObjectNode().put("environment", "test"));

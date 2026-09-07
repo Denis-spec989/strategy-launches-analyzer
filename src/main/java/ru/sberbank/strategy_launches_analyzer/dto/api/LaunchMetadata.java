@@ -4,6 +4,7 @@ import com.fasterxml.jackson.annotation.JsonFormat;
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.databind.annotation.JsonDeserialize;
 import io.swagger.v3.oas.annotations.media.Schema;
+import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 
 import java.time.Instant;
@@ -21,6 +22,12 @@ public record LaunchMetadata(
         UUID requestId,
         String mainLaunchId,
         String shadowLaunchId,
+        @NotBlank(message = "metadata.mainStrategyVersion is required.")
+        @Schema(description = "Version of the main strategy used for the launch")
+        String mainStrategyVersion,
+        @NotBlank(message = "metadata.shadowStrategyVersion is required.")
+        @Schema(description = "Version of the shadow strategy used for the launch")
+        String shadowStrategyVersion,
         @NotNull(message = "metadata.mainLaunchDt is required.")
         @JsonFormat(shape = JsonFormat.Shape.STRING)
         Instant mainLaunchDt,

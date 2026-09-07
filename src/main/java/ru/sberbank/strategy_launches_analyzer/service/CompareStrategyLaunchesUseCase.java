@@ -125,6 +125,14 @@ public class CompareStrategyLaunchesUseCase {
         if (request.metadata().requestId() == null) {
             throw new BadRequestException("metadata.requestId is required.");
         }
+        if (request.metadata().mainStrategyVersion() == null
+                || request.metadata().mainStrategyVersion().isBlank()) {
+            throw new BadRequestException("metadata.mainStrategyVersion is required.");
+        }
+        if (request.metadata().shadowStrategyVersion() == null
+                || request.metadata().shadowStrategyVersion().isBlank()) {
+            throw new BadRequestException("metadata.shadowStrategyVersion is required.");
+        }
         if (request.metadata().mainLaunchDt() == null) {
             throw new BadRequestException("metadata.mainLaunchDt is required.");
         }

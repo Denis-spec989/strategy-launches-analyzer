@@ -37,18 +37,22 @@ public final class BatchExcelReportWriter implements AutoCloseable {
     private static final String TRUNCATION_MARKER = "… [усечено; полное значение в results.ndjson]";
     private static final String[] SUMMARY_HEADERS = {
             "№", "Строка NDJSON", "Стратегия",
-            "Main launch ID", "Shadow launch ID", "Main launch date", "Shadow launch date",
-            "Статус", "Severity", "Всего diff", "Метрики", "Модели", "Контекст расчёта",
+            "ID основного запуска", "Версия основной стратегии", "Дата основного запуска",
+            "ID теневого запуска", "Версия теневой стратегии", "Дата теневого запуска",
+            "Статус", "Критичность", "Всего различий", "Метрики", "Модели", "Контекст расчёта",
             "Контракт/техника", "Ошибки контракта", "Код ошибки", "Описание ошибки",
-            "Analyzed at"
+            "Время анализа"
     };
     private static final String[] DIFF_HEADERS = {
-            "№", "Shadow launch ID", "Diff ID", "JSON path", "Тип", "Категория", "Severity",
-            "Main value", "Shadow value", "Absolute delta", "Relative delta, %", "Основание сравнения"
+            "№", "ID теневого запуска", "Версия основной стратегии", "Версия теневой стратегии",
+            "Путь в JSON", "Тип", "Категория", "Критичность", "Значение основной стратегии",
+            "Значение теневой стратегии", "Абсолютное отклонение", "Относительное отклонение, %",
+            "Основание сравнения"
     };
     private static final String[] VALIDATION_HEADERS = {
-            "№", "Shadow launch ID", "Issue ID", "Сторона", "JSON path", "Тип", "Severity",
-            "Ожидалось", "Получено", "Фактическое значение", "Сообщение"
+            "№", "ID теневого запуска", "Версия основной стратегии", "Версия теневой стратегии",
+            "ID нарушения", "Сторона", "Путь в JSON", "Тип", "Критичность", "Ожидалось",
+            "Получено", "Фактическое значение", "Сообщение"
     };
     private static final String[] ERROR_HEADERS = {
             "№", "Строка NDJSON", "Код ошибки", "Описание ошибки"
@@ -136,15 +140,17 @@ public final class BatchExcelReportWriter implements AutoCloseable {
         if (result.response() == null) {
             CompareStrategyRequest request = result.sourceRequest();
             if (request == null) {
-                column += 5;
+                column += 7;
             } else {
                 writeText(row, column++, value(request.strategy()));
                 if (request.metadata() == null) {
-                    column += 4;
+                    column += 6;
                 } else {
                     writeText(row, column++, request.metadata().mainLaunchId());
-                    writeText(row, column++, request.metadata().shadowLaunchId());
+                    writeText(row, column++, request.metadata().mainStrategyVersion());
                     writeText(row, column++, value(request.metadata().mainLaunchDt()));
+                    writeText(row, column++, request.metadata().shadowLaunchId());
+                    writeText(row, column++, request.metadata().shadowStrategyVersion());
                     writeText(row, column++, value(request.metadata().shadowLaunchDt()));
                 }
             }
@@ -158,8 +164,10 @@ public final class BatchExcelReportWriter implements AutoCloseable {
         CompareStrategyResponse response = result.response();
         writeText(row, column++, response.strategyName());
         writeText(row, column++, response.metadata().mainLaunchId());
-        writeText(row, column++, response.metadata().shadowLaunchId());
+        writeText(row, column++, response.metadata().mainStrategyVersion());
         writeText(row, column++, value(response.metadata().mainLaunchDt()));
+        writeText(row, column++, response.metadata().shadowLaunchId());
+        writeText(row, column++, response.metadata().shadowStrategyVersion());
         writeText(row, column++, value(response.metadata().shadowLaunchDt()));
         writeText(row, column++, result.status().name());
         writeSeverity(row, column++, response.summary().deterministicSeverity());
@@ -182,7 +190,8 @@ public final class BatchExcelReportWriter implements AutoCloseable {
         int column = 0;
         writeNumber(row, column++, result.sequence());
         writeText(row, column++, result.response().metadata().shadowLaunchId());
-        writeText(row, column++, value(diff.id()));
+        writeText(row, column++, result.response().metadata().mainStrategyVersion());
+        writeText(row, column++, result.response().metadata().shadowStrategyVersion());
         writeText(row, column++, diff.path());
         writeText(row, column++, value(diff.type()));
         writeText(row, column++, value(diff.category()));
@@ -207,6 +216,8 @@ public final class BatchExcelReportWriter implements AutoCloseable {
         int column = 0;
         writeNumber(row, column++, result.sequence());
         writeText(row, column++, result.response().metadata().shadowLaunchId());
+        writeText(row, column++, result.response().metadata().mainStrategyVersion());
+        writeText(row, column++, result.response().metadata().shadowStrategyVersion());
         writeText(row, column++, issue.id());
         writeText(row, column++, value(issue.side()));
         writeText(row, column++, issue.path());
@@ -231,7 +242,7 @@ public final class BatchExcelReportWriter implements AutoCloseable {
         String[][] values = {
                 {"Параметр", "Значение"},
                 {"Версия формата", BatchManifest.CURRENT_FORMAT_VERSION},
-                {"Batch ID", batchId.toString()},
+                {"ID пакета", batchId.toString()},
                 {"Начало обработки", startedAt.toString()},
                 {"Завершение обработки", completedAt.toString()},
                 {"Всего входных пар", Integer.toString(statistics.inputItems())},
@@ -239,10 +250,10 @@ public final class BatchExcelReportWriter implements AutoCloseable {
                 {"С ошибкой", Integer.toString(statistics.failedItems())},
                 {"Без изменений (исключены из XLSX)", Integer.toString(statistics.unchangedItems())},
                 {"Включено в XLSX", Integer.toString(statistics.reportedItems())},
-                {"Severity INFO", Integer.toString(statistics.severityCounts().get("INFO"))},
-                {"Severity WARNING", Integer.toString(statistics.severityCounts().get("WARNING"))},
-                {"Severity CRITICAL", Integer.toString(statistics.severityCounts().get("CRITICAL"))},
-                {"Всего diff", Long.toString(statistics.totalDiffs())},
+                {"Критичность INFO", Integer.toString(statistics.severityCounts().get("INFO"))},
+                {"Критичность WARNING", Integer.toString(statistics.severityCounts().get("WARNING"))},
+                {"Критичность CRITICAL", Integer.toString(statistics.severityCounts().get("CRITICAL"))},
+                {"Всего различий", Long.toString(statistics.totalDiffs())},
                 {"Нарушения контракта", Long.toString(statistics.totalContractValidationIssues())}
         };
         for (int index = 0; index < values.length; index++) {
@@ -369,15 +380,15 @@ public final class BatchExcelReportWriter implements AutoCloseable {
     }
 
     private static int[] summaryWidths() {
-        return widths(10, 14, 20, 22, 22, 26, 26, 14, 12, 12, 12, 12, 20, 20, 18, 28, 60, 26);
+        return widths(10, 14, 20, 22, 24, 26, 22, 24, 26, 14, 12, 16, 12, 12, 20, 20, 18, 28, 60, 26);
     }
 
     private static int[] diffWidths() {
-        return widths(10, 22, 38, 48, 28, 24, 12, 60, 60, 20, 20, 24);
+        return widths(10, 22, 24, 24, 48, 28, 24, 12, 60, 60, 20, 24, 24);
     }
 
     private static int[] validationWidths() {
-        return widths(10, 22, 44, 12, 48, 28, 12, 32, 32, 60, 70);
+        return widths(10, 22, 24, 24, 44, 12, 48, 28, 12, 32, 32, 60, 70);
     }
 
     private static int[] errorWidths() {

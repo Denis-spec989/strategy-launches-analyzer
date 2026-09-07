@@ -6,10 +6,12 @@ describes a launch object with `strategyResponse` as the root response field.
 The comparison API is shared across strategies: call `POST /api/v1/strategies/compare`
 and pass `"strategy": "LGD_DIGITAL"` in the request body.
 
-The request must include metadata with a canonical lowercase UUID `requestId`
-and separate ISO-8601 `mainLaunchDt` and `shadowLaunchDt` timestamps. The same
-metadata, including optional attributes, is returned in the response. Retries
-reuse the same requestId; deduplication and upsert remain client responsibilities.
+The request must include metadata with a canonical lowercase UUID `requestId`,
+non-blank `mainStrategyVersion` and `shadowStrategyVersion` identifiers for the
+actual strategy versions used by both launches, and separate ISO-8601
+`mainLaunchDt` and `shadowLaunchDt` timestamps. The same metadata, including
+optional attributes, is returned in the response. Retries reuse the same requestId;
+deduplication and upsert remain client responsibilities.
 
 ## Contract Fields
 

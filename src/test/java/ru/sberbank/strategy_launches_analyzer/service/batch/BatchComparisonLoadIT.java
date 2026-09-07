@@ -78,6 +78,8 @@ class BatchComparisonLoadIT {
         ));
         body.set("metadata", objectMapper.createObjectNode()
                 .put("requestId", requestId)
+                .put("mainStrategyVersion", "main-v1")
+                .put("shadowStrategyVersion", "shadow-v2")
                 .put("mainLaunchDt", "2026-06-04T11:00:00Z")
                 .put("shadowLaunchDt", "2026-06-04T11:01:00Z"));
         return objectMapper.writeValueAsString(body);

@@ -140,6 +140,14 @@ components:
           type: string
         shadowLaunchId:
           type: string
+        mainStrategyVersion:
+          type: string
+          description: Version of the main strategy used for the launch
+          minLength: 1
+        shadowStrategyVersion:
+          type: string
+          description: Version of the shadow strategy used for the launch
+          minLength: 1
         mainLaunchDt:
           type: string
           format: date-time
@@ -152,8 +160,10 @@ components:
             type: string
       required:
       - mainLaunchDt
+      - mainStrategyVersion
       - requestId
       - shadowLaunchDt
+      - shadowStrategyVersion
     CompareStrategyResponse:
       type: object
       properties:

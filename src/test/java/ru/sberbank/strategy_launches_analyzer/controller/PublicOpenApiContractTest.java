@@ -74,9 +74,23 @@ class PublicOpenApiContractTest {
         assertThat(batchPost.path("responses").fieldNames()).toIterable()
                 .containsExactlyInAnyOrder("200", "400", "413", "429", "500", "503", "507");
         assertThat(metadata.path("required")).extracting(JsonNode::asText)
-                .containsExactlyInAnyOrder("requestId", "mainLaunchDt", "shadowLaunchDt");
+                .containsExactlyInAnyOrder(
+                        "requestId",
+                        "mainStrategyVersion",
+                        "shadowStrategyVersion",
+                        "mainLaunchDt",
+                        "shadowLaunchDt"
+                );
         assertThat(metadata.path("properties").path("requestId").path("format").asText()).isEqualTo("uuid");
         assertThat(metadata.path("properties").path("requestId").has("default")).isFalse();
+        assertThat(metadata.path("properties").path("mainStrategyVersion").path("type").asText())
+                .isEqualTo("string");
+        assertThat(metadata.path("properties").path("mainStrategyVersion").path("minLength").asInt())
+                .isEqualTo(1);
+        assertThat(metadata.path("properties").path("shadowStrategyVersion").path("type").asText())
+                .isEqualTo("string");
+        assertThat(metadata.path("properties").path("shadowStrategyVersion").path("minLength").asInt())
+                .isEqualTo(1);
         assertThat(metadata.path("properties").path("mainLaunchDt").path("format").asText())
                 .isEqualTo("date-time");
         assertThat(schemas.path("CompareStrategyResponse").path("required"))

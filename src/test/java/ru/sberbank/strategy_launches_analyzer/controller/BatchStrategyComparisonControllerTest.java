@@ -107,6 +107,10 @@ class BatchStrategyComparisonControllerTest {
         assertThat(objectMapper.readTree(resultLines[2]).has("sourceRequest")).isFalse();
         assertThat(objectMapper.readTree(resultLines[0]).path("response").path("summary").path("totalDiffs").asInt())
                 .isEqualTo(3);
+        assertThat(objectMapper.readTree(resultLines[0]).path("response").path("metadata")
+                .path("mainStrategyVersion").asText()).isEqualTo("main-v1");
+        assertThat(objectMapper.readTree(resultLines[0]).path("response").path("metadata")
+                .path("shadowStrategyVersion").asText()).isEqualTo("shadow-v2");
 
         try (XSSFWorkbook workbook = new XSSFWorkbook(new ByteArrayInputStream(entries.get("report.xlsx")))) {
             assertThat(workbook.getSheetName(0)).isEqualTo("Сводка");
@@ -116,20 +120,53 @@ class BatchStrategyComparisonControllerTest {
             assertThat(workbook.getSheet("Сводка").getRow(3).getCell(3).getStringCellValue())
                     .isEqualTo("MAIN-1");
             assertThat(headers(workbook, "Сводка"))
-                    .doesNotContain("Request ID", "Версия контракта", "Атрибуты");
+                    .containsExactly(
+                            "№", "Строка NDJSON", "Стратегия",
+                            "ID основного запуска", "Версия основной стратегии", "Дата основного запуска",
+                            "ID теневого запуска", "Версия теневой стратегии", "Дата теневого запуска",
+                            "Статус", "Критичность", "Всего различий", "Метрики", "Модели",
+                            "Контекст расчёта", "Контракт/техника", "Ошибки контракта", "Код ошибки",
+                            "Описание ошибки", "Время анализа"
+                    );
             assertThat(headers(workbook, "Различия 1"))
-                    .containsSequence("№", "Shadow launch ID", "Diff ID")
-                    .doesNotContain("Request ID");
+                    .containsExactly(
+                            "№", "ID теневого запуска", "Версия основной стратегии",
+                            "Версия теневой стратегии", "Путь в JSON", "Тип", "Категория", "Критичность",
+                            "Значение основной стратегии", "Значение теневой стратегии",
+                            "Абсолютное отклонение", "Относительное отклонение, %", "Основание сравнения"
+                    )
+                    .doesNotContain("Diff ID");
             assertThat(headers(workbook, "Ошибки контракта 1"))
-                    .containsSequence("№", "Shadow launch ID", "Issue ID")
-                    .doesNotContain("Request ID");
-            assertThat(headers(workbook, "Ошибки")).doesNotContain("Request ID");
+                    .containsExactly(
+                            "№", "ID теневого запуска", "Версия основной стратегии",
+                            "Версия теневой стратегии", "ID нарушения", "Сторона", "Путь в JSON", "Тип",
+                            "Критичность", "Ожидалось", "Получено", "Фактическое значение", "Сообщение"
+                    );
+            assertThat(headers(workbook, "Ошибки"))
+                    .containsExactly("№", "Строка NDJSON", "Код ошибки", "Описание ошибки");
             assertThat(workbook.getSheet("Различия 1").getLastRowNum()).isEqualTo(2);
             assertThat(workbook.getSheet("Различия 2").getLastRowNum()).isEqualTo(1);
             assertShadowLaunchIds(workbook, "Различия 1", "SHADOW-1");
             assertShadowLaunchIds(workbook, "Различия 2", "SHADOW-1");
+            assertStrategyVersions(workbook, "Различия 1");
+            assertStrategyVersions(workbook, "Различия 2");
+            assertThat(workbook.getSheet("Сводка").getRow(1).getCell(4).getStringCellValue())
+                    .isEqualTo("main-v1");
+            assertThat(workbook.getSheet("Сводка").getRow(1).getCell(7).getStringCellValue())
+                    .isEqualTo("shadow-v2");
+            assertThat(workbook.getSheet("Сводка").getRow(2).getCell(4)).isNull();
+            assertThat(workbook.getSheet("Сводка").getRow(2).getCell(7)).isNull();
+            assertThat(workbook.getSheet("Сводка").getRow(3).getCell(4).getStringCellValue())
+                    .isEqualTo("main-v1");
+            assertThat(workbook.getSheet("Сводка").getRow(3).getCell(7).getStringCellValue())
+                    .isEqualTo("shadow-v2");
             assertThat(workbook.getSheet("Ошибки").getLastRowNum()).isEqualTo(2);
-            assertThat(workbook.getSheet("О запуске")).isNotNull();
+            assertThat(workbook.getSheet("О запуске").getRow(2).getCell(0).getStringCellValue())
+                    .isEqualTo("ID пакета");
+            assertThat(workbook.getSheet("О запуске").getRow(10).getCell(0).getStringCellValue())
+                    .isEqualTo("Критичность INFO");
+            assertThat(workbook.getSheet("О запуске").getRow(13).getCell(0).getStringCellValue())
+                    .isEqualTo("Всего различий");
         }
 
         try (var children = Files.list(TEMP_ROOT)) {
@@ -164,9 +201,13 @@ class BatchStrategyComparisonControllerTest {
                 unzip(archive).get("report.xlsx")
         ))) {
             assertThat(headers(workbook, "Ошибки контракта 1"))
-                    .containsSequence("№", "Shadow launch ID", "Issue ID");
+                    .containsSequence(
+                            "№", "ID теневого запуска", "Версия основной стратегии",
+                            "Версия теневой стратегии", "ID нарушения"
+                    );
             assertThat(workbook.getSheet("Ошибки контракта 1").getLastRowNum()).isPositive();
             assertShadowLaunchIds(workbook, "Ошибки контракта 1", "SHADOW-1");
+            assertStrategyVersions(workbook, "Ошибки контракта 1");
         }
     }
 
@@ -228,6 +269,40 @@ class BatchStrategyComparisonControllerTest {
                 .andExpect(jsonPath("$.message").value(
                         "Batch request must contain at least one non-empty item."
                 ));
+    }
+
+    @Test
+    void reportsMissingStrategyVersionAsItemErrorWithoutShiftingExcelColumns() throws Exception {
+        ObjectNode body = objectMapper.readValue(
+                requestBody("66666666-6666-6666-6666-666666666666"),
+                ObjectNode.class
+        );
+        ((ObjectNode) body.path("metadata")).remove("mainStrategyVersion");
+
+        byte[] archive = mockMvc.perform(post("/api/v1/strategies/compare/batch")
+                        .contentType(BatchStrategyComparisonController.NDJSON_MEDIA_TYPE)
+                        .content(objectMapper.writeValueAsBytes(body)))
+                .andExpect(status().isOk())
+                .andReturn()
+                .getResponse()
+                .getContentAsByteArray();
+
+        Map<String, byte[]> entries = unzip(archive);
+        JsonNode result = objectMapper.readTree(entries.get("results.ndjson"));
+        assertThat(result.path("status").asText()).isEqualTo("FAILED");
+        assertThat(result.path("error").path("code").asText()).isEqualTo("VALIDATION_ERROR");
+        assertThat(result.path("error").path("message").asText())
+                .isEqualTo("metadata.mainStrategyVersion is required.");
+
+        try (XSSFWorkbook workbook = new XSSFWorkbook(new ByteArrayInputStream(entries.get("report.xlsx")))) {
+            assertThat(workbook.getSheet("Сводка").getRow(1).getCell(4)).isNull();
+            assertThat(workbook.getSheet("Сводка").getRow(1).getCell(7).getStringCellValue())
+                    .isEqualTo("shadow-v2");
+            assertThat(workbook.getSheet("Сводка").getRow(1).getCell(17).getStringCellValue())
+                    .isEqualTo("VALIDATION_ERROR");
+            assertThat(workbook.getSheet("Ошибки").getRow(1).getCell(2).getStringCellValue())
+                    .isEqualTo("VALIDATION_ERROR");
+        }
     }
 
     @Test
@@ -363,6 +438,8 @@ class BatchStrategyComparisonControllerTest {
                 .put("requestId", requestId)
                 .put("mainLaunchId", "MAIN-1")
                 .put("shadowLaunchId", "SHADOW-1")
+                .put("mainStrategyVersion", "main-v1")
+                .put("shadowStrategyVersion", "shadow-v2")
                 .put("mainLaunchDt", "2026-06-04T11:00:00Z")
                 .put("shadowLaunchDt", "2026-06-04T11:01:00Z"));
         return objectMapper.writeValueAsString(body);
@@ -396,6 +473,15 @@ class BatchStrategyComparisonControllerTest {
         for (int rowIndex = 1; rowIndex <= workbook.getSheet(sheetName).getLastRowNum(); rowIndex++) {
             assertThat(workbook.getSheet(sheetName).getRow(rowIndex).getCell(1).getStringCellValue())
                     .isEqualTo(expectedShadowLaunchId);
+        }
+    }
+
+    private static void assertStrategyVersions(XSSFWorkbook workbook, String sheetName) {
+        for (int rowIndex = 1; rowIndex <= workbook.getSheet(sheetName).getLastRowNum(); rowIndex++) {
+            assertThat(workbook.getSheet(sheetName).getRow(rowIndex).getCell(2).getStringCellValue())
+                    .isEqualTo("main-v1");
+            assertThat(workbook.getSheet(sheetName).getRow(rowIndex).getCell(3).getStringCellValue())
+                    .isEqualTo("shadow-v2");
         }
     }
 }

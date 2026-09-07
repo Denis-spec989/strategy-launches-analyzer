@@ -5,8 +5,9 @@
 #
 # Что учитывать при интерпретации детерминированного ответа:
 # - Трассируемость ответа: contractVersion ("v1"), analyzedAt и исходная metadata.
-#   requestId — обязательный canonical UUID; mainLaunchDt и shadowLaunchDt —
-#   обязательные ISO-8601 даты запусков. Отчёты за период строятся по mainLaunchDt.
+#   requestId — обязательный canonical UUID; mainStrategyVersion и shadowStrategyVersion —
+#   обязательные непустые версии стратегий; mainLaunchDt и shadowLaunchDt — обязательные
+#   ISO-8601 даты запусков. Отчёты за период строятся по mainLaunchDt.
 #   При retry клиент повторяет тот же requestId и payload: сервис stateless, а
 #   diffs[].id — детерминированные UUID v5 и останутся прежними.
 # - strategyName возвращается только в корне response и не дублируется в summary.
@@ -70,6 +71,8 @@ Content-Type: application/json
     "requestId": "00000000-0000-0000-0000-000000000001",
     "mainLaunchId": "MAIN-1",
     "shadowLaunchId": "SHADOW-1",
+    "mainStrategyVersion": "main-v1",
+    "shadowStrategyVersion": "shadow-v2",
     "mainLaunchDt": "2026-06-04T11:00:00Z",
     "shadowLaunchDt": "2026-06-04T11:01:00Z",
     "attributes": {
@@ -124,6 +127,8 @@ Content-Type: application/json
     "requestId": "00000000-0000-0000-0000-000000000002",
     "mainLaunchId": "MAIN-2",
     "shadowLaunchId": "SHADOW-2",
+    "mainStrategyVersion": "main-v1",
+    "shadowStrategyVersion": "shadow-v2",
     "mainLaunchDt": "2026-06-04T12:00:00Z",
     "shadowLaunchDt": "2026-06-04T12:01:00Z"
   }
@@ -176,6 +181,8 @@ Content-Type: application/json
     "requestId": "00000000-0000-0000-0000-000000000003",
     "mainLaunchId": "MAIN-3",
     "shadowLaunchId": "SHADOW-3",
+    "mainStrategyVersion": "main-v1",
+    "shadowStrategyVersion": "shadow-v2",
     "mainLaunchDt": "2026-06-04T13:00:00Z",
     "shadowLaunchDt": "2026-06-04T13:01:00Z"
   }
@@ -235,6 +242,8 @@ Content-Type: application/json
     "requestId": "00000000-0000-0000-0000-000000000004",
     "mainLaunchId": "MAIN-4",
     "shadowLaunchId": "SHADOW-4",
+    "mainStrategyVersion": "main-v1",
+    "shadowStrategyVersion": "shadow-v2",
     "mainLaunchDt": "2026-06-04T14:00:00Z",
     "shadowLaunchDt": "2026-06-04T14:01:00Z"
   }
@@ -286,6 +295,8 @@ Content-Type: application/json
     "requestId": "00000000-0000-0000-0000-000000000005",
     "mainLaunchId": "MAIN-5",
     "shadowLaunchId": "SHADOW-5",
+    "mainStrategyVersion": "main-v1",
+    "shadowStrategyVersion": "shadow-v2",
     "mainLaunchDt": "2026-06-04T15:00:00Z",
     "shadowLaunchDt": "2026-06-04T15:01:00Z"
   }
@@ -340,6 +351,8 @@ Content-Type: application/json
     "requestId": "00000000-0000-0000-0000-000000000006",
     "mainLaunchId": "MAIN-6",
     "shadowLaunchId": "SHADOW-6",
+    "mainStrategyVersion": "main-v1",
+    "shadowStrategyVersion": "shadow-v2",
     "mainLaunchDt": "2026-06-04T16:00:00Z",
     "shadowLaunchDt": "2026-06-04T16:01:00Z"
   }
@@ -390,6 +403,8 @@ Content-Type: application/json
     "requestId": "00000000-0000-0000-0000-000000000007",
     "mainLaunchId": "MAIN-7",
     "shadowLaunchId": "SHADOW-7",
+    "mainStrategyVersion": "main-v1",
+    "shadowStrategyVersion": "shadow-v2",
     "mainLaunchDt": "2026-06-04T17:00:00Z",
     "shadowLaunchDt": "2026-06-04T17:01:00Z"
   }
@@ -422,6 +437,8 @@ Content-Type: application/json
   },
   "metadata": {
     "requestId": "00000000-0000-0000-0000-000000000008",
+    "mainStrategyVersion": "main-v1",
+    "shadowStrategyVersion": "shadow-v2",
     "mainLaunchDt": "2026-06-04T18:00:00Z",
     "shadowLaunchDt": "2026-06-04T18:01:00Z"
   }

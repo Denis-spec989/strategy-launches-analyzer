@@ -126,6 +126,8 @@ class BatchCompareStrategiesUseCaseTest {
             ndjson.append("""
                     {"strategy":"LGD_DIGITAL","mainLaunch":{},"shadowLaunch":{},"metadata":{
                       "requestId":"%s",
+                      "mainStrategyVersion":"main-v1",
+                      "shadowStrategyVersion":"shadow-v2",
                       "mainLaunchDt":"2026-08-27T10:00:00Z",
                       "shadowLaunchDt":"2026-08-27T10:01:00Z"
                     }}
@@ -156,6 +158,8 @@ class BatchCompareStrategiesUseCaseTest {
                         requestId,
                         null,
                         null,
+                        "main-v1",
+                        "shadow-v2",
                         Instant.parse("2026-08-27T10:00:00Z"),
                         Instant.parse("2026-08-27T10:01:00Z"),
                         null
